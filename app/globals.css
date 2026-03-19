@@ -1,42 +1,313 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --govuk-assets-path: "/assets/";
+  --moj-assets-path: "/moj/assets/";
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+main {
+  margin-top: 0;
+  padding-top: 0;
 }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
+html {
+  background: #f3f2f1;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
   margin: 0;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+.govuk-secondary-text-colour {
+  color: #505a5f;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+.govuk-width-container {
+  margin-top: 0;
+}
+
+/* Remove GOV.UK default top padding only on review page (sticky bar). */
+.govuk-main-wrapper:has(.jr-review-root) {
+  padding-top: 0 !important;
+}
+
+.guidance-panel {
+  background-color: #e8f4f8;
+  border-left: 10px solid #1d70b8 !important;
+  padding: 15px;
+  margin-top: 30px;
+}
+
+.moj-header__logo {
+  display: flex;
+  align-items: center;
+}
+
+.moj-header__logotype {
+  display: block;
+  margin-right: 10px;
+  position: relative;
+  top: -8px;
+}
+
+.govuk-file-upload-button__status,
+.govuk-file-upload-button__instruction,
+.govuk-file-upload-button__pseudo-button {
+  font-family: "GDS Transport", arial, sans-serif;
+}
+
+.custom-file-upload--dragging {
+  border-color: #0b0c0c;
+  background-color: #f3f2f1;
+}
+
+.custom-file-upload--error {
+  border-color: #d4351c;
+}
+
+.custom-file-upload__input {
+  display: none;
+}
+
+.custom-file-upload--disabled {
+  opacity: 0.6;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+.custom-file-upload--disabled .govuk-file-upload-button__pseudo-button {
+  cursor: not-allowed;
+}
+
+.custom-file-upload--disabled .govuk-file-upload-button__status {
+  background-color: #f3f2f1;
+}
+
+.custom-file-upload__remove {
+  display: inline-block;
+  margin-top: 5px;
+  cursor: pointer;
+}
+
+.custom-file-upload__status {
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-file-upload__meta {
+  margin-top: 2px;
+  margin-bottom: 0;
+}
+
+.subject-details-alert {
+  width: 100%;
+  margin-bottom: 30px;
+}
+
+.subject-details-alert .moj-alert__content {
+  max-width: none;
+}
+
+.subject-details-alert .govuk-body {
+  margin-bottom: 0;
+}
+
+.subject-details__filename {
+  white-space: nowrap;
+  word-break: break-word;
+}
+
+.sticky-container {
+  position: sticky;
+  top: 0;
+  width: 960px;
+  margin: 0 auto;
+  z-index: 10;
+}
+
+.filename-bar {
+  width: 100%;
+  background-color: #d2e2f1;
+  padding: 10px;
+  box-sizing: border-box;
+  border-bottom: none;
+}
+
+.filename-bar__text {
+  margin: 0;
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 16px;
+}
+
+.actions-bar {
+  background-color: #ffffff;
+  border-bottom: 1px solid #b1b4b6;
+  padding: 10px 0px;
+}
+
+.actions-bar .govuk-button-group {
+  margin-bottom: 0;
+}
+
+.actions-bar .govuk-button-group > a,
+.actions-bar .govuk-button-group > button,
+.actions-bar .govuk-button-group > label,
+.actions-bar .govuk-button-group > p {
+  margin-right: 20px;
+  margin-bottom: 0;
+}
+
+.toggle-button-v2 {
+  height: 40px;
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 19px;
+  display: inline-block;
+  padding-left: 15px;
+  padding-right: 15px;
+  border: 1px solid #1d70b8;
+  background: #ffffff;
+  color: #1d70b8;
+  text-align: center;
+  vertical-align: top;
+  cursor: pointer;
+}
+
+.toggle-button-v2[aria-pressed="true"] {
+  background: #1d70b8;
+  color: #ffffff;
+}
+
+.toggle-button-v2:focus {
+  outline: 4px solid #ffdd00;
+}
+
+.jr-mark-for-redaction__header {
+  padding-top: 50px;
+}
+
+.jr-modes-label {
+  margin-left: auto;
+}
+
+.jr-review-page {
+  margin: 0 auto;
+  background: #ffffff;
+}
+
+.jr-review-page__header {
+  padding: 10px;
+  background: #f3f2f1;
+}
+
+.jr-review-page__content {
+  padding: 15px 10px;
+}
+
+.jr-review-block {
+  margin-bottom: 16px;
+}
+
+.jr-review-block:last-child {
+  margin-bottom: 0;
+}
+
+.redactable > p {
+  line-height: 26px;
+  user-select: text;
+  white-space: pre-line;
+}
+
+.highlight {
+  padding: 0;
+  display: inline;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  line-height: inherit;
+}
+
+.highlight--suggestion {
+  background: #fff7bf;
+  border-bottom: 2px dashed #ffdd00;
+}
+
+.highlight--allow {
+  background: #d4f4dd;
+  border-bottom: 2px dotted #00703c;
+}
+
+.highlight--none {
+  background: transparent;
+  border-bottom: none;
+}
+
+.highlight--redaction {
+  background: #f6d7d7;
+  border-bottom: 2px solid #d4351c;
+}
+
+.highlight--redaction:hover {
+  cursor: pointer;
+}
+
+.highlight--redaction.highlight--redaction-hover {
+  border-bottom: 3px solid #d4351c;
+  cursor: pointer;
+}
+
+.applied-redaction {
+  padding: 0;
+  display: inline;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  line-height: inherit;
+  background: #0b0c0c;
+  border-bottom: 2px solid #0b0c0c;
+}
+
+.applied-redaction:hover {
+  cursor: pointer;
+}
+
+.jr-manual-redactions-panel {
+  width: 960px;
+  margin: 20px auto 0;
+  padding: 20px;
+  border: 1px solid #b1b4b6;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.jr-manual-redactions-panel__item {
+  padding-bottom: 15px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #d8d8d8;
+}
+
+.jr-manual-redactions-panel__item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.jr-pagination {
+  width: 960px;
+  margin: 0 auto 30px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.jr-pagination__status {
+  margin-bottom: 0;
+}
+
+.end-of-page {
+  width: 960px;
+  margin: 0 auto 40px;
+  padding: 20px;
+  background: #f3f2f1;
+  box-sizing: border-box;
+}
+
+/* Footer: center Crown copyright link/icon. */
+.govuk-footer .govuk-footer__meta-item--grow {
+  display: none !important;
 }

@@ -6,9 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "node scripts/copy-govuk-assets.mjs && node scripts/copy-moj-assets.mjs && node scripts/copy-design-system-css.mjs"
   },
   "dependencies": {
+    "@ministryofjustice/frontend": "^9.0.0",
+    "govuk-frontend": "^6.1.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"
