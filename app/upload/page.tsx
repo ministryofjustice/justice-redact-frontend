@@ -116,10 +116,15 @@ export default function UploadPage() {
         }
       );
 
-      const data = await response.json();
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
 
       if (!response.ok) {
-        throw new Error(data.detail || data.error || "Upload failed");
+        throw new Error(data?.detail || data?.error || "Upload failed");
       }
 
       router.push(
@@ -172,19 +177,6 @@ export default function UploadPage() {
             <div className="govuk-file-upload-button__status govuk-body custom-file-upload__status">
               {fileName}
               {fileSize && <div className="govuk-hint custom-file-upload__meta">{fileSize}</div>}
-
-              {hasValidFile && !isSubmitting && (
-                <button
-                  type="button"
-                  className="govuk-link custom-file-upload__remove"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    clearFile();
-                  }}
-                >
-                  Remove file
-                </button>
-              )}
             </div>
 
             <div className="govuk-file-upload-button__pseudo-button-container">

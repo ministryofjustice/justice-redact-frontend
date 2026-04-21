@@ -57,7 +57,7 @@ export default function ProcessingPage() {
   return (
     <>
       <h1 className="govuk-heading-l">Processing document</h1>
-
+      
       {error ? (
         <p className="govuk-error-message">
           <span className="govuk-visually-hidden">Error:</span> {error}
@@ -68,7 +68,9 @@ export default function ProcessingPage() {
             The system is analysing the uploaded document and identifying possible sensitive
             information.
           </p>
-
+          <div className="hods-loading-spinner" role="status" aria-live="polite">
+        <div className="hods-loading-spinner__spinner"></div>
+      </div>
           <div className="govuk-inset-text">
             <strong>Status:</strong> {status === "processing" ? "Processing document..." : status}
           </div>
