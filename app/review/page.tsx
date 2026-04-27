@@ -1032,10 +1032,6 @@ export default function ReviewPage() {
                 (f) => f.kind === "table_cell" && !!f.cellId
               );
 
-              const imageFindings = findingsForPage.filter(
-                (f) => f.kind === "image" && !!f.imageId
-              );
-
               const pageContentBlocks: PageContentBlock[] = [
                 ...page.textItems.map((item) => ({
                   kind: "text" as const,
@@ -1212,16 +1208,22 @@ export default function ReviewPage() {
 
                       const image = block.image;
 
-                      const suggestionsForImage = imageFindings.filter(
-                        (f) => f.imageId === image.imageId
-                      );
-
                       const manualForImage = manualSelectionsForPage.filter(
                         (m): m is ManualImageDecision =>
                           m.kind === "image" && m.imageId === image.imageId
                       );
 
                       const isManuallyRedacted = manualForImage.length > 0;
+
+                      const PDF_TO_CSS_SCALE = 96 / 72;
+
+                      const imageWidth = image.bbox
+                        ? `${(image.bbox.x1 - image.bbox.x0) * PDF_TO_CSS_SCALE}px`
+                        : "200px";
+
+                      const imageHeight = image.bbox
+                        ? `${(image.bbox.y1 - image.bbox.y0) * PDF_TO_CSS_SCALE}px`
+                        : "150px";
 
                       return (
                         <div
@@ -1231,64 +1233,90 @@ export default function ReviewPage() {
                           <div
                             className={[
                               "jr-review-image-panel",
-                              suggestionsForImage.length > 0
-                                ? "jr-review-image-panel--has-suggestion"
-                                : "",
-                              isManuallyRedacted
-                                ? "jr-review-image-panel--manual-redaction"
-                                : "",
+                              isManuallyRedacted ? "jr-review-image-panel--manual-redaction" : "",
                             ]
                               .join(" ")
                               .trim()}
                           >
                             <div className="jr-review-image-preview">
                               {image.imageUrl ? (
-                                <div className="jr-review-image-frame">
+                                <div
+                                  className="jr-review-image-frame"
+                                  style={{
+                                    position: "relative",
+                                    display: "inline-block",
+                                    width: imageWidth,
+                                    height: imageHeight,
+                                  }}
+                                >
                                   <img
-                                    src={image.imageUrl}
+                                    src={`${process.env.NEXT_PUBLIC_API_BASE_URL}${image.imageUrl}`}
                                     alt={image.alt || "Document image"}
                                     className="jr-review-image"
+                                    style={{
+                                      width: imageWidth,
+                                      height: imageHeight,
+                                      display: "block",
+                                    }}
                                   />
-                                  {isPreviewMode && isManuallyRedacted && (
-                                    <div className="jr-review-image-mask">
-                                      Image will be redacted
-                                    </div>
+
+                                  {isManuallyRedacted && (
+                                    <div
+                                      aria-hidden="true"
+                                      style={{
+                                        position: "absolute",
+                                        inset: 0,
+                                        background: isPreviewMode ? "#000" : "#f6d7d2",
+                                        border: isPreviewMode ? "2px solid #000" : "2px solid #d4351c",
+                                        opacity: isPreviewMode ? 1 : 0.75,
+                                        pointerEvents: "none",
+                                        boxSizing: "border-box",
+                                      }}
+                                    />
                                   )}
                                 </div>
                               ) : (
-                                <div className="jr-review-image-placeholder govuk-inset-text">
-                                  <p className="govuk-body govuk-!-margin-bottom-1">
-                                    Image preview not available
-                                  </p>
-                                  <p className="govuk-body-s govuk-!-margin-bottom-0">
-                                    imageId: {image.imageId}
-                                  </p>
+                                <div
+                                  className="jr-review-image-placeholder"
+                                  style={{
+                                    position: "relative",
+                                    width: imageWidth,
+                                    height: imageHeight,
+                                    background:
+                                      isPreviewMode && isManuallyRedacted
+                                        ? "#000"
+                                        : isManuallyRedacted
+                                          ? "#f6d7d2"
+                                          : "#f3f2f1",
+                                    border:
+                                      isPreviewMode && isManuallyRedacted
+                                        ? "2px solid #000"
+                                        : isManuallyRedacted
+                                          ? "2px solid #d4351c"
+                                          : "2px dashed #b1b4b6",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    fontSize: "14px",
+                                    color: isPreviewMode && isManuallyRedacted ? "#fff" : "#505a5f",
+                                    boxSizing: "border-box",
+                                  }}
+                                >
+                                  <span>Image</span>
                                 </div>
                               )}
                             </div>
 
                             <div className="jr-review-image-meta">
-                              <p className="govuk-body-s">
-                                <strong>Image ID:</strong> {image.imageId}
-                              </p>
 
-                              {suggestionsForImage.length > 0 && (
-                                <p className="govuk-body-s">
-                                  <strong>Suggestions:</strong> {suggestionsForImage.length}
-                                </p>
-                              )}
 
                               {!isPreviewMode && (
                                 <button
                                   type="button"
                                   className="govuk-button govuk-button--secondary govuk-!-margin-bottom-0"
-                                  onClick={() =>
-                                    toggleImageRedaction(page.pageNumber, image.imageId)
-                                  }
+                                  onClick={() => toggleImageRedaction(page.pageNumber, image.imageId)}
                                 >
-                                  {isManuallyRedacted
-                                    ? "Remove image redaction"
-                                    : "Redact image"}
+                                  {isManuallyRedacted ? "Remove image redaction" : "Redact image"}
                                 </button>
                               )}
                             </div>
