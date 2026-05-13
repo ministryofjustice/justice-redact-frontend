@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const PDF_TO_CSS_SCALE = 96 / 72;
 const PAGES_PER_BATCH = 50;
@@ -423,6 +423,7 @@ function ImageRedactionFrame({
 }
 
 export default function ReviewPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const documentId = searchParams.get("documentId");
 
@@ -509,58 +510,64 @@ export default function ReviewPage() {
       setIsApplyingRedactions(true);
       setApplyRedactionsError(null);
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${data.documentId}/apply-redactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          documentId: data.documentId,
-          decisions: currentDocumentSelections.map((selection) => {
-            if (selection.kind === "text") {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${data.documentId}/apply-redactions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            documentId: data.documentId,
+            decisions: currentDocumentSelections.map((selection) => {
+              if (selection.kind === "text") {
+                return {
+                  kind: "text",
+                  pageNumber: selection.pageNumber,
+                  itemId: selection.itemId,
+                  start: selection.start,
+                  end: selection.end,
+                  text: selection.text,
+                  action: "redact",
+                  source: "manual",
+                };
+              }
+
+              if (selection.kind === "table_cell") {
+                return {
+                  kind: "table_cell",
+                  pageNumber: selection.pageNumber,
+                  tableId: selection.tableId,
+                  cellId: selection.cellId,
+                  start: selection.start,
+                  end: selection.end,
+                  text: selection.text,
+                  action: "redact",
+                  source: "manual",
+                };
+              }
+
               return {
-                kind: "text",
+                kind: "image",
                 pageNumber: selection.pageNumber,
-                itemId: selection.itemId,
-                start: selection.start,
-                end: selection.end,
-                text: selection.text,
+                imageId: selection.imageId,
                 action: "redact",
                 source: "manual",
               };
-            }
-
-            if (selection.kind === "table_cell") {
-              return {
-                kind: "table_cell",
-                pageNumber: selection.pageNumber,
-                tableId: selection.tableId,
-                cellId: selection.cellId,
-                start: selection.start,
-                end: selection.end,
-                text: selection.text,
-                action: "redact",
-                source: "manual",
-              };
-            }
-
-            return {
-              kind: "image",
-              pageNumber: selection.pageNumber,
-              imageId: selection.imageId,
-              action: "redact",
-              source: "manual",
-            };
+            }),
           }),
-        }),
-      });
+        }
+      );
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || "Failed to apply redactions.");
+      if (!response.ok) {
+        throw new Error(result.detail || "Failed to apply redactions.");
+      }
 
-      window.location.href = `/export?documentId=${data.documentId}`;
+      router.push(`/applying-redactions?documentId=${data.documentId}`);
     } catch (err) {
-      setApplyRedactionsError(err instanceof Error ? err.message : "Failed to apply redactions.");
-    } finally {
-      setIsApplyingRedactions(false);
+      setApplyRedactionsError(
+        err instanceof Error ? err.message : "Failed to apply redactions."
+      );
+      setIsApplyingRedactions(false); // only reset on error
     }
   }
 
@@ -735,7 +742,7 @@ export default function ReviewPage() {
       const item = page.textItems.find((candidate) => candidate.itemId === itemId);
       if (!item) continue;
 
-      const sourceText = item.renderText ?? item.text;
+      const sourceText = item.text;
       const start = index === startIndex ? getTextOffsetWithinItem(element, range.startContainer, range.startOffset) : 0;
       const end = index === endIndex ? getTextOffsetWithinItem(element, range.endContainer, range.endOffset) : sourceText.length;
 
@@ -850,7 +857,7 @@ export default function ReviewPage() {
                           .filter((selection): selection is ManualTextDecision => selection.kind === "text" && selection.itemId === item.itemId)
                           .map((selection) => ({ id: selection.id, start: selection.start, end: selection.end }));
 
-                        const sourceText = item.renderText ?? item.text;
+                        const sourceText = item.text;
                         const boldRanges = getExactLineRanges(sourceText, "Case Note");
 
                         return (
@@ -905,7 +912,7 @@ export default function ReviewPage() {
 
                                         const isManuallyRedacted = manualForCell.length > 0;
                                         const hasSuggestion = suggestionsForCell.length > 0;
-                                        const sourceText = cell.renderText ?? cell.text;
+                                        const sourceText = cell.text;
                                         const isStructured = sourceText.includes("\n");
                                         const boldRanges = isStructured ? getStructuredKeyRanges(sourceText) : [];
 
@@ -998,22 +1005,38 @@ export default function ReviewPage() {
 
           {isLastBatch && (
             <div className="end-of-page">
-              <h3 className="govuk-heading-m">You&apos;ve reached the end of the document</h3>
+              <h3 className="govuk-heading-m">
+                You&apos;ve reached the end of the document
+              </h3>
 
               {manualSelectionsForCurrentDocument().length > 0 ? (
                 <>
-                  <button type="button" className="govuk-button" data-module="govuk-button" onClick={handleApplyRedactions} disabled={isApplyingRedactions} aria-disabled={isApplyingRedactions}>
-                    {isApplyingRedactions ? "Applying redactions..." : "Apply redactions"}
+                  <button
+                    type="button"
+                    className="govuk-button"
+                    data-module="govuk-button"
+                    onClick={handleApplyRedactions}
+                    disabled={isApplyingRedactions}
+                    aria-disabled={isApplyingRedactions}
+                  >
+                    Apply redactions
                   </button>
 
                   {applyRedactionsError && (
                     <p className="govuk-error-message">
-                      <span className="govuk-visually-hidden">Error:</span> {applyRedactionsError}
+                      <span className="govuk-visually-hidden">Error:</span>{" "}
+                      {applyRedactionsError}
                     </p>
                   )}
                 </>
               ) : (
-                <button type="button" className="govuk-button" data-module="govuk-button" disabled aria-disabled="true">
+                <button
+                  type="button"
+                  className="govuk-button"
+                  data-module="govuk-button"
+                  disabled
+                  aria-disabled="true"
+                >
                   Apply redactions
                 </button>
               )}
