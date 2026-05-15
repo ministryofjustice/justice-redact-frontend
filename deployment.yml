@@ -13,6 +13,7 @@ spec:
       labels:
         app: justice-redact-frontend
     spec:
+      serviceAccountName: justice-redact-dev
       containers:
         - name: app
           image: $[IMAGE]
