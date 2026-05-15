@@ -30,3 +30,27 @@ jobs:
           REGISTRY: ${{ secrets.ECR_REGISTRY_URL }}
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
+
+      - name: Generate Kubernetes manifests
+        run: |
+          sudo apt-get update && sudo apt-get install -y gettext
+
+          mkdir -p k8s
+
+          export IMAGE=$REGISTRY/$REPOSITORY:$IMAGE_TAG
+          export TEAM_NAME=justice-redact
+          export ENVIRONMENT=dev
+          export SERVICE_ACCOUNT="${TEAM_NAME}-${ENVIRONMENT}"
+
+          envsubst < deployments/templates/deployment.yml > k8s/deployment.yml
+          envsubst < deployments/templates/service.yml > k8s/service.yml
+          envsubst < deployments/templates/ingress.yml > k8s/ingress.yml
+        env:
+          REGISTRY: ${{ secrets.ECR_REGISTRY_URL }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+
+      # ✅ Deploy step (if you have kubeconfig)
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -n justice-redact-dev -f k8s/
