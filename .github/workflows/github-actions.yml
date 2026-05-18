@@ -51,6 +51,16 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
 
       # ✅ Deploy step (if you have kubeconfig)
+      - name: Configure kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ vars.ECR_REGION }} \
+            --name live.cloud-platform.service.justice.gov.uk
+            
+      - name: Verify cluster access
+        run: |
+          kubectl get nodes
+
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -n justice-redact-dev -f k8s/
