@@ -8,7 +8,7 @@ metadata:
     external-dns.alpha.kubernetes.io/aws-weight: '100'
     external-dns.alpha.kubernetes.io/set-identifier: 'justice-redact-frontend-${NAMESPACE}-green'
 spec:
-  ingressClassName: nginx
+  ingressClassName: default-non-prod
   rules:
     - host: ${NAMESPACE}.apps.live.cloud-platform.service.justice.gov.uk
       http:
