@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import MojCrest from "./components/MojCrest";
 import Link from "next/link";
+import { Suspense } from "react"; // 1. Imported Suspense
 
 export const metadata: Metadata = {
   title: "Justice Redact",
@@ -42,7 +43,14 @@ export default function RootLayout({
 
         <div className="govuk-width-container">
           <main className="govuk-main-wrapper" id="main-content">
-            {children}
+            {/* 2. Wrapped children in Suspense with a clean loading spinner fallback */}
+            <Suspense fallback={
+              <div className="hods-loading-spinner" role="status" aria-live="polite">
+                <div className="hods-loading-spinner__spinner"></div>
+              </div>
+            }>
+              {children}
+            </Suspense>
           </main>
         </div>
 
