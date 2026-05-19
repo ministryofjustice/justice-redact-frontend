@@ -1,41 +1,57 @@
-# -----------------------------
-# Stage 1: Install dependencies
-# -----------------------------
-FROM node:20-alpine AS deps
+# Stage: base image
+FROM node:26.1.0-trixie-slim AS base
+
+ENV TZ=Europe/London
+RUN ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime && echo "$TZ" > /etc/timezone
+
+RUN addgroup --gid 2000 --system appgroup && \
+        adduser --uid 2000 --system appuser --gid 2000
 
 WORKDIR /app
 
-# Copy only package files first (better caching)
-COPY package.json package-lock.json* ./
+RUN apt-get update && \
+        apt-get upgrade -y && \
+        apt-get autoremove -y && \
+        rm -rf /var/lib/apt/lists/* && \
+        npm install -g npm@latest
 
-# Copy the scripts folder so the postinstall script can find it
-COPY scripts/ ./scripts/
+# Stage: development image
+FROM base AS dev
 
-# Install production dependencies only
-RUN npm ci --omit=dev
+ENV NODE_ENV=development
 
+RUN npm i -g nodemon
 
-# -----------------------------
-# Stage 2: Runtime
-# -----------------------------
-FROM node:20-alpine
+COPY ./bin/docker-entrypoint.dev.sh /app/bin/entrypoint.sh
 
-WORKDIR /app
+RUN chmod +x /app/bin/entrypoint.sh
 
-# Set production env
-ENV NODE_ENV=production
+ENTRYPOINT [ "/app/bin/entrypoint.sh" ]
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# Stage: build assets
+FROM base AS build
 
-# Copy full app source
+COPY package.json package-lock.json ./
+RUN PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --no-audit
+
 COPY . .
+RUN npm run build
+RUN npm prune --no-audit --omit=dev
 
-# Use non-root user (best practice)
-USER node
+# Stage: copy production assets and dependencies
+FROM base
 
-# App port (MOJ apps usually 3000)
-EXPOSE 3000
+COPY --from=build --chown=appuser:appgroup \
+        /app/package.json \
+        /app/package-lock.json \
+        ./
 
-# Start the app
-CMD ["npm", "start"]
+COPY --from=build --chown=appuser:appgroup \
+        /app/dist ./dist
+
+COPY --from=build --chown=appuser:appgroup \
+        /app/node_modules ./node_modules
+
+USER 2000
+
+CMD [ "npm", "start" ]
