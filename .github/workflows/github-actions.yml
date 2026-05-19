@@ -36,7 +36,7 @@ jobs:
           docker build -t $REGISTRY/$REPOSITORY:node-$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:node-$IMAGE_TAG
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }} # Dynamically grabs registry like Code 1
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
 
@@ -53,8 +53,8 @@ jobs:
           # 2. Map KUBE_NAMESPACE to NAMESPACE so the ingress template can read it
           export NAMESPACE="${KUBE_NAMESPACE}" 
           
-          # 3. Set up remaining variables
-          export IMAGE=$REGISTRY/$REPOSITORY:node-$IMAGE_TAG
+          # 3. Explicitly construct the image URI from the step's environment block
+          export IMAGE="${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}"
           export SERVICE_ACCOUNT="${TEAM_NAME}-${ENVIRONMENT}"
 
           # 4. Substitute and generate configurations
@@ -65,8 +65,9 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
+          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
 
-      # 6. ✅ FIX: Authenticate using Kube Token instead of 'aws eks update-kubeconfig'
+      # 6. Authenticate using Kube Token instead of 'aws eks update-kubeconfig'
       - name: 'Authenticate to the cluster'
         env:
           KUBE_CERT: ${{ secrets.KUBE_CERT }}
