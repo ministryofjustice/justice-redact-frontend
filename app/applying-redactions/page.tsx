@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type DocumentStatusResponse = {
@@ -9,7 +9,8 @@ type DocumentStatusResponse = {
     status: string;
 };
 
-export default function ApplyingRedactionsPage() {
+// 1. Move the core logic into its own inner component
+function ApplyingRedactionsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const documentId = searchParams.get("documentId");
@@ -61,8 +62,6 @@ export default function ApplyingRedactionsPage() {
 
     return (
         <>
-            <h1 className="govuk-heading-l">Applying redactions</h1>
-
             {error ? (
                 <p className="govuk-error-message">
                     <span className="govuk-visually-hidden">Error:</span> {error}
@@ -86,6 +85,22 @@ export default function ApplyingRedactionsPage() {
                     </div>
                 </>
             )}
+        </>
+    );
+}
+
+// 2. Export the main page wrapper containing the Suspense boundary
+export default function ApplyingRedactionsPage() {
+    return (
+        <>
+            <h1 className="govuk-heading-l">Applying redactions</h1>
+            <Suspense fallback={
+                <div className="hods-loading-spinner" role="status" aria-live="polite">
+                    <div className="hods-loading-spinner__spinner"></div>
+                </div>
+            }>
+                <ApplyingRedactionsContent />
+            </Suspense>
         </>
     );
 }
