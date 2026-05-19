@@ -48,8 +48,13 @@ COPY --from=build --chown=appuser:appgroup \
         /app/package-lock.json \
         ./
 
+# 1. CHANGE THIS FROM /app/dist TO /app/.next
 COPY --from=build --chown=appuser:appgroup \
-        /app/dist ./dist
+        /app/.next ./.next
+
+# 2. ADD THIS TO COPY YOUR STATIC ASSETS (images/CSS assets copied by your scripts)
+COPY --from=build --chown=appuser:appgroup \
+        /app/public ./public
 
 COPY --from=build --chown=appuser:appgroup \
         /app/node_modules ./node_modules
