@@ -32,9 +32,11 @@ ENTRYPOINT [ "/app/bin/entrypoint.sh" ]
 FROM base AS build
 
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit
+RUN npm ci --no-audit --ignore-scripts
 
 COPY . .
+RUN npm run postinstall
+
 RUN npm run build
 RUN npm prune --no-audit --omit=dev
 
