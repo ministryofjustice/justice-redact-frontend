@@ -8,6 +8,9 @@ WORKDIR /app
 # Copy only package files first (better caching)
 COPY package.json package-lock.json* ./
 
+# Copy the scripts folder so the postinstall script can find it
+COPY scripts/ ./scripts/
+
 # Install production dependencies only
 RUN npm ci --omit=dev
 
