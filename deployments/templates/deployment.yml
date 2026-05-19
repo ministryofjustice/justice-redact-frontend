@@ -16,6 +16,6 @@ spec:
       serviceAccountName: ${SERVICE_ACCOUNT}
       containers:
         - name: app
-          image: $[IMAGE]
+          image: ${IMAGE}
           ports:
             - containerPort: 3000
