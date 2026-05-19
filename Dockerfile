@@ -61,4 +61,7 @@ COPY --from=build --chown=appuser:appgroup \
 
 USER 2000
 
+# Clear any lingering entrypoints from development or parent images
+ENTRYPOINT []
+
 CMD [ "npm", "start" ]
