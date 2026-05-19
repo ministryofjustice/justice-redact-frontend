@@ -46,11 +46,18 @@ jobs:
           sudo apt-get update && sudo apt-get install -y gettext
           mkdir -p k8s
 
-          export IMAGE=$REGISTRY/$REPOSITORY:node-$IMAGE_TAG
+          # 1. Define your environment targets
           export TEAM_NAME=justice-redact
           export ENVIRONMENT=dev
+          
+          # 2. Map KUBE_NAMESPACE to NAMESPACE so the ingress template can read it
+          export NAMESPACE="${KUBE_NAMESPACE}" 
+          
+          # 3. Set up remaining variables
+          export IMAGE=$REGISTRY/$REPOSITORY:node-$IMAGE_TAG
           export SERVICE_ACCOUNT="${TEAM_NAME}-${ENVIRONMENT}"
 
+          # 4. Substitute and generate configurations
           envsubst < deployments/templates/deployment.yml > k8s/deployment.yml
           envsubst < deployments/templates/service.yml > k8s/service.yml
           envsubst < deployments/templates/ingress.yml > k8s/ingress.yml
