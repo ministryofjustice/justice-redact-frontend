@@ -4,7 +4,7 @@ metadata:
   name: justice-redact-frontend
   namespace: ${NAMESPACE}
   annotations:
-    # ExternalDNS annotations required by MoJ Cloud Platform Gatekeeper policies
+    # Mandatory ExternalDNS routing annotations for MoJ Cloud Platform Gatekeeper compliance
     external-dns.alpha.kubernetes.io/aws-weight: '100'
     external-dns.alpha.kubernetes.io/set-identifier: 'justice-redact-frontend-${NAMESPACE}-green'
 spec:
