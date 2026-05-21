@@ -9,7 +9,6 @@ type DocumentStatusResponse = {
     status: string;
 };
 
-// 1. Move the core logic into its own inner component
 function ApplyingRedactionsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -89,7 +88,6 @@ function ApplyingRedactionsContent() {
     );
 }
 
-// 2. Export the main page wrapper containing the Suspense boundary
 export default function ApplyingRedactionsPage() {
     return (
         <>

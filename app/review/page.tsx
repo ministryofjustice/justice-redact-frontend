@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const PDF_TO_CSS_SCALE = 96 / 72;
@@ -422,7 +422,7 @@ function ImageRedactionFrame({
   );
 }
 
-export default function ReviewPage() {
+function ReviewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const documentId = searchParams.get("documentId");
@@ -1045,5 +1045,19 @@ export default function ReviewPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function ReviewPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="hods-loading-spinner" role="status" aria-live="polite">
+          <div className="hods-loading-spinner__spinner"></div>
+        </div>
+      }
+    >
+      <ReviewContent />
+    </Suspense>
   );
 }

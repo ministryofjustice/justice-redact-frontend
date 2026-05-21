@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function SubjectDetailsPage() {
+function SubjectDetailsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -143,5 +143,19 @@ export default function SubjectDetailsPage() {
                 </div>
             </div>
         </>
+    );
+}
+
+export default function SubjectDetailsPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="hods-loading-spinner" role="status" aria-live="polite">
+                    <div className="hods-loading-spinner__spinner"></div>
+                </div>
+            }
+        >
+            <SubjectDetailsContent />
+        </Suspense>
     );
 }
