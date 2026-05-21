@@ -147,7 +147,7 @@ export default function UploadPage() {
           </div>
         )}
 
-        <a href="/v2/dictionaries" className="govuk-back-link">
+        <a href="/" className="govuk-back-link">
           Back
         </a>
 
