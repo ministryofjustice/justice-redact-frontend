@@ -124,7 +124,11 @@ export default function UploadPage() {
 
   return (
     <div className="govuk-grid-row">
+
       <div className="govuk-grid-column-two-thirds">
+        <a href="/" className="govuk-back-link">
+          Back
+        </a>
         {error && (
           <div
             className="govuk-error-summary"
@@ -146,10 +150,6 @@ export default function UploadPage() {
             </div>
           </div>
         )}
-
-        <a href="/" className="govuk-back-link">
-          Back
-        </a>
 
         <h1 className="govuk-heading-xl">Upload a document</h1>
 
