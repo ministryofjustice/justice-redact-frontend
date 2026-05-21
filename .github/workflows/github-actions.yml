@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - dev
-      - main  # Used for staging / tracking production releases
+      - main
 
 jobs:
   # JOB 1: Determine the target environment dynamically based on the Git branch
@@ -18,7 +18,6 @@ jobs:
           if [ "${{ github.ref_name }}" = "dev" ]; then
             echo "env_name=development" >> $GITHUB_OUTPUT
           elif [ "${{ github.ref_name }}" = "main" ]; then
-            # You can change this logic to "production" if you switch to deployment tags later
             echo "env_name=staging" >> $GITHUB_OUTPUT
           else
             echo "env_name=development" >> $GITHUB_OUTPUT
@@ -28,7 +27,6 @@ jobs:
   ecr_and_deploy:
     needs: set-environment
     runs-on: ubuntu-latest
-    # This line tells GitHub which environment block to pull secrets from!
     environment: ${{ needs.set-environment.outputs.target_env }}
     
     permissions:
@@ -61,7 +59,7 @@ jobs:
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
 
-      # 5. Generate Kubernetes manifests dynamically based on current environment
+      # 5. Generate Kubernetes manifests dynamically with environment fallback
       - name: Generate Kubernetes manifests
         run: |
           sudo apt-get update && sudo apt-get install -y gettext
@@ -84,15 +82,20 @@ jobs:
           export IMAGE="${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}"
           export SERVICE_ACCOUNT="${TEAM_NAME}-${ENVIRONMENT}"
 
-          # 2. Debugging Step: Output active directory contents so you can see why it fails
+          # 2. Debugging Step: Output active directory contents
           echo "=== Current working directory structure ==="
           ls -R deployments/ || echo "deployments directory not found!"
 
-          # 3. Define template target base directory
-          # ADJUST THIS PATH if your templates live deeper (e.g., "deployments/overlays/${ENV_FOLDER}")
-          export TEMPLATE_DIR="deployments/${ENV_FOLDER}"
+          # 3. Fallback logic: Use target environment folder if it exists, otherwise use development
+          if [ -d "deployments/${ENV_FOLDER}" ]; then
+            echo "Using target environment templates from: deployments/${ENV_FOLDER}"
+            export TEMPLATE_DIR="deployments/${ENV_FOLDER}"
+          else
+            echo "⚠️ Warning: deployments/${ENV_FOLDER} not found! Falling back to templates in: deployments/development"
+            export TEMPLATE_DIR="deployments/development"
+          fi
 
-          # 4. Substitute and output manifests
+          # 4. Substitute variables and output manifests
           envsubst < ${TEMPLATE_DIR}/deployment.yml > k8s/deployment.yml
           envsubst < ${TEMPLATE_DIR}/service.yml > k8s/service.yml
           envsubst < ${TEMPLATE_DIR}/ingress.yml > k8s/ingress.yml
@@ -106,16 +109,16 @@ jobs:
         run: |
           echo "${{ secrets.KUBE_CERT }}" > ca.crt
           kubectl config set-cluster ${{ secrets.KUBE_CLUSTER }} --certificate-authority=./ca.crt --server=https://${{ secrets.KUBE_CLUSTER }}
-          kubectl config set-credentials deploy-user --token=${{ secrets.KUBE_TOKEN }}
+          kubectl config set-credentials deploy-user --token=${KUBE_TOKEN}
           kubectl config set-context ${{ secrets.KUBE_CLUSTER }} --cluster=${{ secrets.KUBE_CLUSTER }} --user=deploy-user --namespace=${{ secrets.KUBE_NAMESPACE }}
           kubectl config use-context ${{ secrets.KUBE_CLUSTER }}
+        env:
+          KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
 
       # 7. Verify cluster access
       - name: Verify cluster access
         run: |
           kubectl get pods -n ${{ secrets.KUBE_NAMESPACE }}
-
-      #####
 
       # 8. Deploy compiled configs to Kubernetes
       - name: Deploy to Kubernetes
