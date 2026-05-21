@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type DocumentStatusResponse = {
@@ -9,7 +9,7 @@ type DocumentStatusResponse = {
   status: string;
 };
 
-export default function ProcessingPage() {
+function ProcessingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const documentId = searchParams.get("documentId");
@@ -23,7 +23,7 @@ export default function ProcessingPage() {
       return;
     }
 
-    let intervalId: NodeJS.Timeout;
+    let intervalId: ReturnType<typeof setInterval>;
 
     async function pollStatus() {
       try {
@@ -57,7 +57,7 @@ export default function ProcessingPage() {
   return (
     <>
       <h1 className="govuk-heading-l">Processing document</h1>
-      
+
       {error ? (
         <p className="govuk-error-message">
           <span className="govuk-visually-hidden">Error:</span> {error}
@@ -68,14 +68,31 @@ export default function ProcessingPage() {
             The system is analysing the uploaded document and identifying possible sensitive
             information.
           </p>
+
           <div className="hods-loading-spinner" role="status" aria-live="polite">
-        <div className="hods-loading-spinner__spinner"></div>
-      </div>
+            <div className="hods-loading-spinner__spinner"></div>
+          </div>
+
           <div className="govuk-inset-text">
-            <strong>Status:</strong> {status === "processing" ? "Processing document..." : status}
+            <strong>Status:</strong>{" "}
+            {status === "processing" ? "Processing document..." : status}
           </div>
         </>
       )}
     </>
+  );
+}
+
+export default function ProcessingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="hods-loading-spinner" role="status" aria-live="polite">
+          <div className="hods-loading-spinner__spinner"></div>
+        </div>
+      }
+    >
+      <ProcessingContent />
+    </Suspense>
   );
 }
