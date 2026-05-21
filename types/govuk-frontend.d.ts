@@ -1,0 +1,1 @@
+declare module "govuk-frontend/dist/govuk/all.mjs";

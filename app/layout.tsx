@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import MojCrest from "./components/MojCrest";
+import GovukInit from "./components/GovukInit";
 import Link from "next/link";
 import { Suspense } from "react"; // 1. Imported Suspense
 
@@ -20,7 +21,10 @@ export default function RootLayout({
         <link rel="stylesheet" href="/styles/govuk-frontend.min.css" />
         <link rel="stylesheet" href="/styles/moj-frontend.min.css" />
       </head>
-      <body className="govuk-template__body">
+
+      <body className="govuk-template__body govuk-frontend-supported">
+        <GovukInit />
+
         <a href="#main-content" className="govuk-skip-link">
           Skip to main content
         </a>
@@ -29,11 +33,19 @@ export default function RootLayout({
           <div className="moj-header__container govuk-width-container">
             <div className="moj-header__logo">
               <MojCrest />
+
               <div className="moj-header__content">
-                <a className="moj-header__link moj-header__link--organisation-name" href="/">
+                <a
+                  className="moj-header__link moj-header__link--organisation-name"
+                  href="/"
+                >
                   Ministry of Justice
                 </a>
-                <a className="moj-header__link moj-header__link--service-name" href="/">
+
+                <a
+                  className="moj-header__link moj-header__link--service-name"
+                  href="/"
+                >
                   Justice Redact
                 </a>
               </div>
@@ -60,6 +72,7 @@ export default function RootLayout({
               <div className="govuk-footer__meta-item govuk-footer__meta-item--grow">
                 <h2 className="govuk-visually-hidden">Support links</h2>
               </div>
+
               <div className="govuk-footer__meta-item">
                 <a
                   className="govuk-footer__link govuk-footer__copyright-logo"

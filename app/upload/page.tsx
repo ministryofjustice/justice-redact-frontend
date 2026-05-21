@@ -1,157 +1,174 @@
 "use client";
 
-import { useRef, useState, DragEvent, ChangeEvent } from "react";
+import { ChangeEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+
+const FILE_ERROR =
+  "The selected file must be a NOMIS or DPS file in PDF format";
+
+const BODY_TEXT_ERROR = "Select a document that contains body text";
+
+const MINIMUM_BODY_CHARACTERS = 50;
 
 export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileName, setFileName] = useState("No file chosen");
-  const [fileSize, setFileSize] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [hasValidFile, setHasValidFile] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function handleFileChange(_: ChangeEvent<HTMLInputElement>) {
+    setError(null);
+  }
 
   function isPdf(file: File) {
-    return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    return (
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf")
+    );
   }
 
-  function formatFileSize(bytes: number) {
-    if (bytes < 1024) return `${bytes} bytes`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  }
+  async function pdfHasBodyText(file: File) {
+    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
-  function setValidFile(file: File) {
-    setSelectedFile(file);
-    setFileName(file.name);
-    setFileSize(formatFileSize(file.size));
-    setError(null);
-    setHasValidFile(true);
-  }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
-  function clearFile(message?: string) {
-    if (isSubmitting) return;
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
 
-    setSelectedFile(null);
-    setFileName("No file chosen");
-    setFileSize(null);
-    setError(message ?? null);
-    setHasValidFile(false);
+    const allBodyLines: string[] = [];
 
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
-  }
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1 });
+      const textContent = await page.getTextContent();
 
-  function handleSelectedFiles(fileList: FileList | null) {
-    if (isSubmitting) return;
+      const pageLines = textContent.items
+        .map((item: any) => {
+          const text = item.str?.trim();
+          const y = item.transform?.[5];
 
-    if (!fileList || fileList.length === 0) {
-      clearFile();
-      return;
-    }
+          if (!text || typeof y !== "number") {
+            return null;
+          }
 
-    if (fileList.length > 1) {
-      clearFile("Upload only 1 PDF file.");
-      return;
-    }
+          return { text, y };
+        })
+        .filter(Boolean) as Array<{ text: string; y: number }>;
 
-    const file = fileList[0];
+      const bodyLines = pageLines
+        .filter(({ y }) => {
+          const topBoundary = viewport.height * 0.85;
+          const bottomBoundary = viewport.height * 0.15;
 
-    if (!isPdf(file)) {
-      clearFile("You must upload a PDF file.");
-      return;
+          return y < topBoundary && y > bottomBoundary;
+        })
+        .map(({ text }) => text);
+
+      allBodyLines.push(...bodyLines);
     }
 
-    setValidFile(file);
-  }
+    const normalisedLines = allBodyLines.map((line) =>
+      line.replace(/\s+/g, " ").trim()
+    );
 
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    handleSelectedFiles(event.target.files);
-  }
+    const lineCounts = normalisedLines.reduce<Record<string, number>>(
+      (acc, line) => {
+        acc[line] = (acc[line] ?? 0) + 1;
+        return acc;
+      },
+      {}
+    );
 
-  function handleDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    if (isSubmitting) return;
-    setIsDragging(false);
-    handleSelectedFiles(event.dataTransfer.files);
-  }
+    const meaningfulLines = normalisedLines.filter((line) => {
+      const isRepeatedHeaderOrFooter = lineCounts[line] > 1;
+      const isTooShort = line.length < 3;
+      const isPageNumber = /^\d+$/.test(line);
+      const hasWords = /[a-zA-Z]{2,}/.test(line);
 
-  function handleDragOver(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    if (isSubmitting) return;
-    setIsDragging(true);
-  }
-
-  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    if (isSubmitting) return;
-    setIsDragging(false);
-  }
-
-  function openFilePicker() {
-    if (isSubmitting) return;
-    inputRef.current?.click();
-  }
-
-  async function handleContinue() {
-    if (!selectedFile || isSubmitting) return;
-
-    try {
-      setIsSubmitting(true);
-      setError(null);
-
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/upload`,
-        {
-          method: "POST",
-          body: formData,
-        }
+      return (
+        !isRepeatedHeaderOrFooter &&
+        !isTooShort &&
+        !isPageNumber &&
+        hasWords
       );
+    });
 
-      let data: any = null;
-      try {
-        data = await response.json();
-      } catch {
-        data = null;
-      }
+    return meaningfulLines.join(" ").length >= MINIMUM_BODY_CHARACTERS;
+  }
 
-      if (!response.ok) {
-        throw new Error(data?.detail || data?.error || "Upload failed");
-      }
+  async function handleUpload() {
+    const files = inputRef.current?.files;
+    const file = files?.[0];
 
-      router.push(
-        `/subject-details?documentId=${data.documentId}&filename=${encodeURIComponent(selectedFile.name)}`
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-      setIsSubmitting(false);
+    if (!file || files.length !== 1 || !isPdf(file)) {
+      setError(FILE_ERROR);
+      return;
     }
+
+    const hasBodyText = await pdfHasBodyText(file);
+
+    if (!hasBodyText) {
+      setError(BODY_TEXT_ERROR);
+      return;
+    }
+
+    console.log({
+      fileName: file?.name,
+      fileType: file?.type,
+      fileCount: files?.length,
+      isPdf: file ? isPdf(file) : false,
+    });
+
+    router.push(`/subject-details?filename=${encodeURIComponent(file.name)}`);
   }
 
   return (
     <div className="govuk-grid-row">
       <div className="govuk-grid-column-two-thirds">
+        {error && (
+          <div
+            className="govuk-error-summary"
+            data-module="govuk-error-summary"
+            aria-labelledby="error-summary-title"
+            role="alert"
+            tabIndex={-1}
+          >
+            <h2 className="govuk-error-summary__title" id="error-summary-title">
+              There is a problem
+            </h2>
+
+            <div className="govuk-error-summary__body">
+              <ul className="govuk-list govuk-error-summary__list">
+                <li>
+                  <a href="#file-upload-1">{error}</a>
+                </li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        <a href="/v2/dictionaries" className="govuk-back-link">
+          Back
+        </a>
+
         <h1 className="govuk-heading-xl">Upload a document</h1>
 
         <div className="govuk-inset-text guidance-panel">
-          <p>Only NOMIS documents can be processed at the moment.</p>
+          <p className="govuk-body">
+            Only NOMIS and DPS documents can be processed at the moment.
+          </p>
         </div>
 
-        <div className={`govuk-form-group ${error ? "govuk-form-group--error" : ""}`}>
+        <div
+          className={`govuk-form-group${error ? " govuk-form-group--error" : ""
+            }`}
+        >
           <label className="govuk-label" htmlFor="file-upload-1">
             Upload a file
           </label>
 
           <div id="file-upload-1-hint" className="govuk-hint">
-            Only pdf documents can be processed at the moment
+            Only NOMIS and DPS documents can be processed at the moment
           </div>
 
           {error && (
@@ -160,55 +177,20 @@ export default function UploadPage() {
             </p>
           )}
 
-          <div
-            className={[
-              "govuk-file-upload-button",
-              "govuk-file-upload-button--empty",
-              isDragging ? "custom-file-upload--dragging" : "",
-              error ? "custom-file-upload--error" : "",
-              isSubmitting ? "custom-file-upload--disabled" : "",
-            ].join(" ")}
-            onClick={openFilePicker}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            aria-disabled={isSubmitting}
-          >
-            <div className="govuk-file-upload-button__status govuk-body custom-file-upload__status">
-              {fileName}
-              {fileSize && <div className="govuk-hint custom-file-upload__meta">{fileSize}</div>}
-            </div>
-
-            <div className="govuk-file-upload-button__pseudo-button-container">
-              <button
-                type="button"
-                className="govuk-button govuk-button--secondary govuk-file-upload-button__pseudo-button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openFilePicker();
-                }}
-                disabled={isSubmitting}
-              >
-                Choose file
-              </button>
-              <p className="govuk-body govuk-file-upload-button__instruction">
-                {isSubmitting ? "Uploading document..." : "or drag and drop"}
-              </p>
-            </div>
-
+          <div className="govuk-drop-zone" data-module="govuk-file-upload">
             <input
               ref={inputRef}
-              className="govuk-file-upload custom-file-upload__input"
+              className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""}`}
               id="file-upload-1"
               name="fileUpload1"
               type="file"
               accept=".pdf,application/pdf"
-              multiple={false}
               aria-describedby={
-                error ? "file-upload-1-hint file-upload-1-error" : "file-upload-1-hint"
+                error
+                  ? "file-upload-1-hint file-upload-1-error"
+                  : "file-upload-1-hint"
               }
               onChange={handleFileChange}
-              disabled={isSubmitting}
             />
           </div>
         </div>
@@ -216,11 +198,10 @@ export default function UploadPage() {
         <button
           type="button"
           className="govuk-button"
-          disabled={!hasValidFile || isSubmitting}
-          aria-disabled={!hasValidFile || isSubmitting}
-          onClick={handleContinue}
+          data-module="govuk-button"
+          onClick={handleUpload}
         >
-          {isSubmitting ? "Uploading..." : "Continue"}
+          Continue
         </button>
       </div>
     </div>
