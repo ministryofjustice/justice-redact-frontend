@@ -107,6 +107,8 @@ jobs:
         run: |
           kubectl get pods -n ${{ secrets.KUBE_NAMESPACE }}
 
+      #####
+
       # 8. Deploy compiled configs to Kubernetes
       - name: Deploy to Kubernetes
         run: |
