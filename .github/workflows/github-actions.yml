@@ -67,7 +67,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y gettext
           mkdir -p k8s
 
-          # Dynamically set folder mapping based on target environment prefix
+          # 1. Map target environment tags
           if [ "${{ needs.set-environment.outputs.target_env }}" = "development" ]; then
             export ENV_FOLDER="development"
             export ENVIRONMENT="dev"
@@ -84,10 +84,18 @@ jobs:
           export IMAGE="${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}"
           export SERVICE_ACCOUNT="${TEAM_NAME}-${ENVIRONMENT}"
 
-          # envsubst reads files directly out of the correctly resolved folder
-          envsubst < deployments/${ENV_FOLDER}/deployment.yml > k8s/deployment.yml
-          envsubst < deployments/${ENV_FOLDER}/service.yml > k8s/service.yml
-          envsubst < deployments/${ENV_FOLDER}/ingress.yml > k8s/ingress.yml
+          # 2. Debugging Step: Output active directory contents so you can see why it fails
+          echo "=== Current working directory structure ==="
+          ls -R deployments/ || echo "deployments directory not found!"
+
+          # 3. Define template target base directory
+          # ADJUST THIS PATH if your templates live deeper (e.g., "deployments/overlays/${ENV_FOLDER}")
+          export TEMPLATE_DIR="deployments/${ENV_FOLDER}"
+
+          # 4. Substitute and output manifests
+          envsubst < ${TEMPLATE_DIR}/deployment.yml > k8s/deployment.yml
+          envsubst < ${TEMPLATE_DIR}/service.yml > k8s/service.yml
+          envsubst < ${TEMPLATE_DIR}/ingress.yml > k8s/ingress.yml
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
