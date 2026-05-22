@@ -137,8 +137,16 @@ export default function UploadPage() {
       return;
     }
 
-    const analysis = await analysePdf(file);
-    console.log("PDF analysis", analysis);
+    let analysis;
+
+    try {
+      analysis = await analysePdf(file);
+      console.log("PDF analysis", analysis);
+    } catch (err) {
+      console.error("PDF analysis failed", err);
+      setError("The selected file could not be checked – try again");
+      return;
+    }
 
     if (!analysis.hasBodyText) {
       setError(BODY_TEXT_ERROR);
