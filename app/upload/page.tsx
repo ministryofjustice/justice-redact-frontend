@@ -114,6 +114,14 @@ export default function UploadPage() {
     const mightBeScannedDocument =
       imageCount >= pdf.numPages && bodyTextLength < 500;
 
+    console.log({
+      pages: pdf.numPages,
+      imageCount,
+      bodyTextLength,
+      hasBodyText,
+      mightBeScannedDocument,
+    });
+
     return {
       hasBodyText,
       mightBeScannedDocument,
@@ -130,6 +138,7 @@ export default function UploadPage() {
     }
 
     const analysis = await analysePdf(file);
+    console.log("PDF analysis", analysis);
 
     if (!analysis.hasBodyText) {
       setError(BODY_TEXT_ERROR);
