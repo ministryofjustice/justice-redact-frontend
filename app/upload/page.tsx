@@ -10,6 +10,11 @@ const BODY_TEXT_ERROR = "Select a document that contains body text";
 
 const MINIMUM_BODY_CHARACTERS = 50;
 
+type PdfAnalysisResult = {
+  hasBodyText: boolean;
+  mightBeScannedDocument: boolean;
+};
+
 export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -27,7 +32,7 @@ export default function UploadPage() {
     );
   }
 
-  async function pdfHasBodyText(file: File) {
+  async function analysePdf(file: File): Promise<PdfAnalysisResult> {
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
     pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
@@ -36,11 +41,21 @@ export default function UploadPage() {
     const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
 
     const allBodyLines: string[] = [];
+    let imageCount = 0;
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber);
       const viewport = page.getViewport({ scale: 1 });
+
       const textContent = await page.getTextContent();
+      const operatorList = await page.getOperatorList();
+
+      imageCount += operatorList.fnArray.filter(
+        (fn) =>
+          fn === pdfjsLib.OPS.paintImageXObject ||
+          fn === pdfjsLib.OPS.paintInlineImageXObject ||
+          fn === pdfjsLib.OPS.paintImageXObjectRepeat
+      ).length;
 
       const pageLines = textContent.items
         .map((item: any) => {
@@ -93,7 +108,16 @@ export default function UploadPage() {
       );
     });
 
-    return meaningfulLines.join(" ").length >= MINIMUM_BODY_CHARACTERS;
+    const bodyTextLength = meaningfulLines.join(" ").length;
+    const hasBodyText = bodyTextLength >= MINIMUM_BODY_CHARACTERS;
+
+    const mightBeScannedDocument =
+      imageCount >= pdf.numPages && bodyTextLength < 500;
+
+    return {
+      hasBodyText,
+      mightBeScannedDocument,
+    };
   }
 
   async function handleUpload() {
@@ -105,19 +129,17 @@ export default function UploadPage() {
       return;
     }
 
-    const hasBodyText = await pdfHasBodyText(file);
+    const analysis = await analysePdf(file);
 
-    if (!hasBodyText) {
+    if (!analysis.hasBodyText) {
       setError(BODY_TEXT_ERROR);
       return;
     }
 
-    console.log({
-      fileName: file?.name,
-      fileType: file?.type,
-      fileCount: files?.length,
-      isPdf: file ? isPdf(file) : false,
-    });
+    if (analysis.mightBeScannedDocument) {
+      router.push(`/scanned-document?filename=${encodeURIComponent(file.name)}`);
+      return;
+    }
 
     router.push(`/subject-details?filename=${encodeURIComponent(file.name)}`);
   }

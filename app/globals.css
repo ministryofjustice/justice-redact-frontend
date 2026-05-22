@@ -327,6 +327,27 @@ body {
   border-color: #d4351c !important;
 }
 
+.button-as-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+
+.button-as-link,
+.button-as-link:visited {
+  color: #ffffff !important;
+}
+
+.button-as-link:hover {
+  color: #d2e2f1 !important;
+}
+
+.button-as-link:focus {
+  color: #0b0c0c !important;
+}
+
 @keyframes hods-spinner {
   to {
     transform: rotate(360deg);
