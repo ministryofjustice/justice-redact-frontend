@@ -153,12 +153,32 @@ export default function UploadPage() {
       return;
     }
 
-    if (analysis.mightBeScannedDocument) {
-      router.push(`/scanned-document?filename=${encodeURIComponent(file.name)}`);
-      return;
-    }
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
-    router.push(`/subject-details?filename=${encodeURIComponent(file.name)}`);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Upload failed.");
+      }
+
+      const nextUrl = analysis.mightBeScannedDocument
+        ? `/scanned-document?documentId=${data.documentId}&filename=${encodeURIComponent(file.name)}`
+        : `/subject-details?documentId=${data.documentId}&filename=${encodeURIComponent(file.name)}`;
+
+      router.push(nextUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed.");
+    }
   }
 
   return (
