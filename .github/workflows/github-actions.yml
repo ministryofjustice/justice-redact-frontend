@@ -69,33 +69,7 @@ jobs:
           REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
 
-      # 5. Compile & Deploy via Kustomize Overlays (Replaces old Manifest generation steps)
-      - name: Deploy to Kubernetes
-        run: |
-          # Map target environment context to the exact folder track
-          if [ "${{ needs.set-environment.outputs.target_env }}" = "development" ]; then
-            # If your automated dev branch CI doesn't use Kustomize yet, point it to base or its specific folder
-            export TARGET_DIR="deployments/base"
-          elif [ "${{ needs.set-environment.outputs.target_env }}" = "staging" ]; then
-            export TARGET_DIR="deployments/overlays/staging"
-          else
-            export TARGET_DIR="deployments/base"
-          fi
-
-          # Change to target overlay track
-          cd $TARGET_DIR
-          
-          # Set image lookup placeholder tag to point to the actual built ECR image
-          kustomize edit set image justice-redact-frontend-image:latest=${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}
-          
-          # Render and deploy the exact environment manifests cleanly
-          kubectl apply -k .
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.sha }}
-
-      # 6. Authenticate to the cluster using Environment-specific cluster secrets
+      # 5. Authenticate to the cluster FIRST (Fixed Step Order)
       - name: 'Authenticate to the cluster'
         run: |
           echo "${{ secrets.KUBE_CERT }}" > ca.crt
@@ -111,7 +85,7 @@ jobs:
         run: |
           kubectl get pods -n ${{ secrets.KUBE_NAMESPACE }}
 
-# 7. Compile & Deploy via Kustomize Overlays using the secure active context
+      # 7. Compile & Deploy via Kustomize Overlays using the secure active context
       - name: Deploy to Kubernetes
         run: |
           # Map target environment context to the exact folder track
@@ -126,19 +100,12 @@ jobs:
           # Change to target track directory
           cd $TARGET_DIR
           
-          # 1. Dynamically inject the active target namespace context into Kustomize
-          kustomize edit set namespace ${{ secrets.KUBE_NAMESPACE }}
-          
-          # 💡 2. FIX: Dynamically update the ExternalDNS annotation to pass Gatekeeper compliance
-          # Pattern: <ingress-name>-<ns>-${clusterColor}
-          kustomize edit set annotation external-dns.alpha.kubernetes.io/set-identifier:"justice-redact-frontend-${{ secrets.KUBE_NAMESPACE }}-green"
-          
-          # 3. Set image lookup placeholder tag to point to the actual built ECR image
+          # Set image lookup placeholder tag to point to the actual built ECR image
           kustomize edit set image justice-redact-frontend-image:latest=${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}
           
-          # 4. Render and deploy manifests cleanly 
-          kubectl apply -k .
+          # Render and deploy manifests, explicitly enforcing target namespace
+          kubectl apply -k . --namespace=${{ secrets.KUBE_NAMESPACE }}
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
