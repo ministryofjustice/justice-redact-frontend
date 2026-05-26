@@ -20,7 +20,11 @@ patchesJson6902:
 
 # Overrides the host routing target to your live, public domain
 patches:
-  - inline: |
+  - target:
+      version: v1
+      kind: Ingress
+      name: justice-redact-frontend
+    patch: |-
       apiVersion: networking.k8s.io/v1
       kind: Ingress
       metadata:
@@ -29,4 +33,4 @@ patches:
           external-dns.alpha.kubernetes.io/set-identifier: 'justice-redact-frontend-justice-redact-production-green'
       spec:
         rules:
-          - host: justice-redact.apps.live.cloud-platform.service.justice.gov.uk  # 👈 Your live public URL
+          - host: justice-redact.apps.live.cloud-platform.service.justice.gov.uk
