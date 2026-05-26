@@ -90,11 +90,14 @@ jobs:
           # Change to target track directory
           cd $TARGET_DIR
           
+          # 💡 FIX: Dynamically inject the active target namespace context into Kustomize
+          kustomize edit set namespace ${{ secrets.KUBE_NAMESPACE }}
+          
           # Set image lookup placeholder tag to point to the actual built ECR image
           kustomize edit set image justice-redact-frontend-image:latest=${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}
           
-          # Render and deploy manifests, explicitly enforcing target namespace
-          kubectl apply -k . --namespace=${{ secrets.KUBE_NAMESPACE }}
+          # Render and deploy manifests cleanly now that namespace configurations perfectly align
+          kubectl apply -k .
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}

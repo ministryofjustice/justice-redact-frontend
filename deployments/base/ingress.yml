@@ -2,15 +2,16 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: justice-redact-frontend
-  namespace: ${NAMESPACE}
+  # 💡 Remove the hardcoded namespace line. Kustomize handles it globally.
   annotations:
-    # Mandatory ExternalDNS routing annotations for MoJ Cloud Platform Gatekeeper compliance
     external-dns.alpha.kubernetes.io/aws-weight: '100'
-    external-dns.alpha.kubernetes.io/set-identifier: 'justice-redact-frontend-${NAMESPACE}-green'
+    # 👈 Use a clean base placeholder string here
+    external-dns.alpha.kubernetes.io/set-identifier: 'justice-redact-frontend-base-green'
 spec:
   ingressClassName: default-non-prod
   rules:
-    - host: ${NAMESPACE}.apps.live.cloud-platform.service.justice.gov.uk
+    # 👈 Use a generic placeholder host domain for the base blueprint
+    - host: placeholder.apps.live.cloud-platform.service.justice.gov.uk
       http:
         paths:
           - path: /
