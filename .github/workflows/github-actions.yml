@@ -69,44 +69,27 @@ jobs:
           REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
 
-      # 5. Generate Kubernetes manifests dynamically with environment folder mapping
-      - name: Generate Kubernetes manifests
+      # 5. Compile & Deploy via Kustomize Overlays (Replaces old Manifest generation steps)
+      - name: Deploy to Kubernetes
         run: |
-          sudo apt-get update && sudo apt-get install -y gettext
-          mkdir -p k8s
-
-          # Map target environments directly to your directory naming structure
-          if [ "${{ needs.set-environment.outputs.target_env }}" = "dev" ]; then
-            export ENV_FOLDER="development"
+          # Map target environment context to the exact folder track
+          if [ "${{ needs.set-environment.outputs.target_env }}" = "development" ]; then
+            # If your automated dev branch CI doesn't use Kustomize yet, point it to base or its specific folder
+            export TARGET_DIR="deployments/base"
           elif [ "${{ needs.set-environment.outputs.target_env }}" = "staging" ]; then
-            export ENV_FOLDER="staging"
+            export TARGET_DIR="deployments/overlays/staging"
           else
-            export ENV_FOLDER="production"
+            export TARGET_DIR="deployments/base"
           fi
 
-          export ENVIRONMENT="${{ needs.set-environment.outputs.target_env }}"
-          export TEAM_NAME=justice-redact
-          export NAMESPACE="${{ secrets.KUBE_NAMESPACE }}" 
-          export IMAGE="${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}"
-          export SERVICE_ACCOUNT="cd-serviceaccount"
-
-          # Debugging Step: Output active directory contents
-          echo "=== Current working directory structure ==="
-          ls -R deployments/ || echo "deployments directory not found!"
-
-          # Fallback logic: Use target environment folder if it exists, otherwise fall back to development
-          if [ -d "deployments/${ENV_FOLDER}" ]; then
-            echo "Using target environment templates from: deployments/${ENV_FOLDER}"
-            export TEMPLATE_DIR="deployments/${ENV_FOLDER}"
-          else
-            echo "⚠️ Warning: deployments/${ENV_FOLDER} not found! Falling back to templates in: deployments/development"
-            export TEMPLATE_DIR="deployments/development"
-          fi
-
-          # Substitute variables and output manifests
-          envsubst < ${TEMPLATE_DIR}/deployment.yml > k8s/deployment.yml
-          envsubst < ${TEMPLATE_DIR}/service.yml > k8s/service.yml
-          envsubst < ${TEMPLATE_DIR}/ingress.yml > k8s/ingress.yml
+          # Change to target overlay track
+          cd $TARGET_DIR
+          
+          # Set image lookup placeholder tag to point to the actual built ECR image
+          kustomize edit set image justice-redact-frontend-image:latest=${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}
+          
+          # Render and deploy the exact environment manifests cleanly
+          kubectl apply -k .
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}

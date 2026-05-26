@@ -19,13 +19,8 @@ patchesJson6902:
         value: justice-redact-staging
 
 # Overrides the host routing target to your staging domain
-# 👇 USE THIS STANDARD STRUCTURE TO FIX THE INLINE ERROR
 patches:
-  - target:
-      version: v1
-      kind: Ingress
-      name: justice-redact-frontend
-    patch: |-
+  - inline: |
       apiVersion: networking.k8s.io/v1
       kind: Ingress
       metadata:
@@ -34,4 +29,4 @@ patches:
           external-dns.alpha.kubernetes.io/set-identifier: 'justice-redact-frontend-justice-redact-staging-green'
       spec:
         rules:
-          - host: justice-redact.apps.live.cloud-platform.service.justice.gov.uk
+          - host: justice-redact-staging.apps.live.cloud-platform.service.justice.gov.uk
