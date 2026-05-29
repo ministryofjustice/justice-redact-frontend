@@ -55,8 +55,10 @@ jobs:
       # 4. Build and push a Docker image to the shared dev registry
       - name: Build & Push to ECR
         run: |
-          docker build -t $REGISTRY/$REPOSITORY:node-$IMAGE_TAG .
-          docker push $REGISTRY/$REPOSITORY:node-$IMAGE_TAG
+          # 🌟 Strip any leading 'justice-redact/' prefix paths if they exist
+          CLEAN_REPO=$(echo "$REPOSITORY" | sed 's|^justice-redact/||')
+          docker build -t $REGISTRY/$CLEAN_REPO:node-$IMAGE_TAG .
+          docker push $REGISTRY/$CLEAN_REPO:node-$IMAGE_TAG
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
@@ -77,10 +79,11 @@ jobs:
             export ENV_FOLDER="production"
           fi
 
+          CLEAN_REPO=$(echo "$REPOSITORY" | sed 's|^justice-redact/||')
           export ENVIRONMENT="${{ needs.set-environment.outputs.target_env }}"
           export TEAM_NAME=justice-redact
           export NAMESPACE="${{ secrets.KUBE_NAMESPACE }}" 
-          export IMAGE="${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}"
+          export IMAGE="${REGISTRY}/${CLEAN_REPO}:node-${IMAGE_TAG}"
           export SERVICE_ACCOUNT="cd-serviceaccount"
 
           # Debugging Step: Output active directory contents
