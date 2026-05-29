@@ -5,6 +5,7 @@ on:
     branches:
       - dev
       - main
+      - prod
 
 jobs:
   # JOB 1: Determine the target environment dynamically based on the Git branch
@@ -16,11 +17,13 @@ jobs:
       - id: branch-check
         run: |
           if [ "${{ github.ref_name }}" = "dev" ]; then
-            echo "env_name=development" >> $GITHUB_OUTPUT
+            echo "env_name=dev" >> $GITHUB_OUTPUT
           elif [ "${{ github.ref_name }}" = "main" ]; then
             echo "env_name=staging" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_name }}" = "prod" ]; then
+            echo "env_name=prod" >> $GITHUB_OUTPUT
           else
-            echo "env_name=development" >> $GITHUB_OUTPUT
+            echo "env_name=dev" >> $GITHUB_OUTPUT
           fi
 
   # JOB 2: Build, Push, and Deploy using the dynamic environment context
@@ -49,7 +52,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
         id: login-ecr
 
-      # 4. Build and push a Docker image
+      # 4. Build and push a Docker image to the shared dev registry
       - name: Build & Push to ECR
         run: |
           docker build -t $REGISTRY/$REPOSITORY:node-$IMAGE_TAG .
@@ -59,34 +62,32 @@ jobs:
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
 
-      # 5. Generate Kubernetes manifests dynamically with environment fallback
+      # 5. Generate Kubernetes manifests dynamically with environment folder mapping
       - name: Generate Kubernetes manifests
         run: |
           sudo apt-get update && sudo apt-get install -y gettext
           mkdir -p k8s
 
-          # 1. Map target environment tags
-          if [ "${{ needs.set-environment.outputs.target_env }}" = "development" ]; then
+          # Map target environments directly to your directory naming structure
+          if [ "${{ needs.set-environment.outputs.target_env }}" = "dev" ]; then
             export ENV_FOLDER="development"
-            export ENVIRONMENT="dev"
           elif [ "${{ needs.set-environment.outputs.target_env }}" = "staging" ]; then
             export ENV_FOLDER="staging"
-            export ENVIRONMENT="staging"
           else
             export ENV_FOLDER="production"
-            export ENVIRONMENT="prod"
           fi
 
+          export ENVIRONMENT="${{ needs.set-environment.outputs.target_env }}"
           export TEAM_NAME=justice-redact
           export NAMESPACE="${{ secrets.KUBE_NAMESPACE }}" 
           export IMAGE="${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}"
-          export SERVICE_ACCOUNT="${TEAM_NAME}-${ENVIRONMENT}"
+          export SERVICE_ACCOUNT="cd-serviceaccount"
 
-          # 2. Debugging Step: Output active directory contents
+          # Debugging Step: Output active directory contents
           echo "=== Current working directory structure ==="
           ls -R deployments/ || echo "deployments directory not found!"
 
-          # 3. Fallback logic: Use target environment folder if it exists, otherwise use development
+          # Fallback logic: Use target environment folder if it exists, otherwise fall back to development
           if [ -d "deployments/${ENV_FOLDER}" ]; then
             echo "Using target environment templates from: deployments/${ENV_FOLDER}"
             export TEMPLATE_DIR="deployments/${ENV_FOLDER}"
@@ -95,7 +96,7 @@ jobs:
             export TEMPLATE_DIR="deployments/development"
           fi
 
-          # 4. Substitute variables and output manifests
+          # Substitute variables and output manifests
           envsubst < ${TEMPLATE_DIR}/deployment.yml > k8s/deployment.yml
           envsubst < ${TEMPLATE_DIR}/service.yml > k8s/service.yml
           envsubst < ${TEMPLATE_DIR}/ingress.yml > k8s/ingress.yml
