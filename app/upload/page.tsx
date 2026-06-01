@@ -15,6 +15,11 @@ type PdfAnalysisResult = {
   mightBeScannedDocument: boolean;
 };
 
+type UploadDocumentResponse = {
+  documentId: string;
+  status: string;
+};
+
 export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -114,14 +119,6 @@ export default function UploadPage() {
     const mightBeScannedDocument =
       imageCount >= pdf.numPages && bodyTextLength < 500;
 
-    console.log({
-      pages: pdf.numPages,
-      imageCount,
-      bodyTextLength,
-      hasBodyText,
-      mightBeScannedDocument,
-    });
-
     return {
       hasBodyText,
       mightBeScannedDocument,
@@ -153,6 +150,7 @@ export default function UploadPage() {
       return;
     }
 
+<<<<<<< HEAD
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -179,6 +177,49 @@ export default function UploadPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
     }
+=======
+    const formData = new FormData();
+    formData.append("file", file);
+
+    let uploadedDocument: UploadDocumentResponse;
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Failed to upload document.");
+      }
+
+      uploadedDocument = data;
+    } catch (err) {
+      console.error("Document upload failed", err);
+      setError(err instanceof Error ? err.message : "Failed to upload document.");
+      return;
+    }
+
+    if (analysis.mightBeScannedDocument) {
+      router.push(
+        `/scanned-document?documentId=${encodeURIComponent(
+          uploadedDocument.documentId
+        )}&filename=${encodeURIComponent(file.name)}`
+      );
+      return;
+    }
+
+    router.push(
+      `/subject-details?documentId=${encodeURIComponent(
+        uploadedDocument.documentId
+      )}&filename=${encodeURIComponent(file.name)}`
+    );
+>>>>>>> 7a2786f (Refactor ProcessingPage and UploadPage layouts to enhance accessibility and user experience, including improved error handling, semantic HTML structure, and loading indicators.)
   }
 
   return (
