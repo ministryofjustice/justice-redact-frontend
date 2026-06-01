@@ -182,87 +182,101 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="govuk-grid-row">
-
-      <div className="govuk-grid-column-two-thirds">
-        <a href="/" className="govuk-back-link">
-          Back
-        </a>
-        {error && (
-          <div
-            className="govuk-error-summary"
-            data-module="govuk-error-summary"
-            aria-labelledby="error-summary-title"
-            role="alert"
-            tabIndex={-1}
-          >
-            <h2 className="govuk-error-summary__title" id="error-summary-title">
-              There is a problem
-            </h2>
-
-            <div className="govuk-error-summary__body">
-              <ul className="govuk-list govuk-error-summary__list">
-                <li>
-                  <a href="#file-upload-1">{error}</a>
-                </li>
-              </ul>
-            </div>
-          </div>
-        )}
-
-        <h1 className="govuk-heading-xl">Upload a document</h1>
-
-        <div className="govuk-inset-text guidance-panel">
-          <p className="govuk-body">
-            Only NOMIS and DPS documents can be processed at the moment.
-          </p>
-        </div>
-
-        <div
-          className={`govuk-form-group${error ? " govuk-form-group--error" : ""
-            }`}
-        >
-          <label className="govuk-label" htmlFor="file-upload-1">
-            Upload a file
-          </label>
-
-          <div id="file-upload-1-hint" className="govuk-hint">
-            Only NOMIS and DPS documents can be processed at the moment
-          </div>
+    <main className="govuk-main-wrapper" id="main-content">
+      <div className="govuk-grid-row">
+        <div className="govuk-grid-column-two-thirds">
+          <a href="/" className="govuk-back-link">
+            Back
+          </a>
 
           {error && (
-            <p id="file-upload-1-error" className="govuk-error-message">
-              <span className="govuk-visually-hidden">Error:</span> {error}
-            </p>
+            <div
+              className="govuk-error-summary"
+              data-module="govuk-error-summary"
+              aria-labelledby="error-summary-title"
+              role="alert"
+              tabIndex={-1}
+            >
+              <h2 className="govuk-error-summary__title" id="error-summary-title">
+                There is a problem
+              </h2>
+
+              <div className="govuk-error-summary__body">
+                <ul className="govuk-list govuk-error-summary__list">
+                  <li>
+                    <a href="#file-upload-1">{error}</a>
+                  </li>
+                </ul>
+              </div>
+            </div>
           )}
 
-          <div className="govuk-drop-zone" data-module="govuk-file-upload">
-            <input
-              ref={inputRef}
-              className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""}`}
-              id="file-upload-1"
-              name="fileUpload1"
-              type="file"
-              accept=".pdf,application/pdf"
-              aria-describedby={
-                error
-                  ? "file-upload-1-hint file-upload-1-error"
-                  : "file-upload-1-hint"
-              }
-              onChange={handleFileChange}
-            />
-          </div>
-        </div>
+          <h1 className="govuk-heading-xl">Upload a document</h1>
 
-        <button
-          type="button"
-          className="govuk-button"
-          data-module="govuk-button"
-          onClick={handleUpload}
-        >
-          Continue
-        </button>
+          <aside className="govuk-inset-text guidance-panel" aria-label="Upload guidance">
+            <p className="govuk-body">
+              Only NOMIS and DPS documents can be processed at the moment.
+            </p>
+          </aside>
+
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleUpload();
+            }}
+          >
+            <section aria-labelledby="upload-file-heading">
+              <div className={`govuk-form-group${error ? " govuk-form-group--error" : ""}`}>
+                <h2 className="govuk-label-wrapper">
+                  <label
+                    className="govuk-label govuk-label--m"
+                    htmlFor="file-upload-1"
+                    id="upload-file-heading"
+                  >
+                    Upload a file
+                  </label>
+                </h2>
+
+                <div id="file-upload-1-hint" className="govuk-hint">
+                  Only NOMIS and DPS documents can be processed at the moment
+                </div>
+
+                {error && (
+                  <p id="file-upload-1-error" className="govuk-error-message">
+                    <span className="govuk-visually-hidden">Error:</span> {error}
+                  </p>
+                )}
+
+                <div className="govuk-drop-zone" data-module="govuk-file-upload">
+                  <input
+                    ref={inputRef}
+                    className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""}`}
+                    id="file-upload-1"
+                    name="fileUpload1"
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    aria-describedby={
+                      error
+                        ? "file-upload-1-hint file-upload-1-error"
+                        : "file-upload-1-hint"
+                    }
+                    onChange={handleFileChange}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <button
+              type="submit"
+              className="govuk-button"
+              data-module="govuk-button"
+            >
+              Continue
+            </button>
+          </form>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }
