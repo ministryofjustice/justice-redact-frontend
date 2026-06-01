@@ -150,34 +150,6 @@ export default function UploadPage() {
       return;
     }
 
-<<<<<<< HEAD
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/upload`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Upload failed.");
-      }
-
-      const nextUrl = analysis.mightBeScannedDocument
-        ? `/scanned-document?documentId=${data.documentId}&filename=${encodeURIComponent(file.name)}`
-        : `/subject-details?documentId=${data.documentId}&filename=${encodeURIComponent(file.name)}`;
-
-      router.push(nextUrl);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
-    }
-=======
     const formData = new FormData();
     formData.append("file", file);
 
@@ -219,7 +191,6 @@ export default function UploadPage() {
         uploadedDocument.documentId
       )}&filename=${encodeURIComponent(file.name)}`
     );
->>>>>>> 7a2786f (Refactor ProcessingPage and UploadPage layouts to enhance accessibility and user experience, including improved error handling, semantic HTML structure, and loading indicators.)
   }
 
   return (
