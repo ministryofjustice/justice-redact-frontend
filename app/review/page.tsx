@@ -374,10 +374,17 @@ function ImageRedactionFrame({
       <div className="jr-review-image-preview">
         <div className="jr-review-image-frame" style={{ position: "relative", display: "inline-block", width, height }}>
           {imageSrc ? (
-            <img src={imageSrc} alt={image.alt || "Document image"} className="jr-review-image" style={{ width, height, display: "block" }} />
+            <img
+              src={imageSrc}
+              alt={image.alt || "Image extracted from uploaded document"}
+              className="jr-review-image"
+              style={{ width, height, display: "block" }}
+            />
           ) : (
             <div
               className="jr-review-image-placeholder"
+              role="img"
+              aria-label="Image extracted from uploaded document"
               style={{
                 width,
                 height,
@@ -782,39 +789,74 @@ function ReviewContent() {
   }
 
   return (
-    <div className="jr-review-root">
-      <div className="sticky-container">
+    <main className="jr-review-root govuk-main-wrapper" id="main-content">
+      <header className="sticky-container" aria-label="Review controls">
         <div className="filename-bar">
           <p className="filename-bar__text">
             You are reviewing <strong>{data?.filename || "Document"}</strong>
           </p>
         </div>
 
-        <div className="actions-bar">
+        <div className="actions-bar" aria-label="Review actions">
           <div className="govuk-button-group">
             <p className="govuk-body"><strong>Menu:</strong></p>
+
             <a href="#" className="govuk-link govuk-link--no-visited-state">Find and redact</a>
             <a href="#" className="govuk-link govuk-link--no-visited-state">Find and unredact</a>
             <a href="#" className="govuk-link govuk-link--no-visited-state">Edit allow list</a>
             <a href="#" className="govuk-link govuk-link--no-visited-state">Quick help</a>
 
             <p className="govuk-body jr-modes-label"><strong>Modes:</strong></p>
-            <button type="button" className="toggle-button-v2" aria-pressed={!isPreviewMode} onClick={() => setIsPreviewMode(false)}>Redact</button>
-            <button type="button" className="toggle-button-v2" aria-pressed={isPreviewMode} onClick={() => setIsPreviewMode(true)}>Preview</button>
+            <button
+              type="button"
+              className="toggle-button-v2"
+              aria-pressed={!isPreviewMode}
+              aria-label="Switch to redact mode"
+              onClick={() => setIsPreviewMode(false)}
+            >
+              Redact
+            </button>
+            <button
+              type="button"
+              className="toggle-button-v2"
+              aria-pressed={isPreviewMode}
+              aria-label="Switch to preview mode"
+              onClick={() => setIsPreviewMode(true)}
+            >
+              Preview
+            </button>
           </div>
         </div>
-      </div>
+      </header>
 
       <div className="govuk-grid-column-full-width">
         <h1 className="govuk-heading-xl jr-mark-for-redaction__header">Mark for redaction</h1>
       </div>
 
-      {isLoading && <div className="govuk-grid-column-full-width"><p className="govuk-body">Loading review data...</p></div>}
+      {isLoading && (
+        <section className="govuk-grid-column-full-width" aria-live="polite">
+          <p className="govuk-body">Loading review data...</p>
+        </section>
+      )}
 
       {error && (
-        <div className="govuk-grid-column-full-width">
-          <p className="govuk-error-message"><span className="govuk-visually-hidden">Error:</span> {error}</p>
-        </div>
+        <section className="govuk-grid-column-full-width" aria-labelledby="review-error-title">
+          <div
+            className="govuk-error-summary"
+            data-module="govuk-error-summary"
+            aria-labelledby="review-error-title"
+            role="alert"
+            tabIndex={-1}
+          >
+            <h2 className="govuk-error-summary__title" id="review-error-title">
+              There is a problem
+            </h2>
+
+            <div className="govuk-error-summary__body">
+              <p className="govuk-body">{error}</p>
+            </div>
+          </div>
+        </section>
       )}
 
       {data && visiblePages.length > 0 && (
@@ -841,9 +883,18 @@ function ReviewContent() {
               ].sort((a, b) => a.y - b.y);
 
               return (
-                <div key={page.pageNumber} className="jr-review-page">
+                <section
+                  key={page.pageNumber}
+                  className="jr-review-page"
+                  aria-labelledby={`review-page-${page.pageNumber}-heading`}
+                >
                   <div className="jr-review-page__header">
-                    <h2 className="govuk-heading-m govuk-!-margin-bottom-1">Page {page.pageNumber}</h2>
+                    <h2
+                      className="govuk-heading-m govuk-!-margin-bottom-1"
+                      id={`review-page-${page.pageNumber}-heading`}
+                    >
+                      Page {page.pageNumber}
+                    </h2>
                   </div>
 
                   <div className="jr-review-page__content">
@@ -976,7 +1027,7 @@ function ReviewContent() {
                       );
                     })}
                   </div>
-                </div>
+                </section>
               );
             })}
           </div>
@@ -1044,7 +1095,7 @@ function ReviewContent() {
           )}
         </>
       )}
-    </div>
+    </main>
   );
 }
 
@@ -1052,9 +1103,12 @@ export default function ReviewPage() {
   return (
     <Suspense
       fallback={
-        <div className="hods-loading-spinner" role="status" aria-live="polite">
-          <div className="hods-loading-spinner__spinner"></div>
-        </div>
+        <main className="govuk-main-wrapper" id="main-content">
+          <div className="hods-loading-spinner" role="status" aria-live="polite">
+            <span className="govuk-visually-hidden">Loading review page</span>
+            <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
+          </div>
+        </main>
       }
     >
       <ReviewContent />
