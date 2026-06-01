@@ -23,7 +23,7 @@ function ApplyingRedactionsContent() {
             return;
         }
 
-        let intervalId: NodeJS.Timeout;
+        let intervalId: ReturnType<typeof setInterval>;
 
         async function pollStatus() {
             try {
@@ -60,45 +60,93 @@ function ApplyingRedactionsContent() {
     }, [documentId, router]);
 
     return (
-        <>
-            {error ? (
-                <p className="govuk-error-message">
-                    <span className="govuk-visually-hidden">Error:</span> {error}
-                </p>
-            ) : (
-                <>
-                    <p className="govuk-body">
-                        The system is applying your selected redactions and preparing the final
-                        document for download.
-                    </p>
+        <main className="govuk-main-wrapper" id="main-content">
+            <div className="govuk-grid-row">
+                <div className="govuk-grid-column-two-thirds">
+                    <h1 className="govuk-heading-l">Applying redactions</h1>
 
-                    <div className="hods-loading-spinner" role="status" aria-live="polite">
-                        <div className="hods-loading-spinner__spinner"></div>
-                    </div>
+                    {error ? (
+                        <section aria-labelledby="apply-redactions-error-title">
+                            <div
+                                className="govuk-error-summary"
+                                data-module="govuk-error-summary"
+                                aria-labelledby="apply-redactions-error-title"
+                                role="alert"
+                                tabIndex={-1}
+                            >
+                                <h2
+                                    className="govuk-error-summary__title"
+                                    id="apply-redactions-error-title"
+                                >
+                                    There is a problem
+                                </h2>
 
-                    <div className="govuk-inset-text">
-                        <strong>Status:</strong>{" "}
-                        {status === "applying_redactions"
-                            ? "Applying redactions..."
-                            : status}
-                    </div>
-                </>
-            )}
-        </>
+                                <div className="govuk-error-summary__body">
+                                    <p className="govuk-body">{error}</p>
+                                </div>
+                            </div>
+                        </section>
+                    ) : (
+                        <section aria-labelledby="applying-redactions-status-heading">
+                            <h2
+                                className="govuk-heading-m govuk-visually-hidden"
+                                id="applying-redactions-status-heading"
+                            >
+                                Redaction status
+                            </h2>
+
+                            <p className="govuk-body">
+                                The system is applying your selected redactions and preparing the final
+                                document for download.
+                            </p>
+
+                            <div className="hods-loading-spinner" role="status" aria-live="polite">
+                                <span className="govuk-visually-hidden">
+                                    {status === "applying_redactions"
+                                        ? "Applying redactions"
+                                        : `Status: ${status}`}
+                                </span>
+                                <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
+                            </div>
+
+                            <div className="govuk-inset-text" aria-live="polite">
+                                <p className="govuk-body">
+                                    <strong>Status:</strong>{" "}
+                                    {status === "applying_redactions"
+                                        ? "Applying redactions..."
+                                        : status}
+                                </p>
+                            </div>
+                        </section>
+                    )}
+                </div>
+            </div>
+        </main>
     );
 }
 
 export default function ApplyingRedactionsPage() {
     return (
-        <>
-            <h1 className="govuk-heading-l">Applying redactions</h1>
-            <Suspense fallback={
-                <div className="hods-loading-spinner" role="status" aria-live="polite">
-                    <div className="hods-loading-spinner__spinner"></div>
-                </div>
-            }>
-                <ApplyingRedactionsContent />
-            </Suspense>
-        </>
+        <Suspense
+            fallback={
+                <main className="govuk-main-wrapper" id="main-content">
+                    <div className="govuk-grid-row">
+                        <div className="govuk-grid-column-two-thirds">
+                            <div className="hods-loading-spinner" role="status" aria-live="polite">
+                                <span className="govuk-visually-hidden">
+                                    Loading redaction progress
+                                </span>
+                                <div
+                                    className="hods-loading-spinner__spinner"
+                                    aria-hidden="true"
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            }
+        >
+            <ApplyingRedactionsContent />
+        </Suspense>
     );
 }
