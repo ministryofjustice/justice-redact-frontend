@@ -400,6 +400,58 @@ body {
   color: #0b0c0c !important;
 }
 
+.page-counts-section {
+  margin-bottom: 30px;
+}
+
+.page-counts {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr 1fr 1fr;
+  column-gap: 30px;
+  align-items: start;
+  width: 100%;
+  margin: 0;
+}
+
+.page-counts__item {
+  min-width: 0;
+}
+
+.page-counts__number {
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 700;
+  margin: 0;
+}
+
+.page-counts__label {
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.page-counts__divider {
+  width: 1px;
+  height: 55px;
+  background-color: #0b0c0c;
+}
+
+@media (max-width: 40.0525em) {
+  .page-counts {
+    display: block;
+  }
+
+  .page-counts__item {
+    margin-bottom: 20px;
+  }
+
+  .page-counts__divider {
+    display: none;
+  }
+}
+
 @keyframes hods-spinner {
   to {
     transform: rotate(360deg);

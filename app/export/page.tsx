@@ -89,82 +89,113 @@ function ExportContent() {
                     )}
 
                     {data && (
-                        <section aria-labelledby="exported-documents-heading">
+                        <>
+                            <section aria-labelledby="page-counts-heading" className="page-counts-section">
+                                <h2 className="govuk-heading-m" id="page-counts-heading">
+                                    Page counts
+                                </h2>
 
-                            <table className="govuk-table">
-                                <caption
-                                    className="govuk-table__caption govuk-table__caption--m"
-                                    id="exported-documents-heading"
-                                >
-                                    Exported documents
-                                </caption>
+                                <dl className="page-counts">
+                                    <div className="page-counts__item">
+                                        <dt className="page-counts__number">326</dt>
+                                        <dd className="page-counts__label">pages in original document</dd>
+                                    </div>
 
-                                <thead className="govuk-table__head">
-                                    <tr className="govuk-table__row">
-                                        <th scope="col" className="govuk-table__header">
-                                            Document
-                                        </th>
-                                        <th scope="col" className="govuk-table__header">
-                                            Description
-                                        </th>
-                                        <th scope="col" className="govuk-table__header">
-                                            Action
-                                        </th>
-                                    </tr>
-                                </thead>
+                                    <div className="page-counts__divider" aria-hidden="true" />
 
-                                <tbody className="govuk-table__body">
-                                    <tr className="govuk-table__row">
-                                        <th scope="row" className="govuk-table__header">
-                                            Redacted
-                                        </th>
-                                        <td className="govuk-table__cell">
-                                            Redactions applied in black and all highlights removed.
-                                        </td>
-                                        <td className="govuk-table__cell">
-                                            {downloadUrl ? (
-                                                <a
-                                                    href={downloadUrl}
-                                                    className="govuk-link govuk-link--no-visited-state"
-                                                    download
-                                                >
-                                                    Download
-                                                </a>
-                                            ) : (
-                                                <span className="govuk-body">Not available</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                                    <div className="page-counts__item">
+                                        <dt className="page-counts__number">12</dt>
+                                        <dd className="page-counts__label">exempt pages removed</dd>
+                                    </div>
 
-                            <div className="govuk-button-group">
-                                {downloadUrl ? (
-                                    <a
-                                        href={downloadUrl}
-                                        className="govuk-button"
-                                        data-module="govuk-button"
-                                        download
+                                    <div className="page-counts__item">
+                                        <dt className="page-counts__number">7</dt>
+                                        <dd className="page-counts__label">pages deleted</dd>
+                                    </div>
+
+                                    <div className="page-counts__item">
+                                        <dt className="page-counts__number">307</dt>
+                                        <dd className="page-counts__label">pages in redacted document</dd>
+                                    </div>
+                                </dl>
+                            </section>
+                            <section aria-labelledby="exported-documents-heading">
+
+                                <table className="govuk-table">
+                                    <caption
+                                        className="govuk-table__caption govuk-table__caption--m"
+                                        id="exported-documents-heading"
                                     >
-                                        Download redacted file
+                                        Exported documents
+                                    </caption>
+
+                                    <thead className="govuk-table__head">
+                                        <tr className="govuk-table__row">
+                                            <th scope="col" className="govuk-table__header">
+                                                Document
+                                            </th>
+                                            <th scope="col" className="govuk-table__header">
+                                                Description
+                                            </th>
+                                            <th scope="col" className="govuk-table__header">
+                                                Action
+                                            </th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody className="govuk-table__body">
+                                        <tr className="govuk-table__row">
+                                            <th scope="row" className="govuk-table__header">
+                                                Redacted
+                                            </th>
+                                            <td className="govuk-table__cell">
+                                                Redactions applied in black and all highlights removed.
+                                            </td>
+                                            <td className="govuk-table__cell">
+                                                {downloadUrl ? (
+                                                    <a
+                                                        href={downloadUrl}
+                                                        className="govuk-link govuk-link--no-visited-state"
+                                                        download
+                                                    >
+                                                        Download
+                                                    </a>
+                                                ) : (
+                                                    <span className="govuk-body">Not available</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+
+                                <div className="govuk-button-group">
+                                    {downloadUrl ? (
+                                        <a
+                                            href={downloadUrl}
+                                            className="govuk-button"
+                                            data-module="govuk-button"
+                                            download
+                                        >
+                                            Download redacted file
+                                        </a>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className="govuk-button"
+                                            data-module="govuk-button"
+                                            disabled
+                                            aria-disabled="true"
+                                        >
+                                            Download redacted file
+                                        </button>
+                                    )}
+
+                                    <a href="/" className="govuk-link govuk-link--no-visited-state">
+                                        Vet another document
                                     </a>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        className="govuk-button"
-                                        data-module="govuk-button"
-                                        disabled
-                                        aria-disabled="true"
-                                    >
-                                        Download redacted file
-                                    </button>
-                                )}
-
-                                <a href="/" className="govuk-link govuk-link--no-visited-state">
-                                    Vet another document
-                                </a>
-                            </div>
-                        </section>
+                                </div>
+                            </section>
+                        </>
                     )}
                 </div>
             </div>
