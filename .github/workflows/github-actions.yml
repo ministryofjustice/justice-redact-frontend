@@ -99,12 +99,36 @@ jobs:
           KUBE_CERT: ${{ secrets.KUBE_CERT }}
           KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
           KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
+          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }} # Delete later if causing issues with context setup
         run: |
-          echo "${KUBE_CERT}"  > ca.crt
+          /* Delete later if causing issues with context setup - this was the original approach, but it can lead to problems if the certificate is not handled correctly. 
+          echo "${KUBE_CERT}" | tr -d '\n' | base64 --decode > ca.crt
           kubectl config set-cluster ${KUBE_CLUSTER} --certificate-authority=./ca.crt --server=${KUBE_CLUSTER}
           kubectl config set-credentials deploy-user --token=${KUBE_TOKEN}
           kubectl config set-context ${KUBE_CLUSTER} --cluster=${KUBE_CLUSTER} --user=deploy-user --namespace=${KUBE_NAMESPACE}
-          kubectl config use-context ${KUBE_CLUSTER}
+          kubectl config use-context ${KUBE_CLUSTER} 
+          */
+
+          # Create a clean certificate file
+          # The 'tr -d' removes any potential newlines from the secret
+          echo "${KUBE_CERT}" | tr -d '\n' | base64 --decode > ca.crt
+          
+          # Configure cluster access
+          kubectl config set-cluster cluster-config \
+            --certificate-authority=ca.crt \
+            --server="${KUBE_CLUSTER}"
+            
+          # Configure user credentials
+          kubectl config set-credentials deploy-user --token="${KUBE_TOKEN}"
+          
+          # Configure context
+          kubectl config set-context deploy-context \
+            --cluster=cluster-config \
+            --user=deploy-user \
+            --namespace="${KUBE_NAMESPACE}"
+            
+          # Set the context as active
+          kubectl config use-context deploy-context
 
       # 7. Validate Kubernetes manifests against live cluster schemas
       - name: Validate Kubernetes Manifests
