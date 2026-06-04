@@ -62,7 +62,7 @@ jobs:
           docker push $REGISTRY/$REPOSITORY:node-$IMAGE_TAG
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: justice-redact/justice-redact-frontend-${{ needs.set-environment.outputs.target_env }}
+          REPOSITORY: justice-redact/justice-redact-${{ needs.set-environment.outputs.target_env }}
           IMAGE_TAG: ${{ github.sha }}
 
       # 5. Generate Kubernetes manifests from templates
@@ -89,7 +89,7 @@ jobs:
           envsubst < deployments/templates/ingress.yml > k8s/ingress.yml
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: justice-redact/justice-redact-frontend-${{ needs.set-environment.outputs.target_env }}
+          REPOSITORY: justice-redact/justice-redact-${{ needs.set-environment.outputs.target_env }}
           IMAGE_TAG: ${{ github.sha }}
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
 
