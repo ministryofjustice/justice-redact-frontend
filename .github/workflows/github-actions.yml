@@ -95,39 +95,21 @@ jobs:
 
       # 6. Authenticate to the cluster using Kube Token
       - name: Authenticate to the cluster
+        shell: bash
         env:
           KUBE_CERT: ${{ secrets.KUBE_CERT }}
           KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
           KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
-          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }} # Delete later if causing issues with context setup
         run: |
-          /* Delete later if causing issues with context setup - this was the original approach, but it can lead to problems if the certificate is not handled correctly. 
-          echo "${KUBE_CERT}" | tr -d '\n' | base64 --decode > ca.crt
-          kubectl config set-cluster ${KUBE_CLUSTER} --certificate-authority=./ca.crt --server=${KUBE_CLUSTER}
-          kubectl config set-credentials deploy-user --token=${KUBE_TOKEN}
-          kubectl config set-context ${KUBE_CLUSTER} --cluster=${KUBE_CLUSTER} --user=deploy-user --namespace=${KUBE_NAMESPACE}
-          kubectl config use-context ${KUBE_CLUSTER} 
-          */
-
-          # Create a clean certificate file
-          # The 'tr -d' removes any potential newlines from the secret
-          echo "${KUBE_CERT}" | tr -d '\n' | base64 --decode > ca.crt
+          # 1. Decode CA Cert
+          echo "$KUBE_CERT" | tr -d '[:space:]' | base64 --decode > ca.crt
           
-          # Configure cluster access
-          kubectl config set-cluster cluster-config \
-            --certificate-authority=ca.crt \
-            --server="${KUBE_CLUSTER}"
-            
-          # Configure user credentials
-          kubectl config set-credentials deploy-user --token="${KUBE_TOKEN}"
+          # 2. Setup Kubeconfig
+          kubectl config set-cluster cluster-config --server="$KUBE_CLUSTER" --certificate-authority=ca.crt --embed-certs=true
+          kubectl config set-credentials deploy-user --token="$KUBE_TOKEN"
+          kubectl config set-context deploy-context --cluster=cluster-config --user=deploy-user --namespace="${{ secrets.KUBE_NAMESPACE }}"
           
-          # Configure context
-          kubectl config set-context deploy-context \
-            --cluster=cluster-config \
-            --user=deploy-user \
-            --namespace="${KUBE_NAMESPACE}"
-            
-          # Set the context as active
+          # 3. Set Context
           kubectl config use-context deploy-context
 
       # 7. Validate Kubernetes manifests against live cluster schemas
