@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: justice-redact-frontend
-  namespace: ${NAMESPACE}
+# 💡 Note: The namespace line is completely removed here. Kustomize handles this globally.
 spec:
   replicas: 2
   selector:
@@ -13,9 +13,9 @@ spec:
       labels:
         app: justice-redact-frontend
     spec:
-      serviceAccountName: ${SERVICE_ACCOUNT}
+      serviceAccountName: default # 👈 Use the built-in namespace account
       containers:
         - name: app
-          image: ${IMAGE}
+          image: justice-redact-frontend-image:latest
           ports:
             - containerPort: 3000

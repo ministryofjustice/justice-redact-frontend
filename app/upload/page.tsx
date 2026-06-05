@@ -15,6 +15,11 @@ type PdfAnalysisResult = {
   mightBeScannedDocument: boolean;
 };
 
+type UploadDocumentResponse = {
+  documentId: string;
+  status: string;
+};
+
 export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -114,14 +119,6 @@ export default function UploadPage() {
     const mightBeScannedDocument =
       imageCount >= pdf.numPages && bodyTextLength < 500;
 
-    console.log({
-      pages: pdf.numPages,
-      imageCount,
-      bodyTextLength,
-      hasBodyText,
-      mightBeScannedDocument,
-    });
-
     return {
       hasBodyText,
       mightBeScannedDocument,
@@ -153,10 +150,12 @@ export default function UploadPage() {
       return;
     }
 
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
+    const formData = new FormData();
+    formData.append("file", file);
 
+    let uploadedDocument: UploadDocumentResponse;
+
+    try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/upload`,
         {
@@ -168,101 +167,128 @@ export default function UploadPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || "Upload failed.");
+        throw new Error(data.detail || "Failed to upload document.");
       }
 
-      const nextUrl = analysis.mightBeScannedDocument
-        ? `/scanned-document?documentId=${data.documentId}&filename=${encodeURIComponent(file.name)}`
-        : `/subject-details?documentId=${data.documentId}&filename=${encodeURIComponent(file.name)}`;
-
-      router.push(nextUrl);
+      uploadedDocument = data;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
+      console.error("Document upload failed", err);
+      setError(err instanceof Error ? err.message : "Failed to upload document.");
+      return;
     }
+
+    if (analysis.mightBeScannedDocument) {
+      router.push(
+        `/scanned-document?documentId=${encodeURIComponent(
+          uploadedDocument.documentId
+        )}&filename=${encodeURIComponent(file.name)}`
+      );
+      return;
+    }
+
+    router.push(
+      `/subject-details?documentId=${encodeURIComponent(
+        uploadedDocument.documentId
+      )}&filename=${encodeURIComponent(file.name)}`
+    );
   }
 
   return (
-    <div className="govuk-grid-row">
-
-      <div className="govuk-grid-column-two-thirds">
-        <a href="/" className="govuk-back-link">
-          Back
-        </a>
-        {error && (
-          <div
-            className="govuk-error-summary"
-            data-module="govuk-error-summary"
-            aria-labelledby="error-summary-title"
-            role="alert"
-            tabIndex={-1}
-          >
-            <h2 className="govuk-error-summary__title" id="error-summary-title">
-              There is a problem
-            </h2>
-
-            <div className="govuk-error-summary__body">
-              <ul className="govuk-list govuk-error-summary__list">
-                <li>
-                  <a href="#file-upload-1">{error}</a>
-                </li>
-              </ul>
-            </div>
-          </div>
-        )}
-
-        <h1 className="govuk-heading-xl">Upload a document</h1>
-
-        <div className="govuk-inset-text guidance-panel">
-          <p className="govuk-body">
-            Only NOMIS and DPS documents can be processed at the moment.
-          </p>
-        </div>
-
-        <div
-          className={`govuk-form-group${error ? " govuk-form-group--error" : ""
-            }`}
-        >
-          <label className="govuk-label" htmlFor="file-upload-1">
-            Upload a file
-          </label>
-
-          <div id="file-upload-1-hint" className="govuk-hint">
-            Only NOMIS and DPS documents can be processed at the moment
-          </div>
+    <main className="govuk-main-wrapper" id="main-content">
+      <div className="govuk-grid-row">
+        <div className="govuk-grid-column-two-thirds">
+          <a href="/" className="govuk-back-link">
+            Back
+          </a>
 
           {error && (
-            <p id="file-upload-1-error" className="govuk-error-message">
-              <span className="govuk-visually-hidden">Error:</span> {error}
-            </p>
+            <div
+              className="govuk-error-summary"
+              data-module="govuk-error-summary"
+              aria-labelledby="error-summary-title"
+              role="alert"
+              tabIndex={-1}
+            >
+              <h2 className="govuk-error-summary__title" id="error-summary-title">
+                There is a problem
+              </h2>
+
+              <div className="govuk-error-summary__body">
+                <ul className="govuk-list govuk-error-summary__list">
+                  <li>
+                    <a href="#file-upload-1">{error}</a>
+                  </li>
+                </ul>
+              </div>
+            </div>
           )}
 
-          <div className="govuk-drop-zone" data-module="govuk-file-upload">
-            <input
-              ref={inputRef}
-              className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""}`}
-              id="file-upload-1"
-              name="fileUpload1"
-              type="file"
-              accept=".pdf,application/pdf"
-              aria-describedby={
-                error
-                  ? "file-upload-1-hint file-upload-1-error"
-                  : "file-upload-1-hint"
-              }
-              onChange={handleFileChange}
-            />
-          </div>
-        </div>
+          <h1 className="govuk-heading-xl">Upload a document</h1>
 
-        <button
-          type="button"
-          className="govuk-button"
-          data-module="govuk-button"
-          onClick={handleUpload}
-        >
-          Continue
-        </button>
+          <aside className="govuk-inset-text guidance-panel" aria-label="Upload guidance">
+            <p className="govuk-body">
+              Only NOMIS and DPS documents can be processed at the moment.
+            </p>
+          </aside>
+
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleUpload();
+            }}
+          >
+            <section aria-labelledby="upload-file-heading">
+              <div className={`govuk-form-group${error ? " govuk-form-group--error" : ""}`}>
+                <h2 className="govuk-label-wrapper">
+                  <label
+                    className="govuk-label govuk-label--m"
+                    htmlFor="file-upload-1"
+                    id="upload-file-heading"
+                  >
+                    Upload a file
+                  </label>
+                </h2>
+
+                <div id="file-upload-1-hint" className="govuk-hint">
+                  Only NOMIS and DPS documents can be processed at the moment
+                </div>
+
+                {error && (
+                  <p id="file-upload-1-error" className="govuk-error-message">
+                    <span className="govuk-visually-hidden">Error:</span> {error}
+                  </p>
+                )}
+
+                <div className="govuk-drop-zone" data-module="govuk-file-upload">
+                  <input
+                    ref={inputRef}
+                    className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""}`}
+                    id="file-upload-1"
+                    name="fileUpload1"
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    aria-describedby={
+                      error
+                        ? "file-upload-1-hint file-upload-1-error"
+                        : "file-upload-1-hint"
+                    }
+                    onChange={handleFileChange}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <button
+              type="submit"
+              className="govuk-button"
+              data-module="govuk-button"
+            >
+              Continue
+            </button>
+          </form>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

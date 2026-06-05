@@ -55,31 +55,59 @@ function ProcessingContent() {
   }, [documentId, router]);
 
   return (
-    <>
-      <h1 className="govuk-heading-l">Processing document</h1>
+    <main className="govuk-main-wrapper" id="main-content">
+      <div className="govuk-grid-row">
+        <div className="govuk-grid-column-two-thirds">
+          <h1 className="govuk-heading-l">Processing document</h1>
 
-      {error ? (
-        <p className="govuk-error-message">
-          <span className="govuk-visually-hidden">Error:</span> {error}
-        </p>
-      ) : (
-        <>
-          <p className="govuk-body">
-            The system is analysing the uploaded document and identifying possible sensitive
-            information.
-          </p>
+          {error ? (
+            <div
+              className="govuk-error-summary"
+              data-module="govuk-error-summary"
+              aria-labelledby="error-summary-title"
+              role="alert"
+              tabIndex={-1}
+            >
+              <h2 className="govuk-error-summary__title" id="error-summary-title">
+                There is a problem
+              </h2>
 
-          <div className="hods-loading-spinner" role="status" aria-live="polite">
-            <div className="hods-loading-spinner__spinner"></div>
-          </div>
+              <div className="govuk-error-summary__body">
+                <p className="govuk-body">{error}</p>
+              </div>
+            </div>
+          ) : (
+            <section aria-labelledby="processing-status-heading">
+              <h2
+                className="govuk-heading-m govuk-visually-hidden"
+                id="processing-status-heading"
+              >
+                Processing status
+              </h2>
 
-          <div className="govuk-inset-text">
-            <strong>Status:</strong>{" "}
-            {status === "processing" ? "Processing document..." : status}
-          </div>
-        </>
-      )}
-    </>
+              <p className="govuk-body">
+                The system is analysing the uploaded document and identifying possible sensitive
+                information.
+              </p>
+
+              <div className="hods-loading-spinner" role="status" aria-live="polite">
+                <span className="govuk-visually-hidden">
+                  {status === "processing" ? "Processing document" : `Status: ${status}`}
+                </span>
+                <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
+              </div>
+
+              <div className="govuk-inset-text" aria-live="polite">
+                <p className="govuk-body">
+                  <strong>Status:</strong>{" "}
+                  {status === "processing" ? "Processing document..." : status}
+                </p>
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+    </main>
   );
 }
 
@@ -87,9 +115,16 @@ export default function ProcessingPage() {
   return (
     <Suspense
       fallback={
-        <div className="hods-loading-spinner" role="status" aria-live="polite">
-          <div className="hods-loading-spinner__spinner"></div>
-        </div>
+        <main className="govuk-main-wrapper" id="main-content">
+          <div className="govuk-grid-row">
+            <div className="govuk-grid-column-two-thirds">
+              <div className="hods-loading-spinner" role="status" aria-live="polite">
+                <span className="govuk-visually-hidden">Loading processing page</span>
+                <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
+              </div>
+            </div>
+          </div>
+        </main>
       }
     >
       <ProcessingContent />

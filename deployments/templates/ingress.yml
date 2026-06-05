@@ -4,11 +4,12 @@ metadata:
   name: justice-redact-frontend
   namespace: ${NAMESPACE}
   annotations:
-    # Mandatory ExternalDNS routing annotations for MoJ Cloud Platform Gatekeeper compliance
     external-dns.alpha.kubernetes.io/aws-weight: '100'
     external-dns.alpha.kubernetes.io/set-identifier: 'justice-redact-frontend-${NAMESPACE}-green'
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
-  ingressClassName: default-non-prod
+  # dynamic: default-non-prod for dev/staging, default for prod
+  ingressClassName: ${INGRESS_CLASS}
   rules:
     - host: ${NAMESPACE}.apps.live.cloud-platform.service.justice.gov.uk
       http:
