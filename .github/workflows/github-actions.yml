@@ -127,7 +127,7 @@ jobs:
 
           # CLEANING STEP: 'tr -d '[:space:]'' removes all newlines and spaces 
           # before passing the string to base64.
-          echo "$KUBE_CERT" | tr -d '[:space:]' | base64 --decode > ca.crt
+          echo "$KUBE_CERT" > ca.crt
 
           echo "Certificate details:"
           openssl x509 -in ca.crt -noout -subject -issuer
