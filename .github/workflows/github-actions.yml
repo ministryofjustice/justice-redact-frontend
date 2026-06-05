@@ -101,15 +101,17 @@ jobs:
           KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
           KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
         run: |
-          # 1. Decode CA Cert
-          echo "$KUBE_CERT" | tr -d '[:space:]' | base64 --decode > ca.crt
-          
-          # 2. Setup Kubeconfig
-          kubectl config set-cluster cluster-config --server="$KUBE_CLUSTER" --certificate-authority=ca.crt --embed-certs=true
-          kubectl config set-credentials deploy-user --token="$KUBE_TOKEN"
-          kubectl config set-context deploy-context --cluster=cluster-config --user=deploy-user --namespace="${{ secrets.KUBE_NAMESPACE }}"
-          
-          # 3. Set Context
+          # Handle both base64 encoded and raw PEM cert formats
+          if echo "${KUBE_CERT}" | base64 --decode > ca.crt 2>/dev/null; then
+            echo "Decoded base64 cert"
+          else
+            echo "${KUBE_CERT}" > ca.crt
+            echo "Used raw PEM cert"
+          fi
+
+          kubectl config set-cluster cluster-config --server="${KUBE_CLUSTER}" --certificate-authority=ca.crt --embed-certs=true
+          kubectl config set-credentials deploy-user --token="${KUBE_TOKEN}"
+          kubectl config set-context deploy-context --cluster=cluster-config --user=deploy-user --namespace="${KUBE_NAMESPACE}"
           kubectl config use-context deploy-context
 
       # 7. Validate Kubernetes manifests against live cluster schemas
