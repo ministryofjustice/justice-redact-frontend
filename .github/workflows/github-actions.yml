@@ -93,30 +93,70 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
 
-      # 6. Authenticate to the cluster using Kube Token
+            # 6. Debug Kubernetes secrets (temporary)
+      - name: Debug Kubernetes secrets
+        env:
+          KUBE_CERT: ${{ secrets.KUBE_CERT }}
+          KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
+          KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
+        run: |
+          echo "KUBE_CERT length: ${#KUBE_CERT}"
+          echo "KUBE_TOKEN length: ${#KUBE_TOKEN}"
+          echo "KUBE_CLUSTER length: ${#KUBE_CLUSTER}"
+
+          echo "First 40 chars of KUBE_CERT:"
+          printf '%s' "$KUBE_CERT" | head -c 40
+          echo
+
+          echo "Testing base64 decode..."
+          if printf '%s' "$KUBE_CERT" | base64 --decode >/dev/null 2>&1; then
+            echo "Base64 decode test PASSED"
+          else
+            echo "Base64 decode test FAILED"
+            exit 1
+          fi
+
+      # 7. Authenticate to the cluster using Kube Token
       - name: Authenticate to the cluster
         env:
           KUBE_CERT: ${{ secrets.KUBE_CERT }}
           KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
           KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
         run: |
-          echo "${KUBE_CERT}" | base64 --decode > ca.crt
-          kubectl config set-cluster ${KUBE_CLUSTER} --certificate-authority=./ca.crt --server=https://${KUBE_CLUSTER}
-          kubectl config set-credentials deploy-user --token=${KUBE_TOKEN}
-          kubectl config set-context ${KUBE_CLUSTER} --cluster=${KUBE_CLUSTER} --user=deploy-user --namespace=${KUBE_NAMESPACE}
-          kubectl config use-context ${KUBE_CLUSTER}
+          set -e
 
-      # 7. Validate Kubernetes manifests against live cluster schemas
+          printf '%s' "$KUBE_CERT" | base64 --decode > ca.crt
+
+          echo "Certificate details:"
+          openssl x509 -in ca.crt -noout -subject -issuer
+
+          kubectl config set-cluster "${KUBE_CLUSTER}" \
+            --certificate-authority=./ca.crt \
+            --server="https://${KUBE_CLUSTER}"
+
+          kubectl config set-credentials deploy-user \
+            --token="${KUBE_TOKEN}"
+
+          kubectl config set-context "${KUBE_CLUSTER}" \
+            --cluster="${KUBE_CLUSTER}" \
+            --user=deploy-user \
+            --namespace="${KUBE_NAMESPACE}"
+
+          kubectl config use-context "${KUBE_CLUSTER}"
+
+          echo "kubectl configuration complete"
+
+      # 8. Validate Kubernetes manifests against live cluster schemas
       - name: Validate Kubernetes Manifests
         run: |
           kubectl apply --filename=k8s/ --dry-run=client
 
-      # 8. Verify cluster access
+      # 9. Verify cluster access
       - name: Verify cluster access
         run: |
           kubectl get pods -n ${KUBE_NAMESPACE}
 
-      # 9. Deploy to Kubernetes
+      # 10. Deploy to Kubernetes
       - name: Deploy to Kubernetes
         run: |
           kubectl apply --filename=k8s/ --namespace=${KUBE_NAMESPACE}
