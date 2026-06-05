@@ -95,24 +95,16 @@ jobs:
 
       # 6. Authenticate to the cluster using Kube Token
       - name: Authenticate to the cluster
-        shell: bash
         env:
           KUBE_CERT: ${{ secrets.KUBE_CERT }}
           KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
           KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
         run: |
-          # Handle both base64 encoded and raw PEM cert formats
-          if echo "${KUBE_CERT}" | base64 --decode > ca.crt 2>/dev/null; then
-            echo "Decoded base64 cert"
-          else
-            echo "${KUBE_CERT}" > ca.crt
-            echo "Used raw PEM cert"
-          fi
-
-          kubectl config set-cluster cluster-config --server="${KUBE_CLUSTER}" --certificate-authority=ca.crt --embed-certs=true
-          kubectl config set-credentials deploy-user --token="${KUBE_TOKEN}"
-          kubectl config set-context deploy-context --cluster=cluster-config --user=deploy-user --namespace="${KUBE_NAMESPACE}"
-          kubectl config use-context deploy-context
+          echo "${KUBE_CERT}" | base64 --decode > ca.crt
+          kubectl config set-cluster ${KUBE_CLUSTER} --certificate-authority=./ca.crt --server=https://${KUBE_CLUSTER}
+          kubectl config set-credentials deploy-user --token=${KUBE_TOKEN}
+          kubectl config set-context ${KUBE_CLUSTER} --cluster=${KUBE_CLUSTER} --user=deploy-user --namespace=${KUBE_NAMESPACE}
+          kubectl config use-context ${KUBE_CLUSTER}
 
       # 7. Validate Kubernetes manifests against live cluster schemas
       - name: Validate Kubernetes Manifests
