@@ -7,7 +7,8 @@ type ExportResponse = {
     documentId: string;
     filename: string;
     status: string;
-    exportUrl?: string;
+    redactedExportUrl?: string;
+    vettedExportUrl?: string;
     pageCount?: number;
 };
 
@@ -52,8 +53,12 @@ function ExportContent() {
         loadExport();
     }, [documentId]);
 
-    const downloadUrl = data?.exportUrl
-        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}${data.exportUrl}`
+    const redactedDownloadUrl = data?.redactedExportUrl
+        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}${data.redactedExportUrl}`
+        : null;
+
+    const vettedDownloadUrl = data?.vettedExportUrl
+        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}${data.vettedExportUrl}`
         : null;
 
     return (
@@ -152,9 +157,30 @@ function ExportContent() {
                                                 Redactions applied in black and all highlights removed.
                                             </td>
                                             <td className="govuk-table__cell">
-                                                {downloadUrl ? (
+                                                {redactedDownloadUrl ? (
                                                     <a
-                                                        href={downloadUrl}
+                                                        href={redactedDownloadUrl}
+                                                        className="govuk-link govuk-link--no-visited-state"
+                                                        download
+                                                    >
+                                                        Download
+                                                    </a>
+                                                ) : (
+                                                    <span className="govuk-body">Not available</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                        <tr className="govuk-table__row">
+                                            <th scope="row" className="govuk-table__header">
+                                                Vetted
+                                            </th>
+                                            <td className="govuk-table__cell">
+                                                Original document with selected redactions shown as review highlights.
+                                            </td>
+                                            <td className="govuk-table__cell">
+                                                {vettedDownloadUrl ? (
+                                                    <a
+                                                        href={vettedDownloadUrl}
                                                         className="govuk-link govuk-link--no-visited-state"
                                                         download
                                                     >
@@ -169,9 +195,9 @@ function ExportContent() {
                                 </table>
 
                                 <div className="govuk-button-group">
-                                    {downloadUrl ? (
+                                    {redactedDownloadUrl ? (
                                         <a
-                                            href={downloadUrl}
+                                            href={redactedDownloadUrl}
                                             className="govuk-button"
                                             data-module="govuk-button"
                                             download
@@ -187,6 +213,27 @@ function ExportContent() {
                                             aria-disabled="true"
                                         >
                                             Download redacted file
+                                        </button>
+                                    )}
+
+                                    {vettedDownloadUrl ? (
+                                        <a
+                                            href={vettedDownloadUrl}
+                                            className="govuk-button govuk-button--secondary"
+                                            data-module="govuk-button"
+                                            download
+                                        >
+                                            Download vetted file
+                                        </a>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className="govuk-button govuk-button--secondary"
+                                            data-module="govuk-button"
+                                            disabled
+                                            aria-disabled="true"
+                                        >
+                                            Download vetted file
                                         </button>
                                     )}
 
