@@ -1,12 +1,12 @@
-name: 'Build, Push & Deploy'
-
+name: 'Build, Push & Deploy Frontend'
+ 
 on:
   push:
     branches:
       - dev
-      - main
+      - staging
       - prod
-
+ 
 jobs:
   # JOB 1: Determine the target environment dynamically based on the Git branch
   set-environment:
@@ -18,28 +18,31 @@ jobs:
         run: |
           if [ "${{ github.ref_name }}" = "dev" ]; then
             echo "env_name=dev" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref_name }}" = "main" ]; then
+          elif [ "${{ github.ref_name }}" = "staging" ]; then
             echo "env_name=staging" >> $GITHUB_OUTPUT
           elif [ "${{ github.ref_name }}" = "prod" ]; then
             echo "env_name=prod" >> $GITHUB_OUTPUT
           else
             echo "env_name=dev" >> $GITHUB_OUTPUT
           fi
-
+ 
   # JOB 2: Build, Push, and Deploy using the dynamic environment context
   ecr_and_deploy:
     needs: set-environment
     runs-on: ubuntu-latest
     environment: ${{ needs.set-environment.outputs.target_env }}
-    
+ 
     permissions:
-      id-token: write 
-      contents: read  
-    
+      id-token: write
+      contents: read
+ 
+    env:
+      KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
+ 
     steps:
       # 1. Checkout GitHub repository
       - uses: actions/checkout@v4
-
+ 
       # 2. Configure AWS credentials using OIDC
       # 💡 Fix: If target environment is staging, assume the Dev IAM role instead
       - name: Configure AWS credentials
@@ -94,8 +97,7 @@ jobs:
             echo "Using target environment templates from: deployments/${ENV_FOLDER}"
             export TEMPLATE_DIR="deployments/${ENV_FOLDER}"
           else
-            echo "⚠️ Warning: deployments/${ENV_FOLDER} not found! Falling back to templates in: deployments/development"
-            export TEMPLATE_DIR="deployments/development"
+            export INGRESS_CLASS="default-non-prod"
           fi
 
           envsubst < ${TEMPLATE_DIR}/deployment.yml > k8s/deployment.yml
@@ -105,24 +107,33 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
-
-      # 6. Authenticate to the cluster using Environment-specific cluster secrets
-      - name: 'Authenticate to the cluster'
-        run: |
-          echo "${{ secrets.KUBE_CERT }}" > ca.crt
-          kubectl config set-cluster ${{ secrets.KUBE_CLUSTER }} --certificate-authority=./ca.crt --server=https://${{ secrets.KUBE_CLUSTER }}
-          kubectl config set-credentials deploy-user --token=${KUBE_TOKEN}
-          kubectl config set-context ${{ secrets.KUBE_CLUSTER }} --cluster=${{ secrets.KUBE_CLUSTER }} --user=deploy-user --namespace=${{ secrets.KUBE_NAMESPACE }}
-          kubectl config use-context ${{ secrets.KUBE_CLUSTER }}
+          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
+ 
+      # 6. Authenticate to the cluster using Kube Token
+      - name: Authenticate to the cluster
         env:
+          KUBE_CERT: ${{ secrets.KUBE_CERT }}
           KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
-
-      # 7. Verify cluster access
+          KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
+        run: |
+          echo "${KUBE_CERT}" > ca.crt
+          kubectl config set-cluster ${KUBE_CLUSTER} --certificate-authority=./ca.crt --server=https://${KUBE_CLUSTER}
+          kubectl config set-credentials deploy-user --token=${KUBE_TOKEN}
+          kubectl config set-context ${KUBE_CLUSTER} --cluster=${KUBE_CLUSTER} --user=deploy-user --namespace=${KUBE_NAMESPACE}
+          kubectl config use-context ${KUBE_CLUSTER}
+ 
+      # 7. Validate Kubernetes manifests against live cluster schemas
+      - name: Validate Kubernetes Manifests
+        run: |
+          kubectl apply --filename=k8s/ --dry-run=client
+ 
+      # 8. Verify cluster access
       - name: Verify cluster access
         run: |
-          kubectl get pods -n ${{ secrets.KUBE_NAMESPACE }}
-
-      # 8. Deploy compiled configs to Kubernetes
+          kubectl get pods -n ${KUBE_NAMESPACE}
+ 
+      # 9. Deploy to Kubernetes
       - name: Deploy to Kubernetes
         run: |
-          kubectl apply -f k8s/ -n ${{ secrets.KUBE_NAMESPACE }}
+          kubectl apply --filename=k8s/ --namespace=${KUBE_NAMESPACE}
+ 

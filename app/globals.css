@@ -113,6 +113,41 @@ body {
 } */
 
 .filename-bar {
+  width: 100%;
+  margin: 0 auto;
+  z-index: 10;
+} */
+
+/* @media (max-width: 700px),
+(max-height: 700px) {
+  .sticky-container {
+    position: static;
+  }
+
+  .actions-bar .govuk-button-group {
+    display: block;
+  }
+
+  .actions-bar .govuk-button-group>a,
+  .actions-bar .govuk-button-group>button,
+  .actions-bar .govuk-button-group>label,
+  .actions-bar .govuk-button-group>p {
+    display: block;
+    margin-bottom: 10px;
+  }
+
+  .jr-modes-label {
+    margin-left: 0;
+    margin-top: 20px;
+  }
+
+  .toggle-button-v2 {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+} */
+
+.filename-bar {
   background: #d2e2f1;
   padding: 5px 10px;
 }
