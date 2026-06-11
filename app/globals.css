@@ -114,16 +114,65 @@ body {
 
 .filename-bar {
   width: 100%;
-  background-color: #d2e2f1;
-  padding: 10px;
-  box-sizing: border-box;
-  border-bottom: none;
+  margin: 0 auto;
+  z-index: 10;
+} */
+
+/* @media (max-width: 700px),
+(max-height: 700px) {
+  .sticky-container {
+    position: static;
+  }
+
+  .actions-bar .govuk-button-group {
+    display: block;
+  }
+
+  .actions-bar .govuk-button-group>a,
+  .actions-bar .govuk-button-group>button,
+  .actions-bar .govuk-button-group>label,
+  .actions-bar .govuk-button-group>p {
+    display: block;
+    margin-bottom: 10px;
+  }
+
+  .jr-modes-label {
+    margin-left: 0;
+    margin-top: 20px;
+  }
+
+  .toggle-button-v2 {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+} */
+
+.filename-bar {
+  background: #d2e2f1;
+  padding: 5px 10px;
 }
 
 .filename-bar__text {
   margin: 0;
   font-family: "GDS Transport", arial, sans-serif;
   font-size: 16px;
+  line-height: 1.25;
+  color: #0b0c0c;
+}
+
+.filename-bar__name {
+  font-family: "GDS Transport", arial, sans-serif;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 40.0525em) {
+
+  .filename-bar__prefix,
+  .filename-bar__name {
+    display: block;
+  }
 }
 
 .actions-bar {
@@ -384,6 +433,58 @@ body {
 
 .button-as-link:focus {
   color: #0b0c0c !important;
+}
+
+.page-counts-section {
+  margin-bottom: 30px;
+}
+
+.page-counts {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr 1fr 1fr;
+  column-gap: 30px;
+  align-items: start;
+  width: 100%;
+  margin: 0;
+}
+
+.page-counts__item {
+  min-width: 0;
+}
+
+.page-counts__number {
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 700;
+  margin: 0;
+}
+
+.page-counts__label {
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.page-counts__divider {
+  width: 1px;
+  height: 55px;
+  background-color: #0b0c0c;
+}
+
+@media (max-width: 40.0525em) {
+  .page-counts {
+    display: block;
+  }
+
+  .page-counts__item {
+    margin-bottom: 20px;
+  }
+
+  .page-counts__divider {
+    display: none;
+  }
 }
 
 @keyframes hods-spinner {

@@ -2,6 +2,7 @@
 
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import FilenameBar from "@/app/components/FilenameBar";
 
 const PDF_TO_CSS_SCALE = 96 / 72;
 const PAGES_PER_BATCH = 50;
@@ -791,12 +792,9 @@ function ReviewContent() {
   return (
     <main className="jr-review-root govuk-main-wrapper" id="main-content">
       <header className="sticky-container" aria-label="Review controls">
-        <div className="filename-bar">
-          <p className="filename-bar__text">
-            You are reviewing <strong>{data?.filename || "Document"}</strong>
-          </p>
-        </div>
-
+        <FilenameBar
+          filename={data?.filename || "Document"}
+        />
         <div className="actions-bar" aria-label="Review actions">
           <div className="govuk-button-group">
             <p className="govuk-body"><strong>Menu:</strong></p>
