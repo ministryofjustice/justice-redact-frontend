@@ -87,7 +87,7 @@ jobs:
           export ENVIRONMENT="${{ needs.set-environment.outputs.target_env }}"
           export TEAM_NAME=justice-redact
           export NAMESPACE="${{ secrets.KUBE_NAMESPACE }}" 
-          export IMAGE="${REGISTRY}/${CLEAN_REPO}:node-${IMAGE_TAG}"
+          export IMAGE="${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}"
           export SERVICE_ACCOUNT="cd-serviceaccount"
 
           echo "=== Current working directory structure ==="
