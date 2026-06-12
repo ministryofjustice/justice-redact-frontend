@@ -60,7 +60,9 @@ jobs:
       # 💡 Fix: If target environment is staging, push directly to the dev ECR path
       - name: Build & Push to ECR
         run: |
-          docker build -t $REGISTRY/$REPOSITORY:node-$IMAGE_TAG .
+          docker build \
+            --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
+            -t $REGISTRY/$REPOSITORY:node-$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:node-$IMAGE_TAG
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -93,12 +95,17 @@ jobs:
           echo "=== Current working directory structure ==="
           ls -R deployments/ || echo "deployments directory not found!"
 
-          if [ -d "deployments/${ENV_FOLDER}" ]; then
-            echo "Using target environment templates from: deployments/${ENV_FOLDER}"
-            export TEMPLATE_DIR="deployments/${ENV_FOLDER}"
-          else
-            export INGRESS_CLASS="default-non-prod"
-          fi
+          export TEMPLATE_DIR="deployments/${ENV_FOLDER}"
+
+          echo "Using templates from ${TEMPLATE_DIR}"
+          ls -la ${TEMPLATE_DIR}
+
+          echo "ENV_FOLDER=$ENV_FOLDER"
+          echo "TEMPLATE_DIR=$TEMPLATE_DIR"
+          echo "IMAGE=$IMAGE"
+          echo "SERVICE_ACCOUNT=$SERVICE_ACCOUNT"
+          echo "NAMESPACE=$NAMESPACE"
+          echo "ENVIRONMENT=$ENVIRONMENT"
 
           envsubst < ${TEMPLATE_DIR}/deployment.yml > k8s/deployment.yml
           envsubst < ${TEMPLATE_DIR}/service.yml > k8s/service.yml
