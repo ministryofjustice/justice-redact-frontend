@@ -51,11 +51,6 @@ jobs:
           role-to-assume: ${{ needs.set-environment.outputs.target_env == 'staging' && secrets.ECR_ROLE_TO_ASSUME_DEV || secrets.ECR_ROLE_TO_ASSUME }}
           aws-region: ${{ needs.set-environment.outputs.target_env == 'staging' && 'eu-west-2' || vars.ECR_REGION }}
       
-      # DEBUG - remove after investigation
-      - name: Show AWS caller identity
-        run: |
-          aws sts get-caller-identity
-      
       # 3. Login to container repository
       - name: Log into ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -65,11 +60,8 @@ jobs:
       # 💡 Fix: If target environment is staging, push directly to the dev ECR path
       - name: Build & Push to ECR
         run: |
-          CLEAN_REPO=$(echo "$REPOSITORY" | sed 's|^justice-redact/||')
-          docker build \
-            --build-arg NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
-            -t $REGISTRY/$CLEAN_REPO:node-$IMAGE_TAG .
-          docker push $REGISTRY/$CLEAN_REPO:node-$IMAGE_TAG
+          docker build -t $REGISTRY/$REPOSITORY:node-$IMAGE_TAG .
+          docker push $REGISTRY/$REPOSITORY:node-$IMAGE_TAG
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}
