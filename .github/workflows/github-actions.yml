@@ -61,12 +61,15 @@ jobs:
       - name: Build & Push to ECR
         run: |
           CLEAN_REPO=$(echo "$REPOSITORY" | sed 's|^justice-redact/||')
-          docker build -t $REGISTRY/$CLEAN_REPO:node-$IMAGE_TAG .
+          docker build \
+            --build-arg NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
+            -t $REGISTRY/$CLEAN_REPO:node-$IMAGE_TAG .
           docker push $REGISTRY/$CLEAN_REPO:node-$IMAGE_TAG
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
 
       # 5. Generate Kubernetes manifests dynamically with environment folder mapping
       # 💡 Fix: Match staging images back to the shared dev ECR naming convention
