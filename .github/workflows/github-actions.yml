@@ -137,27 +137,6 @@ jobs:
           kubectl config set-context ${KUBE_CLUSTER} --cluster=${KUBE_CLUSTER} --user=deploy-user --namespace=${KUBE_NAMESPACE}
           kubectl config use-context ${KUBE_CLUSTER}
  
-
-       - name: Debug frontend service
-        run: |
-          echo "=== Pods ==="
-          kubectl get pods -n ${KUBE_NAMESPACE} -o wide
-
-          echo "=== Services ==="
-          kubectl get svc -n ${KUBE_NAMESPACE}
-
-          echo "=== Endpoints ==="
-          kubectl describe svc justice-redact-frontend -n ${KUBE_NAMESPACE} || true
-
-          echo "=== Frontend Service ==="
-          kubectl describe svc justice-redact-frontend -n ${KUBE_NAMESPACE}
-
-      - name: Debug ingress
-        run: |
-          echo "=== Ingress ==="
-          kubectl get ingress -n ${KUBE_NAMESPACE}
-          echo ""
-          kubectl describe ingress justice-redact-frontend -n ${KUBE_NAMESPACE}
       # 7. Validate Kubernetes manifests against live cluster schemas
       - name: Validate Kubernetes Manifests
         run: |
@@ -172,6 +151,29 @@ jobs:
       - name: Deploy to Kubernetes
         run: |
           kubectl apply --filename=k8s/ --namespace=${KUBE_NAMESPACE}
+
+      # 10. Debug frontend service
+      - name: Debug frontend service
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n ${KUBE_NAMESPACE} -o wide
+
+          echo "=== Services ==="
+          kubectl get svc -n ${KUBE_NAMESPACE}
+
+          echo "=== Endpoints ==="
+          kubectl describe svc justice-redact-frontend -n ${KUBE_NAMESPACE} || true
+
+          echo "=== Frontend Service ==="
+          kubectl describe svc justice-redact-frontend -n ${KUBE_NAMESPACE}
+      
+      # 11. Debug ingress
+      - name: Debug ingress
+        run: |
+          echo "=== Ingress ==="
+          kubectl get ingress -n ${KUBE_NAMESPACE}
+          echo ""
+          kubectl describe ingress justice-redact-frontend -n ${KUBE_NAMESPACE}
 
 
  
