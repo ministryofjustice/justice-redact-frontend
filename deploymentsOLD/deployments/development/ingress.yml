@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: justice-redact-frontend
+  namespace: ${NAMESPACE}
+  annotations:
+    external-dns.alpha.kubernetes.io/aws-weight: '100'
+    external-dns.alpha.kubernetes.io/set-identifier: 'justice-redact-frontend-${NAMESPACE}-green'
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  
+  ingressClassName: ${INGRESS_CLASS}
+  rules:
+    - host: ${NAMESPACE}.apps.live.cloud-platform.service.justice.gov.uk
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: justice-redact-frontend
+                port:
+                  number: 80
