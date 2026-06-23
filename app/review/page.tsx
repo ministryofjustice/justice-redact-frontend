@@ -923,8 +923,8 @@ function ReviewContent() {
                       {pageStatuses[page.pageNumber] && (
                         <strong
                           className={`govuk-tag ${pageStatuses[page.pageNumber] === "deleted"
-                              ? "govuk-tag--red"
-                              : "govuk-tag--blue"
+                            ? "govuk-tag--red"
+                            : "govuk-tag--blue"
                             }`}
                         >
                           {pageStatuses[page.pageNumber] === "deleted" ? "Deleted" : "Exempted"}
@@ -966,136 +966,426 @@ function ReviewContent() {
                     </div>
                   </div>
 
-                  <div className="jr-review-page__content">
-                    {pageContentBlocks.map((block, blockIndex) => {
-                      if (block.kind === "text") {
-                        const item = block.item;
-                        const suggestionsForItem = textFindings.filter(
-                          (finding) => finding.itemId === item.itemId && typeof finding.entityStart === "number" && typeof finding.entityEnd === "number"
-                        );
-                        const manualForItem = manualSelectionsForPage
-                          .filter((selection): selection is ManualTextDecision => selection.kind === "text" && selection.itemId === item.itemId)
-                          .map((selection) => ({ id: selection.id, start: selection.start, end: selection.end }));
+                  {pageStatuses[page.pageNumber] ? (
+                    <details className="govuk-details jr-review-page__details">
+                      <summary className="govuk-details__summary">
+                        <span className="govuk-details__summary-text">
+                          View original page content
+                        </span>
+                      </summary>
 
-                        const sourceText = item.text;
-                        const boldRanges = getExactLineRanges(sourceText, "Case Note");
+                      <div className="govuk-details__text">
+                        <div className="jr-review-page__content">
+                          {pageContentBlocks.map((block, blockIndex) => {
+                            if (block.kind === "text") {
+                              const item = block.item;
+                              const suggestionsForItem = textFindings.filter(
+                                (finding) =>
+                                  finding.itemId === item.itemId &&
+                                  typeof finding.entityStart === "number" &&
+                                  typeof finding.entityEnd === "number"
+                              );
 
-                        return (
-                          <div key={`text-${item.itemId}-${blockIndex}`} className="jr-review-block redactable" data-page-number={page.pageNumber} data-item-id={item.itemId}>
-                            <p className="govuk-body">{renderTextSegments(sourceText, suggestionsForItem, manualForItem, isPreviewMode, boldRanges)}</p>
-                          </div>
-                        );
-                      }
+                              const manualForItem = manualSelectionsForPage
+                                .filter(
+                                  (selection): selection is ManualTextDecision =>
+                                    selection.kind === "text" && selection.itemId === item.itemId
+                                )
+                                .map((selection) => ({
+                                  id: selection.id,
+                                  start: selection.start,
+                                  end: selection.end,
+                                }));
 
-                      if (block.kind === "table") {
-                        const table = block.table;
+                              const sourceText = item.text;
+                              const boldRanges = getExactLineRanges(sourceText, "Case Note");
 
-                        return (
-                          <div key={`table-${table.tableId}-${blockIndex}`} className="jr-review-table-wrapper">
-                            <table className="govuk-table govuk-table--small-text-until-tablet">
-                              <tbody className="govuk-table__body">
-                                {table.rows.map((row) => {
-                                  const rowImage = getImageForTableRow(row, page.images ?? []);
-                                  const rowImageManual = rowImage
-                                    ? manualSelectionsForPage.some((selection) => selection.kind === "image" && selection.imageId === rowImage.imageId)
-                                    : false;
+                              return (
+                                <div
+                                  key={`text-${item.itemId}-${blockIndex}`}
+                                  className="jr-review-block redactable"
+                                  data-page-number={page.pageNumber}
+                                  data-item-id={item.itemId}
+                                >
+                                  <p className="govuk-body">
+                                    {renderTextSegments(
+                                      sourceText,
+                                      suggestionsForItem,
+                                      manualForItem,
+                                      isPreviewMode,
+                                      boldRanges
+                                    )}
+                                  </p>
+                                </div>
+                              );
+                            }
 
-                                  return (
-                                    <tr key={`${table.tableId}-${row.rowIndex}`} className="govuk-table__row">
-                                      {rowImage && (
-                                        <td className="govuk-table__cell">
-                                          <ImageRedactionFrame
-                                            image={rowImage}
-                                            pageNumber={page.pageNumber}
-                                            isPreviewMode={isPreviewMode}
-                                            isManuallyRedacted={rowImageManual}
-                                            onToggle={toggleImageRedaction}
-                                          />
-                                        </td>
-                                      )}
+                            if (block.kind === "table") {
+                              const table = block.table;
 
-                                      {row.cells.map((cell) => {
-                                        const suggestionsForCell = tableFindings.filter(
-                                          (finding) =>
-                                            finding.tableId === table.tableId &&
-                                            finding.cellId === cell.cellId &&
-                                            typeof finding.entityStart === "number" &&
-                                            typeof finding.entityEnd === "number"
-                                        );
-
-                                        const manualForCell = manualSelectionsForPage
-                                          .filter(
-                                            (selection): selection is ManualTableCellDecision =>
-                                              selection.kind === "table_cell" && selection.tableId === table.tableId && selection.cellId === cell.cellId
+                              return (
+                                <div
+                                  key={`table-${table.tableId}-${blockIndex}`}
+                                  className="jr-review-table-wrapper"
+                                >
+                                  <table className="govuk-table govuk-table--small-text-until-tablet">
+                                    <tbody className="govuk-table__body">
+                                      {table.rows.map((row) => {
+                                        const rowImage = getImageForTableRow(row, page.images ?? []);
+                                        const rowImageManual = rowImage
+                                          ? manualSelectionsForPage.some(
+                                            (selection) =>
+                                              selection.kind === "image" &&
+                                              selection.imageId === rowImage.imageId
                                           )
-                                          .map((selection) => ({ id: selection.id, start: selection.start, end: selection.end }));
-
-                                        const isManuallyRedacted = manualForCell.length > 0;
-                                        const hasSuggestion = suggestionsForCell.length > 0;
-                                        const sourceText = cell.text;
-                                        const isStructured = sourceText.includes("\n");
-                                        const boldRanges = isStructured ? getStructuredKeyRanges(sourceText) : [];
-
-                                        const commonProps = {
-                                          className: [
-                                            cell.isNumeric ? "govuk-table__cell govuk-table__cell--numeric" : "govuk-table__cell",
-                                            "redactable",
-                                            hasSuggestion ? "jr-table-cell--has-suggestion" : "",
-                                            isManuallyRedacted ? "jr-table-cell--manual-redaction" : "",
-                                          ]
-                                            .join(" ")
-                                            .trim(),
-                                          "data-page-number": page.pageNumber,
-                                          "data-table-id": table.tableId,
-                                          "data-cell-id": cell.cellId,
-                                        };
-
-                                        const content = (
-                                          <span className="jr-table-cell-text" style={{ whiteSpace: "pre-line" }}>
-                                            {renderTextSegments(sourceText, suggestionsForCell, manualForCell, isPreviewMode, boldRanges)}
-                                          </span>
-                                        );
-
-                                        const shouldRenderAsHeader = cell.isHeader && !isStructured;
-                                        if (shouldRenderAsHeader) {
-                                          return (
-                                            <th key={cell.cellId} scope="col" {...commonProps} className={commonProps.className.replace("govuk-table__cell", "govuk-table__header")}>
-                                              {content}
-                                            </th>
-                                          );
-                                        }
+                                          : false;
 
                                         return (
-                                          <td key={cell.cellId} {...commonProps}>
-                                            {content}
-                                          </td>
+                                          <tr
+                                            key={`${table.tableId}-${row.rowIndex}`}
+                                            className="govuk-table__row"
+                                          >
+                                            {rowImage && (
+                                              <td className="govuk-table__cell">
+                                                <ImageRedactionFrame
+                                                  image={rowImage}
+                                                  pageNumber={page.pageNumber}
+                                                  isPreviewMode={isPreviewMode}
+                                                  isManuallyRedacted={rowImageManual}
+                                                  onToggle={toggleImageRedaction}
+                                                />
+                                              </td>
+                                            )}
+
+                                            {row.cells.map((cell) => {
+                                              const suggestionsForCell = tableFindings.filter(
+                                                (finding) =>
+                                                  finding.tableId === table.tableId &&
+                                                  finding.cellId === cell.cellId &&
+                                                  typeof finding.entityStart === "number" &&
+                                                  typeof finding.entityEnd === "number"
+                                              );
+
+                                              const manualForCell = manualSelectionsForPage
+                                                .filter(
+                                                  (
+                                                    selection
+                                                  ): selection is ManualTableCellDecision =>
+                                                    selection.kind === "table_cell" &&
+                                                    selection.tableId === table.tableId &&
+                                                    selection.cellId === cell.cellId
+                                                )
+                                                .map((selection) => ({
+                                                  id: selection.id,
+                                                  start: selection.start,
+                                                  end: selection.end,
+                                                }));
+
+                                              const isManuallyRedacted = manualForCell.length > 0;
+                                              const hasSuggestion = suggestionsForCell.length > 0;
+                                              const sourceText = cell.text;
+                                              const isStructured = sourceText.includes("\n");
+                                              const boldRanges = isStructured
+                                                ? getStructuredKeyRanges(sourceText)
+                                                : [];
+
+                                              const commonProps = {
+                                                className: [
+                                                  cell.isNumeric
+                                                    ? "govuk-table__cell govuk-table__cell--numeric"
+                                                    : "govuk-table__cell",
+                                                  "redactable",
+                                                  hasSuggestion
+                                                    ? "jr-table-cell--has-suggestion"
+                                                    : "",
+                                                  isManuallyRedacted
+                                                    ? "jr-table-cell--manual-redaction"
+                                                    : "",
+                                                ]
+                                                  .join(" ")
+                                                  .trim(),
+                                                "data-page-number": page.pageNumber,
+                                                "data-table-id": table.tableId,
+                                                "data-cell-id": cell.cellId,
+                                              };
+
+                                              const content = (
+                                                <span
+                                                  className="jr-table-cell-text"
+                                                  style={{ whiteSpace: "pre-line" }}
+                                                >
+                                                  {renderTextSegments(
+                                                    sourceText,
+                                                    suggestionsForCell,
+                                                    manualForCell,
+                                                    isPreviewMode,
+                                                    boldRanges
+                                                  )}
+                                                </span>
+                                              );
+
+                                              const shouldRenderAsHeader =
+                                                cell.isHeader && !isStructured;
+
+                                              if (shouldRenderAsHeader) {
+                                                return (
+                                                  <th
+                                                    key={cell.cellId}
+                                                    scope="col"
+                                                    {...commonProps}
+                                                    className={commonProps.className.replace(
+                                                      "govuk-table__cell",
+                                                      "govuk-table__header"
+                                                    )}
+                                                  >
+                                                    {content}
+                                                  </th>
+                                                );
+                                              }
+
+                                              return (
+                                                <td key={cell.cellId} {...commonProps}>
+                                                  {content}
+                                                </td>
+                                              );
+                                            })}
+                                          </tr>
                                         );
                                       })}
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              );
+                            }
+
+                            const image = block.image;
+                            const manualForImage = manualSelectionsForPage.some(
+                              (selection) =>
+                                selection.kind === "image" && selection.imageId === image.imageId
+                            );
+
+                            return (
+                              <div
+                                key={`image-${image.imageId}-${blockIndex}`}
+                                className="jr-review-image-wrapper govuk-!-margin-top-6"
+                              >
+                                <ImageRedactionFrame
+                                  image={image}
+                                  pageNumber={page.pageNumber}
+                                  isPreviewMode={isPreviewMode}
+                                  isManuallyRedacted={manualForImage}
+                                  onToggle={toggleImageRedaction}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </details>
+                  ) : (
+                    <div className="jr-review-page__content">
+                      {pageContentBlocks.map((block, blockIndex) => {
+                        if (block.kind === "text") {
+                          const item = block.item;
+                          const suggestionsForItem = textFindings.filter(
+                            (finding) =>
+                              finding.itemId === item.itemId &&
+                              typeof finding.entityStart === "number" &&
+                              typeof finding.entityEnd === "number"
+                          );
+
+                          const manualForItem = manualSelectionsForPage
+                            .filter(
+                              (selection): selection is ManualTextDecision =>
+                                selection.kind === "text" && selection.itemId === item.itemId
+                            )
+                            .map((selection) => ({
+                              id: selection.id,
+                              start: selection.start,
+                              end: selection.end,
+                            }));
+
+                          const sourceText = item.text;
+                          const boldRanges = getExactLineRanges(sourceText, "Case Note");
+
+                          return (
+                            <div
+                              key={`text-${item.itemId}-${blockIndex}`}
+                              className="jr-review-block redactable"
+                              data-page-number={page.pageNumber}
+                              data-item-id={item.itemId}
+                            >
+                              <p className="govuk-body">
+                                {renderTextSegments(
+                                  sourceText,
+                                  suggestionsForItem,
+                                  manualForItem,
+                                  isPreviewMode,
+                                  boldRanges
+                                )}
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        if (block.kind === "table") {
+                          const table = block.table;
+
+                          return (
+                            <div
+                              key={`table-${table.tableId}-${blockIndex}`}
+                              className="jr-review-table-wrapper"
+                            >
+                              <table className="govuk-table govuk-table--small-text-until-tablet">
+                                <tbody className="govuk-table__body">
+                                  {table.rows.map((row) => {
+                                    const rowImage = getImageForTableRow(row, page.images ?? []);
+                                    const rowImageManual = rowImage
+                                      ? manualSelectionsForPage.some(
+                                        (selection) =>
+                                          selection.kind === "image" &&
+                                          selection.imageId === rowImage.imageId
+                                      )
+                                      : false;
+
+                                    return (
+                                      <tr
+                                        key={`${table.tableId}-${row.rowIndex}`}
+                                        className="govuk-table__row"
+                                      >
+                                        {rowImage && (
+                                          <td className="govuk-table__cell">
+                                            <ImageRedactionFrame
+                                              image={rowImage}
+                                              pageNumber={page.pageNumber}
+                                              isPreviewMode={isPreviewMode}
+                                              isManuallyRedacted={rowImageManual}
+                                              onToggle={toggleImageRedaction}
+                                            />
+                                          </td>
+                                        )}
+
+                                        {row.cells.map((cell) => {
+                                          const suggestionsForCell = tableFindings.filter(
+                                            (finding) =>
+                                              finding.tableId === table.tableId &&
+                                              finding.cellId === cell.cellId &&
+                                              typeof finding.entityStart === "number" &&
+                                              typeof finding.entityEnd === "number"
+                                          );
+
+                                          const manualForCell = manualSelectionsForPage
+                                            .filter(
+                                              (
+                                                selection
+                                              ): selection is ManualTableCellDecision =>
+                                                selection.kind === "table_cell" &&
+                                                selection.tableId === table.tableId &&
+                                                selection.cellId === cell.cellId
+                                            )
+                                            .map((selection) => ({
+                                              id: selection.id,
+                                              start: selection.start,
+                                              end: selection.end,
+                                            }));
+
+                                          const isManuallyRedacted = manualForCell.length > 0;
+                                          const hasSuggestion = suggestionsForCell.length > 0;
+                                          const sourceText = cell.text;
+                                          const isStructured = sourceText.includes("\n");
+                                          const boldRanges = isStructured
+                                            ? getStructuredKeyRanges(sourceText)
+                                            : [];
+
+                                          const commonProps = {
+                                            className: [
+                                              cell.isNumeric
+                                                ? "govuk-table__cell govuk-table__cell--numeric"
+                                                : "govuk-table__cell",
+                                              "redactable",
+                                              hasSuggestion ? "jr-table-cell--has-suggestion" : "",
+                                              isManuallyRedacted
+                                                ? "jr-table-cell--manual-redaction"
+                                                : "",
+                                            ]
+                                              .join(" ")
+                                              .trim(),
+                                            "data-page-number": page.pageNumber,
+                                            "data-table-id": table.tableId,
+                                            "data-cell-id": cell.cellId,
+                                          };
+
+                                          const content = (
+                                            <span
+                                              className="jr-table-cell-text"
+                                              style={{ whiteSpace: "pre-line" }}
+                                            >
+                                              {renderTextSegments(
+                                                sourceText,
+                                                suggestionsForCell,
+                                                manualForCell,
+                                                isPreviewMode,
+                                                boldRanges
+                                              )}
+                                            </span>
+                                          );
+
+                                          const shouldRenderAsHeader = cell.isHeader && !isStructured;
+
+                                          if (shouldRenderAsHeader) {
+                                            return (
+                                              <th
+                                                key={cell.cellId}
+                                                scope="col"
+                                                {...commonProps}
+                                                className={commonProps.className.replace(
+                                                  "govuk-table__cell",
+                                                  "govuk-table__header"
+                                                )}
+                                              >
+                                                {content}
+                                              </th>
+                                            );
+                                          }
+
+                                          return (
+                                            <td key={cell.cellId} {...commonProps}>
+                                              {content}
+                                            </td>
+                                          );
+                                        })}
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        }
+
+                        const image = block.image;
+                        const manualForImage = manualSelectionsForPage.some(
+                          (selection) =>
+                            selection.kind === "image" && selection.imageId === image.imageId
+                        );
+
+                        return (
+                          <div
+                            key={`image-${image.imageId}-${blockIndex}`}
+                            className="jr-review-image-wrapper govuk-!-margin-top-6"
+                          >
+                            <ImageRedactionFrame
+                              image={image}
+                              pageNumber={page.pageNumber}
+                              isPreviewMode={isPreviewMode}
+                              isManuallyRedacted={manualForImage}
+                              onToggle={toggleImageRedaction}
+                            />
                           </div>
                         );
-                      }
-
-                      const image = block.image;
-                      const manualForImage = manualSelectionsForPage.some((selection) => selection.kind === "image" && selection.imageId === image.imageId);
-
-                      return (
-                        <div key={`image-${image.imageId}-${blockIndex}`} className="jr-review-image-wrapper govuk-!-margin-top-6">
-                          <ImageRedactionFrame
-                            image={image}
-                            pageNumber={page.pageNumber}
-                            isPreviewMode={isPreviewMode}
-                            isManuallyRedacted={manualForImage}
-                            onToggle={toggleImageRedaction}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
+                      })}
+                    </div>
+                  )}
                 </section>
               );
             })}

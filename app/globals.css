@@ -124,6 +124,7 @@ body {
   justify-content: space-between;
   gap: 15px;
   padding: 10px 20px;
+  background: transparent;
   border-bottom: 1px solid #b1b4b6;
 }
 
@@ -145,6 +146,19 @@ body {
   .jr-review-page__header-content {
     margin-bottom: 10px;
   }
+}
+
+.jr-review-page__details {
+  margin: 10px 20px 20px;
+}
+
+.jr-review-page__details .govuk-details__text {
+  padding-top: 15px;
+  padding-bottom: 0;
+}
+
+.jr-review-page__details .jr-review-page__content {
+  padding: 0;
 }
 
 /* @media (max-width: 700px),
