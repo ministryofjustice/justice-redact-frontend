@@ -9,6 +9,7 @@ type ExportResponse = {
     status: string;
     redactedExportUrl?: string;
     vettedExportUrl?: string;
+    exemptExportUrl?: string | null;
     pageCount?: number;
 };
 
@@ -59,6 +60,10 @@ function ExportContent() {
 
     const vettedDownloadUrl = data?.vettedExportUrl
         ? `${process.env.NEXT_PUBLIC_API_BASE_URL}${data.vettedExportUrl}`
+        : null;
+
+    const exemptDownloadUrl = data?.exemptExportUrl
+        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}${data.exemptExportUrl}`
         : null;
 
     return (
@@ -124,8 +129,8 @@ function ExportContent() {
                                     </div>
                                 </dl>
                             </section>
-                            <section aria-labelledby="exported-documents-heading">
 
+                            <section aria-labelledby="exported-documents-heading">
                                 <table className="govuk-table">
                                     <caption
                                         className="govuk-table__caption govuk-table__caption--m"
@@ -170,6 +175,7 @@ function ExportContent() {
                                                 )}
                                             </td>
                                         </tr>
+
                                         <tr className="govuk-table__row">
                                             <th scope="row" className="govuk-table__header">
                                                 Vetted
@@ -191,6 +197,26 @@ function ExportContent() {
                                                 )}
                                             </td>
                                         </tr>
+
+                                        {exemptDownloadUrl && (
+                                            <tr className="govuk-table__row">
+                                                <th scope="row" className="govuk-table__header">
+                                                    Exempt
+                                                </th>
+                                                <td className="govuk-table__cell">
+                                                    Pages marked as exempt and removed from the redacted and vetted documents.
+                                                </td>
+                                                <td className="govuk-table__cell">
+                                                    <a
+                                                        href={exemptDownloadUrl}
+                                                        className="govuk-link govuk-link--no-visited-state"
+                                                        download
+                                                    >
+                                                        Download
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        )}
                                     </tbody>
                                 </table>
 
@@ -235,6 +261,17 @@ function ExportContent() {
                                         >
                                             Download vetted file
                                         </button>
+                                    )}
+
+                                    {exemptDownloadUrl && (
+                                        <a
+                                            href={exemptDownloadUrl}
+                                            className="govuk-button govuk-button--secondary"
+                                            data-module="govuk-button"
+                                            download
+                                        >
+                                            Download exempt file
+                                        </a>
                                     )}
 
                                     <a href="/" className="govuk-link govuk-link--no-visited-state">
