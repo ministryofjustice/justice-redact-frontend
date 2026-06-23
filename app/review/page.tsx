@@ -443,6 +443,9 @@ function ReviewContent() {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
   const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
+  const [pageStatuses, setPageStatuses] = useState<
+    Record<number, "deleted" | "exempted">
+  >({});
 
   useEffect(() => {
     async function loadReview() {
@@ -789,6 +792,28 @@ function ReviewContent() {
     });
   }
 
+  function markPageDeleted(pageNumber: number) {
+    setPageStatuses((prev) => ({
+      ...prev,
+      [pageNumber]: "deleted",
+    }));
+  }
+
+  function markPageExempted(pageNumber: number) {
+    setPageStatuses((prev) => ({
+      ...prev,
+      [pageNumber]: "exempted",
+    }));
+  }
+
+  function restorePage(pageNumber: number) {
+    setPageStatuses((prev) => {
+      const next = { ...prev };
+      delete next[pageNumber];
+      return next;
+    });
+  }
+
   return (
     <main className="jr-review-root govuk-main-wrapper" id="main-content">
       <header className="sticky-container" aria-label="Review controls">
@@ -887,12 +912,58 @@ function ReviewContent() {
                   aria-labelledby={`review-page-${page.pageNumber}-heading`}
                 >
                   <div className="jr-review-page__header">
-                    <h2
-                      className="govuk-heading-m govuk-!-margin-bottom-1"
-                      id={`review-page-${page.pageNumber}-heading`}
-                    >
-                      Page {page.pageNumber}
-                    </h2>
+                    <div className="jr-review-page__header-content">
+                      <h2
+                        className="govuk-heading-m govuk-!-margin-bottom-0"
+                        id={`review-page-${page.pageNumber}-heading`}
+                      >
+                        Page {page.pageNumber}
+                      </h2>
+
+                      {pageStatuses[page.pageNumber] && (
+                        <strong
+                          className={`govuk-tag ${pageStatuses[page.pageNumber] === "deleted"
+                              ? "govuk-tag--red"
+                              : "govuk-tag--blue"
+                            }`}
+                        >
+                          {pageStatuses[page.pageNumber] === "deleted" ? "Deleted" : "Exempted"}
+                        </strong>
+                      )}
+                    </div>
+
+                    <div className="govuk-button-group jr-review-page__actions">
+                      {pageStatuses[page.pageNumber] ? (
+                        <button
+                          type="button"
+                          className="govuk-button govuk-button--secondary govuk-!-margin-bottom-0"
+                          onClick={() => restorePage(page.pageNumber)}
+                        >
+                          Restore
+                          <span className="govuk-visually-hidden"> page {page.pageNumber}</span>
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="govuk-button govuk-button--secondary govuk-!-margin-bottom-0"
+                            onClick={() => markPageExempted(page.pageNumber)}
+                          >
+                            Exempt
+                            <span className="govuk-visually-hidden"> page {page.pageNumber}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="govuk-button govuk-button--secondary govuk-!-margin-bottom-0"
+                            onClick={() => markPageDeleted(page.pageNumber)}
+                          >
+                            Delete
+                            <span className="govuk-visually-hidden"> page {page.pageNumber}</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="jr-review-page__content">

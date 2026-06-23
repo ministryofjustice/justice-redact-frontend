@@ -118,6 +118,36 @@ body {
   z-index: 10;
 }
 
+.jr-review-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 10px 20px;
+  background: #f3f2f1;
+  border-bottom: 1px solid #b1b4b6;
+}
+
+.jr-review-page__header-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.jr-review-page__actions {
+  margin-bottom: 0;
+}
+
+@media (max-width: 40.0525em) {
+  .jr-review-page__header {
+    display: block;
+  }
+
+  .jr-review-page__header-content {
+    margin-bottom: 10px;
+  }
+}
+
 /* @media (max-width: 700px),
 (max-height: 700px) {
   .sticky-container {
