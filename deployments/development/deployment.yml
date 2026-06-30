@@ -20,3 +20,5 @@ spec:
           image: ${IMAGE}
           ports:
             - containerPort: 3000
+          securityContext:
+            allowPrivilegeEscalation: false
