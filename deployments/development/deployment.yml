@@ -22,14 +22,15 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
-          
-          # Fix 1: Add a Liveness Probe so Kubernetes knows when a container is frozen/unhealthy and needs a restart - @Hothefa - can you check and uncomment?
-          # livenessProbe:
-          #   httpGet:
-          #     path: /api/health # Change this if your Next.js health endpoint is configured elsewhere
-          #     port: 3000
-          #   initialDelaySeconds: 15
-          #   periodSeconds: 20
+          # Restart the container if the frontend health endpoint becomes unresponsive.
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
 
           # Fix 4 & 5: Establish resource bounds to protect cluster nodes from resource exhaustion
           resources:
