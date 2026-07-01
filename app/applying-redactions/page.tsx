@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type DocumentStatusResponse = {
@@ -8,6 +8,17 @@ type DocumentStatusResponse = {
     filename: string;
     status: string;
 };
+
+function LinearLoadingBar({ label = "Loading" }: { label?: string }) {
+    return (
+        <div className="jr-linear-loading" role="status" aria-live="polite" aria-label={label}>
+            <div className="jr-linear-loading__track" aria-hidden="true">
+                <span className="jr-linear-loading__bar jr-linear-loading__bar--primary" />
+            </div>
+            <span className="govuk-visually-hidden">{label}</span>
+        </div>
+    );
+}
 
 function ApplyingRedactionsContent() {
     const router = useRouter();
@@ -63,8 +74,6 @@ function ApplyingRedactionsContent() {
         <main className="govuk-main-wrapper" id="main-content">
             <div className="govuk-grid-row">
                 <div className="govuk-grid-column-two-thirds">
-                    <h1 className="govuk-heading-l">Applying redactions</h1>
-
                     {error ? (
                         <section aria-labelledby="apply-redactions-error-title">
                             <div
@@ -74,10 +83,7 @@ function ApplyingRedactionsContent() {
                                 role="alert"
                                 tabIndex={-1}
                             >
-                                <h2
-                                    className="govuk-error-summary__title"
-                                    id="apply-redactions-error-title"
-                                >
+                                <h2 className="govuk-error-summary__title" id="apply-redactions-error-title">
                                     There is a problem
                                 </h2>
 
@@ -87,36 +93,22 @@ function ApplyingRedactionsContent() {
                             </div>
                         </section>
                     ) : (
-                        <section aria-labelledby="applying-redactions-status-heading">
-                            <h2
-                                className="govuk-heading-m govuk-visually-hidden"
-                                id="applying-redactions-status-heading"
-                            >
-                                Redaction status
-                            </h2>
+                        <section aria-labelledby="applying-redactions-heading">
+                            <LinearLoadingBar
+                                label={
+                                    status === "applying_redactions"
+                                        ? "Applying redactions"
+                                        : `Redaction status: ${status}`
+                                }
+                            />
+
+                            <h1 className="govuk-heading-xl" id="applying-redactions-heading">
+                                Applying redactions
+                            </h1>
 
                             <p className="govuk-body">
-                                The system is applying your selected redactions and preparing the final
-                                document for download.
+                                This might take around 2 minutes for this document.
                             </p>
-
-                            <div className="hods-loading-spinner" role="status" aria-live="polite">
-                                <span className="govuk-visually-hidden">
-                                    {status === "applying_redactions"
-                                        ? "Applying redactions"
-                                        : `Status: ${status}`}
-                                </span>
-                                <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
-                            </div>
-
-                            <div className="govuk-inset-text" aria-live="polite">
-                                <p className="govuk-body">
-                                    <strong>Status:</strong>{" "}
-                                    {status === "applying_redactions"
-                                        ? "Applying redactions..."
-                                        : status}
-                                </p>
-                            </div>
                         </section>
                     )}
                 </div>
@@ -132,15 +124,7 @@ export default function ApplyingRedactionsPage() {
                 <main className="govuk-main-wrapper" id="main-content">
                     <div className="govuk-grid-row">
                         <div className="govuk-grid-column-two-thirds">
-                            <div className="hods-loading-spinner" role="status" aria-live="polite">
-                                <span className="govuk-visually-hidden">
-                                    Loading redaction progress
-                                </span>
-                                <div
-                                    className="hods-loading-spinner__spinner"
-                                    aria-hidden="true"
-                                ></div>
-                            </div>
+                            <LinearLoadingBar label="Loading redaction progress" />
                         </div>
                     </div>
                 </main>
