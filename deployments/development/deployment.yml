@@ -14,7 +14,6 @@ spec:
         app: justice-redact-frontend
     spec:
       serviceAccountName: ${SERVICE_ACCOUNT}
-
       containers:
         - name: app
           image: ${IMAGE}
@@ -31,7 +30,6 @@ spec:
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
-
           # Fix 4 & 5: Establish resource bounds to protect cluster nodes from resource exhaustion
           resources:
             requests:
@@ -40,7 +38,6 @@ spec:
             limits:
               memory: "512Mi"  # Fix 5: Memory limit
               cpu: "1000m"     # Fix 4: CPU limit
-
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
