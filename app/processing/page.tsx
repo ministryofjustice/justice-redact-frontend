@@ -9,6 +9,21 @@ type DocumentStatusResponse = {
   status: string;
 };
 
+function LinearLoadingBar({
+  label = "Loading",
+}: {
+  label?: string;
+}) {
+  return (
+    <div className="jr-linear-loading" role="status" aria-live="polite" aria-label={label}>
+      <div className="jr-linear-loading__track" aria-hidden="true">
+        <span className="jr-linear-loading__bar jr-linear-loading__bar--primary" />
+      </div>
+      <span className="govuk-visually-hidden">{label}</span>
+    </div>
+  );
+}
+
 function ProcessingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -58,8 +73,6 @@ function ProcessingContent() {
     <main className="govuk-main-wrapper" id="main-content">
       <div className="govuk-grid-row">
         <div className="govuk-grid-column-two-thirds">
-          <h1 className="govuk-heading-l">Processing document</h1>
-
           {error ? (
             <div
               className="govuk-error-summary"
@@ -77,31 +90,40 @@ function ProcessingContent() {
               </div>
             </div>
           ) : (
-            <section aria-labelledby="processing-status-heading">
-              <h2
-                className="govuk-heading-m govuk-visually-hidden"
-                id="processing-status-heading"
-              >
-                Processing status
-              </h2>
+            <section aria-labelledby="processing-heading">
+              <LinearLoadingBar
+                label={
+                  status === "processing"
+                    ? "Document processing"
+                    : `Document status: ${status}`
+                }
+              />
+
+              <h1 className="govuk-heading-xl" id="processing-heading">
+                Document processing
+              </h1>
 
               <p className="govuk-body">
-                The system is analysing the uploaded document and identifying possible sensitive
-                information.
+                This will take around 2 minutes for this document.
               </p>
 
-              <div className="hods-loading-spinner" role="status" aria-live="polite">
-                <span className="govuk-visually-hidden">
-                  {status === "processing" ? "Processing document" : `Status: ${status}`}
-                </span>
-                <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
-              </div>
+              <h2 className="govuk-heading-m">What is being processed</h2>
 
-              <div className="govuk-inset-text" aria-live="polite">
-                <p className="govuk-body">
-                  <strong>Status:</strong>{" "}
-                  {status === "processing" ? "Processing document..." : status}
-                </p>
+              <p className="govuk-body">
+                Justice Redact uses AI to try to highlight people&apos;s personal
+                information and other phrases you might want to redact. It also tries
+                to identify blank pages.
+              </p>
+
+              <div className="govuk-warning-text">
+                <span className="govuk-warning-text__icon" aria-hidden="true">
+                  !
+                </span>
+                <strong className="govuk-warning-text__text">
+                  <span className="govuk-visually-hidden">Warning</span>
+                  Deciding what to redact is your responsibility. Justice Redact
+                  doesn&apos;t make any decisions for you.
+                </strong>
               </div>
             </section>
           )}
@@ -118,10 +140,7 @@ export default function ProcessingPage() {
         <main className="govuk-main-wrapper" id="main-content">
           <div className="govuk-grid-row">
             <div className="govuk-grid-column-two-thirds">
-              <div className="hods-loading-spinner" role="status" aria-live="polite">
-                <span className="govuk-visually-hidden">Loading processing page</span>
-                <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
-              </div>
+              <LinearLoadingBar label="Loading processing page" />
             </div>
           </div>
         </main>
