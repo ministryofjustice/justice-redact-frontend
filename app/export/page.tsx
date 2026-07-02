@@ -3,6 +3,13 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+type PageCounts = {
+    original: number;
+    exempt: number;
+    deleted: number;
+    redacted: number;
+};
+
 type ExportResponse = {
     documentId: string;
     filename: string;
@@ -11,7 +18,28 @@ type ExportResponse = {
     vettedExportUrl?: string;
     exemptExportUrl?: string | null;
     pageCount?: number;
+    pageCounts?: PageCounts;
 };
+
+function buildDownloadUrl(path?: string | null) {
+    if (!path) return null;
+    return `${process.env.NEXT_PUBLIC_API_BASE_URL}${path}`;
+}
+
+function getPageCounts(data: ExportResponse): PageCounts {
+    if (data.pageCounts) {
+        return data.pageCounts;
+    }
+
+    const fallbackPageCount = data.pageCount ?? 0;
+
+    return {
+        original: fallbackPageCount,
+        exempt: 0,
+        deleted: 0,
+        redacted: fallbackPageCount,
+    };
+}
 
 function ExportContent() {
     const searchParams = useSearchParams();
@@ -54,17 +82,9 @@ function ExportContent() {
         loadExport();
     }, [documentId]);
 
-    const redactedDownloadUrl = data?.redactedExportUrl
-        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}${data.redactedExportUrl}`
-        : null;
-
-    const vettedDownloadUrl = data?.vettedExportUrl
-        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}${data.vettedExportUrl}`
-        : null;
-
-    const exemptDownloadUrl = data?.exemptExportUrl
-        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}${data.exemptExportUrl}`
-        : null;
+    const redactedDownloadUrl = buildDownloadUrl(data?.redactedExportUrl);
+    const vettedDownloadUrl = buildDownloadUrl(data?.vettedExportUrl);
+    const exemptDownloadUrl = buildDownloadUrl(data?.exemptExportUrl);
 
     return (
         <main className="govuk-main-wrapper" id="main-content">
@@ -100,35 +120,7 @@ function ExportContent() {
 
                     {data && (
                         <>
-                            <section aria-labelledby="page-counts-heading" className="page-counts-section">
-                                <h2 className="govuk-heading-m" id="page-counts-heading">
-                                    Page counts
-                                </h2>
-
-                                <dl className="page-counts">
-                                    <div className="page-counts__item">
-                                        <dt className="page-counts__number">326</dt>
-                                        <dd className="page-counts__label">pages in original document</dd>
-                                    </div>
-
-                                    <div className="page-counts__divider" aria-hidden="true" />
-
-                                    <div className="page-counts__item">
-                                        <dt className="page-counts__number">12</dt>
-                                        <dd className="page-counts__label">exempt pages removed</dd>
-                                    </div>
-
-                                    <div className="page-counts__item">
-                                        <dt className="page-counts__number">7</dt>
-                                        <dd className="page-counts__label">pages deleted</dd>
-                                    </div>
-
-                                    <div className="page-counts__item">
-                                        <dt className="page-counts__number">307</dt>
-                                        <dd className="page-counts__label">pages in redacted document</dd>
-                                    </div>
-                                </dl>
-                            </section>
+                            <PageCountsSummary pageCounts={getPageCounts(data)} />
 
                             <section aria-labelledby="exported-documents-heading">
                                 <table className="govuk-table">
@@ -154,136 +146,105 @@ function ExportContent() {
                                     </thead>
 
                                     <tbody className="govuk-table__body">
-                                        <tr className="govuk-table__row">
-                                            <th scope="row" className="govuk-table__header">
-                                                Redacted
-                                            </th>
-                                            <td className="govuk-table__cell">
-                                                Redactions applied in black and all highlights removed.
-                                            </td>
-                                            <td className="govuk-table__cell">
-                                                {redactedDownloadUrl ? (
-                                                    <a
-                                                        href={redactedDownloadUrl}
-                                                        className="govuk-link govuk-link--no-visited-state"
-                                                        download
-                                                    >
-                                                        Download
-                                                    </a>
-                                                ) : (
-                                                    <span className="govuk-body">Not available</span>
-                                                )}
-                                            </td>
-                                        </tr>
+                                        <ExportDocumentRow
+                                            name="Vetted"
+                                            description="Redactions are marked for review and all other highlights are removed."
+                                            downloadUrl={vettedDownloadUrl}
+                                        />
 
-                                        <tr className="govuk-table__row">
-                                            <th scope="row" className="govuk-table__header">
-                                                Vetted
-                                            </th>
-                                            <td className="govuk-table__cell">
-                                                Original document with selected redactions shown as review highlights.
-                                            </td>
-                                            <td className="govuk-table__cell">
-                                                {vettedDownloadUrl ? (
-                                                    <a
-                                                        href={vettedDownloadUrl}
-                                                        className="govuk-link govuk-link--no-visited-state"
-                                                        download
-                                                    >
-                                                        Download
-                                                    </a>
-                                                ) : (
-                                                    <span className="govuk-body">Not available</span>
-                                                )}
-                                            </td>
-                                        </tr>
+                                        <ExportDocumentRow
+                                            name="Redacted"
+                                            description="Redactions are applied in black and all highlights are removed."
+                                            downloadUrl={redactedDownloadUrl}
+                                        />
 
                                         {exemptDownloadUrl && (
-                                            <tr className="govuk-table__row">
-                                                <th scope="row" className="govuk-table__header">
-                                                    Exempt
-                                                </th>
-                                                <td className="govuk-table__cell">
-                                                    Pages marked as exempt and removed from the redacted and vetted documents.
-                                                </td>
-                                                <td className="govuk-table__cell">
-                                                    <a
-                                                        href={exemptDownloadUrl}
-                                                        className="govuk-link govuk-link--no-visited-state"
-                                                        download
-                                                    >
-                                                        Download
-                                                    </a>
-                                                </td>
-                                            </tr>
+                                            <ExportDocumentRow
+                                                name="Exempted"
+                                                description="A document containing every page you marked as exempt, with all highlights removed."
+                                                downloadUrl={exemptDownloadUrl}
+                                            />
                                         )}
                                     </tbody>
                                 </table>
 
-                                <div className="govuk-button-group">
-                                    {redactedDownloadUrl ? (
-                                        <a
-                                            href={redactedDownloadUrl}
-                                            className="govuk-button"
-                                            data-module="govuk-button"
-                                            download
-                                        >
-                                            Download redacted file
-                                        </a>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            className="govuk-button"
-                                            data-module="govuk-button"
-                                            disabled
-                                            aria-disabled="true"
-                                        >
-                                            Download redacted file
-                                        </button>
-                                    )}
-
-                                    {vettedDownloadUrl ? (
-                                        <a
-                                            href={vettedDownloadUrl}
-                                            className="govuk-button govuk-button--secondary"
-                                            data-module="govuk-button"
-                                            download
-                                        >
-                                            Download vetted file
-                                        </a>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            className="govuk-button govuk-button--secondary"
-                                            data-module="govuk-button"
-                                            disabled
-                                            aria-disabled="true"
-                                        >
-                                            Download vetted file
-                                        </button>
-                                    )}
-
-                                    {exemptDownloadUrl && (
-                                        <a
-                                            href={exemptDownloadUrl}
-                                            className="govuk-button govuk-button--secondary"
-                                            data-module="govuk-button"
-                                            download
-                                        >
-                                            Download exempt file
-                                        </a>
-                                    )}
-
+                                <p className="govuk-body">
                                     <a href="/" className="govuk-link govuk-link--no-visited-state">
-                                        Vet another document
+                                        Upload another document
                                     </a>
-                                </div>
+                                </p>
                             </section>
                         </>
                     )}
                 </div>
             </div>
         </main>
+    );
+}
+
+function PageCountsSummary({ pageCounts }: { pageCounts: PageCounts }) {
+    return (
+        <section aria-labelledby="page-counts-heading" className="page-counts-section">
+            <h2 className="govuk-heading-m" id="page-counts-heading">
+                Page counts
+            </h2>
+
+            <dl className="page-counts">
+                <div className="page-counts__item">
+                    <dt className="page-counts__number">{pageCounts.original}</dt>
+                    <dd className="page-counts__label">pages in original document</dd>
+                </div>
+
+                <div className="page-counts__divider" aria-hidden="true" />
+
+                <div className="page-counts__item">
+                    <dt className="page-counts__number">{pageCounts.exempt}</dt>
+                    <dd className="page-counts__label">exempt pages removed</dd>
+                </div>
+
+                <div className="page-counts__item">
+                    <dt className="page-counts__number">{pageCounts.deleted}</dt>
+                    <dd className="page-counts__label">pages deleted</dd>
+                </div>
+
+                <div className="page-counts__item">
+                    <dt className="page-counts__number">{pageCounts.redacted}</dt>
+                    <dd className="page-counts__label">pages in redacted document</dd>
+                </div>
+            </dl>
+        </section>
+    );
+}
+
+function ExportDocumentRow({
+    name,
+    description,
+    downloadUrl,
+}: {
+    name: string;
+    description: string;
+    downloadUrl: string | null;
+}) {
+    return (
+        <tr className="govuk-table__row">
+            <th scope="row" className="govuk-table__header">
+                {name}
+            </th>
+            <td className="govuk-table__cell">{description}</td>
+            <td className="govuk-table__cell">
+                {downloadUrl ? (
+                    <a
+                        href={downloadUrl}
+                        className="govuk-link govuk-link--no-visited-state"
+                        download
+                    >
+                        Download
+                    </a>
+                ) : (
+                    <span className="govuk-body">Not available</span>
+                )}
+            </td>
+        </tr>
     );
 }
 
