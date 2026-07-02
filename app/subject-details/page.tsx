@@ -57,27 +57,6 @@ function SubjectDetailsContent() {
 
     return (
         <main className="govuk-main-wrapper" id="main-content">
-            <section aria-labelledby="upload-success-heading">
-                <div className="govuk-grid-row">
-                    <div className="govuk-grid-column-full">
-                        <div
-                            className="moj-alert moj-alert--success subject-details-alert"
-                            role="status"
-                            aria-live="polite"
-                        >
-                            <div className="moj-alert__content">
-                                <h2 className="moj-alert__heading" id="upload-success-heading">
-                                    Upload successful
-                                </h2>
-                                <p className="govuk-body">
-                                    <span className="subject-details__filename">{filename}</span>
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
             <div className="govuk-grid-row">
                 <div className="govuk-grid-column-two-thirds">
                     <Link href="/upload" className="govuk-back-link">
