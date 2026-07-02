@@ -205,31 +205,24 @@ export default function PageContent({
                                                         ? getStructuredKeyRanges(sourceText)
                                                         : [];
 
-                                                    const commonProps = {
-                                                        className: [
-                                                            cell.isNumeric
-                                                                ? "govuk-table__cell govuk-table__cell--numeric"
-                                                                : "govuk-table__cell",
-                                                            "redactable",
-                                                            hasSuggestion
-                                                                ? "jr-table-cell--has-suggestion"
-                                                                : "",
-                                                            isManuallyRedacted
-                                                                ? "jr-table-cell--manual-redaction"
-                                                                : "",
-                                                        ]
-                                                            .join(" ")
-                                                            .trim(),
-                                                        "data-page-number": page.pageNumber,
-                                                        "data-table-id": table.tableId,
-                                                        "data-cell-id": cell.cellId,
-                                                    };
+                                                    const cellClassName = [
+                                                        cell.isNumeric
+                                                            ? "govuk-table__cell govuk-table__cell--numeric"
+                                                            : "govuk-table__cell",
+                                                        "redactable",
+                                                        hasSuggestion ? "jr-table-cell--has-suggestion" : "",
+                                                        isManuallyRedacted ? "jr-table-cell--manual-redaction" : "",
+                                                    ]
+                                                        .join(" ")
+                                                        .trim();
+
+                                                    const headerClassName = cellClassName.replace(
+                                                        "govuk-table__cell",
+                                                        "govuk-table__header"
+                                                    );
 
                                                     const content = (
-                                                        <span
-                                                            className="jr-table-cell-text"
-                                                            style={{ whiteSpace: "pre-line" }}
-                                                        >
+                                                        <span className="jr-table-cell-text" style={{ whiteSpace: "pre-line" }}>
                                                             {renderTextSegments(
                                                                 sourceText,
                                                                 suggestionsForCell,
@@ -245,11 +238,10 @@ export default function PageContent({
                                                             <th
                                                                 key={cell.cellId}
                                                                 scope="col"
-                                                                {...commonProps}
-                                                                className={commonProps.className.replace(
-                                                                    "govuk-table__cell",
-                                                                    "govuk-table__header"
-                                                                )}
+                                                                className={headerClassName}
+                                                                data-page-number={page.pageNumber}
+                                                                data-table-id={table.tableId}
+                                                                data-cell-id={cell.cellId}
                                                             >
                                                                 {content}
                                                             </th>
@@ -257,7 +249,13 @@ export default function PageContent({
                                                     }
 
                                                     return (
-                                                        <td key={cell.cellId} {...commonProps}>
+                                                        <td
+                                                            key={cell.cellId}
+                                                            className={cellClassName}
+                                                            data-page-number={page.pageNumber}
+                                                            data-table-id={table.tableId}
+                                                            data-cell-id={cell.cellId}
+                                                        >
                                                             {content}
                                                         </td>
                                                     );
