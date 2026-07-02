@@ -9,11 +9,7 @@ type DocumentStatusResponse = {
   status: string;
 };
 
-function LinearLoadingBar({
-  label = "Loading",
-}: {
-  label?: string;
-}) {
+function LinearLoadingBar({ label = "Loading" }: { label?: string }) {
   return (
     <div className="jr-linear-loading" role="status" aria-live="polite" aria-label={label}>
       <div className="jr-linear-loading__track" aria-hidden="true">
@@ -32,13 +28,12 @@ function ProcessingContent() {
   const [status, setStatus] = useState("processing");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!documentId) {
-      setError("Missing document ID.");
-      return;
-    }
+  const displayedError = !documentId ? "Missing document ID." : error;
 
-    let intervalId: ReturnType<typeof setInterval>;
+  useEffect(() => {
+    if (!documentId) return;
+
+    let isActive = true;
 
     async function pollStatus() {
       try {
@@ -52,28 +47,36 @@ function ProcessingContent() {
           throw new Error("Failed to fetch document status.");
         }
 
+        if (!isActive) return;
+
         setStatus(data.status);
 
         if (data.status === "ready_for_review") {
-          clearInterval(intervalId);
           router.push(`/review?documentId=${documentId}`);
         }
       } catch (err) {
+        if (!isActive) return;
         setError(err instanceof Error ? err.message : "Something went wrong.");
       }
     }
 
-    pollStatus();
-    intervalId = setInterval(pollStatus, 2000);
+    void pollStatus();
 
-    return () => clearInterval(intervalId);
+    const intervalId = setInterval(() => {
+      void pollStatus();
+    }, 2000);
+
+    return () => {
+      isActive = false;
+      clearInterval(intervalId);
+    };
   }, [documentId, router]);
 
   return (
     <main className="govuk-main-wrapper" id="main-content">
       <div className="govuk-grid-row">
         <div className="govuk-grid-column-two-thirds">
-          {error ? (
+          {displayedError ? (
             <div
               className="govuk-error-summary"
               data-module="govuk-error-summary"
@@ -86,7 +89,7 @@ function ProcessingContent() {
               </h2>
 
               <div className="govuk-error-summary__body">
-                <p className="govuk-body">{error}</p>
+                <p className="govuk-body">{displayedError}</p>
               </div>
             </div>
           ) : (

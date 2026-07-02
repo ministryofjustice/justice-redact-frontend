@@ -1,5 +1,5 @@
 "use client";
-
+import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -169,9 +169,9 @@ function ExportContent() {
                                 </table>
 
                                 <p className="govuk-body">
-                                    <a href="/" className="govuk-link govuk-link--no-visited-state">
+                                    <Link href="/" className="govuk-link govuk-link--no-visited-state">
                                         Upload another document
-                                    </a>
+                                    </Link>
                                 </p>
                             </section>
                         </>

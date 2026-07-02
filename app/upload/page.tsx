@@ -1,6 +1,6 @@
 "use client";
-
-import { ChangeEvent, useRef, useState } from "react";
+import Link from "next/link";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const FILE_ERROR =
@@ -26,7 +26,7 @@ export default function UploadPage() {
 
   const [error, setError] = useState<string | null>(null);
 
-  function handleFileChange(_: ChangeEvent<HTMLInputElement>) {
+  function handleFileChange() {
     setError(null);
   }
 
@@ -63,9 +63,12 @@ export default function UploadPage() {
       ).length;
 
       const pageLines = textContent.items
-        .map((item: any) => {
-          const text = item.str?.trim();
-          const y = item.transform?.[5];
+        .map((item) => {
+          if (!("str" in item) || typeof item.str !== "string") {
+            return null;
+          }
+          const text = item.str.trim();
+          const y = Array.isArray(item.transform) ? item.transform[5] : undefined;
 
           if (!text || typeof y !== "number") {
             return null;
@@ -197,9 +200,9 @@ export default function UploadPage() {
     <main className="govuk-main-wrapper" id="main-content">
       <div className="govuk-grid-row">
         <div className="govuk-grid-column-two-thirds">
-          <a href="/" className="govuk-back-link">
+          <Link href="/" className="govuk-back-link">
             Back
-          </a>
+          </Link>
 
           {error && (
             <div

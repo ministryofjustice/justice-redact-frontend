@@ -13,9 +13,9 @@ function SubjectDetailsContent() {
 
     const [subjectName, setSubjectName] = useState("");
     const [subjectPrisonNumber, setSubjectPrisonNumber] = useState("");
-    const [otherPhrases, setOtherPhrases] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const otherPhrases = "";
 
     async function handleContinue() {
         if (!documentId) {

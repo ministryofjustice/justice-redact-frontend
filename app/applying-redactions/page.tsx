@@ -28,13 +28,12 @@ function ApplyingRedactionsContent() {
     const [status, setStatus] = useState("applying_redactions");
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (!documentId) {
-            setError("Missing document ID.");
-            return;
-        }
+    const displayedError = !documentId ? "Missing document ID." : error;
 
-        let intervalId: ReturnType<typeof setInterval>;
+    useEffect(() => {
+        if (!documentId) return;
+
+        let isActive = true;
 
         async function pollStatus() {
             try {
@@ -48,33 +47,40 @@ function ApplyingRedactionsContent() {
                     throw new Error("Failed to fetch document status.");
                 }
 
+                if (!isActive) return;
+
                 setStatus(data.status);
 
                 if (data.status === "redaction_complete") {
-                    clearInterval(intervalId);
                     router.push(`/export?documentId=${documentId}`);
                 }
 
                 if (data.status === "redaction_failed") {
-                    clearInterval(intervalId);
                     setError("Failed to apply redactions.");
                 }
             } catch (err) {
+                if (!isActive) return;
                 setError(err instanceof Error ? err.message : "Something went wrong.");
             }
         }
 
-        pollStatus();
-        intervalId = setInterval(pollStatus, 2000);
+        void pollStatus();
 
-        return () => clearInterval(intervalId);
+        const intervalId = setInterval(() => {
+            void pollStatus();
+        }, 2000);
+
+        return () => {
+            isActive = false;
+            clearInterval(intervalId);
+        };
     }, [documentId, router]);
 
     return (
         <main className="govuk-main-wrapper" id="main-content">
             <div className="govuk-grid-row">
                 <div className="govuk-grid-column-two-thirds">
-                    {error ? (
+                    {displayedError ? (
                         <section aria-labelledby="apply-redactions-error-title">
                             <div
                                 className="govuk-error-summary"
@@ -88,7 +94,7 @@ function ApplyingRedactionsContent() {
                                 </h2>
 
                                 <div className="govuk-error-summary__body">
-                                    <p className="govuk-body">{error}</p>
+                                    <p className="govuk-body">{displayedError}</p>
                                 </div>
                             </div>
                         </section>

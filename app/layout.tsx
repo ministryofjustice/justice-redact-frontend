@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import Link from "next/link";
 import MojCrest from "./components/MojCrest";
 import GovukInit from "./components/GovukInit";
 
@@ -33,19 +34,13 @@ export default function RootLayout({
               <MojCrest />
 
               <div className="moj-header__content">
-                <a
-                  className="moj-header__link moj-header__link--organisation-name"
-                  href="/"
-                >
+                <Link className="moj-header__link moj-header__link--organisation-name" href="/">
                   Ministry of Justice
-                </a>
+                </Link>
 
-                <a
-                  className="moj-header__link moj-header__link--service-name"
-                  href="/"
-                >
+                <Link className="moj-header__link moj-header__link--service-name" href="/">
                   Justice Redact
-                </a>
+                </Link>
               </div>
             </div>
           </div>

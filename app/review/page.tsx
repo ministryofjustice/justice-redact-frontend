@@ -3,128 +3,26 @@
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import FilenameBar from "@/app/components/FilenameBar";
+import type {
+  ManualDecision,
+  ManualSpan,
+  ManualTableCellDecision,
+  ManualTextDecision,
+  PageContentBlock,
+  PageStatus,
+  RenderRange,
+  ReviewBBox,
+  ReviewFinding,
+  ReviewImage,
+  ReviewPageData,
+  ReviewResponse,
+  ReviewTable,
+  ReviewTableCell,
+  ReviewTableRow,
+} from "./types";
 
 const PDF_TO_CSS_SCALE = 96 / 72;
 const PAGES_PER_BATCH = 50;
-
-type ReviewBBox = { x0: number; y0: number; x1: number; y1: number };
-
-type ReviewTextItem = {
-  itemId: string;
-  text: string;
-  renderText: string;
-  bbox: ReviewBBox | null;
-};
-
-type ReviewTableCell = {
-  cellId: string;
-  tableId: string;
-  rowIndex: number;
-  colIndex: number;
-  text: string;
-  renderText: string;
-  bbox: ReviewBBox | null;
-  isHeader: boolean;
-  isNumeric: boolean;
-};
-
-type ReviewTableRow = { rowIndex: number; cells: ReviewTableCell[] };
-type ReviewTable = { tableId: string; bbox: ReviewBBox | null; rows: ReviewTableRow[] };
-
-type ReviewImage = {
-  imageId: string;
-  imageRecordId: string | null;
-  imageUrl: string | null;
-  alt: string | null;
-  bbox: ReviewBBox | null;
-};
-
-type ReviewPageData = {
-  pageNumber: number;
-  pageId?: string;
-  textItems: ReviewTextItem[];
-  tables: ReviewTable[];
-  images: ReviewImage[];
-};
-
-type ReviewFinding = {
-  id: string;
-  kind: "text" | "table_cell" | "image";
-  pageNumber: number;
-  itemId: string | null;
-  tableId: string | null;
-  cellId: string | null;
-  imageId: string | null;
-  imageRecordId: string | null;
-  entityType: string;
-  entityText: string;
-  entityStart: number | null;
-  entityEnd: number | null;
-  entityScore: number;
-  context: string;
-  decision: string;
-  sectionLabel: string | null;
-};
-
-type ReviewResponse = {
-  documentId: string;
-  filename: string;
-  status: string;
-  pages: ReviewPageData[];
-  findings: ReviewFinding[];
-  subjectDetails: {
-    subjectName: string;
-    subjectPrisonNumber: string;
-    otherPhrases: string[];
-  };
-  summary: {
-    totalPages: number;
-    totalTextItems?: number;
-    totalFindings: number;
-  };
-};
-
-type PageContentBlock =
-  | { kind: "text"; y: number; item: ReviewTextItem }
-  | { kind: "table"; y: number; table: ReviewTable }
-  | { kind: "image"; y: number; image: ReviewImage };
-
-type ManualTextDecision = {
-  id: string;
-  documentId: string;
-  kind: "text";
-  pageNumber: number;
-  itemId: string;
-  start: number;
-  end: number;
-  text: string;
-};
-
-type ManualTableCellDecision = {
-  id: string;
-  documentId: string;
-  kind: "table_cell";
-  pageNumber: number;
-  tableId: string;
-  cellId: string;
-  start: number;
-  end: number;
-  text: string;
-};
-
-type ManualImageDecision = {
-  id: string;
-  documentId: string;
-  kind: "image";
-  pageNumber: number;
-  imageId: string;
-};
-
-type ManualDecision = ManualTextDecision | ManualTableCellDecision | ManualImageDecision;
-
-type TextSpan = { id?: string; start: number; end: number };
-type RenderRange = { start: number; end: number; className: string; key: string; manualId?: string };
-type ManualSpan = { pageNumber: number; itemId: string; start: number; end: number };
 
 function clampRangeValue(value: number, max: number) {
   return Math.max(0, Math.min(max, value));
@@ -375,12 +273,15 @@ function ImageRedactionFrame({
       <div className="jr-review-image-preview">
         <div className="jr-review-image-frame" style={{ position: "relative", display: "inline-block", width, height }}>
           {imageSrc ? (
-            <img
-              src={imageSrc}
-              alt={image.alt || "Image extracted from uploaded document"}
-              className="jr-review-image"
-              style={{ width, height, display: "block" }}
-            />
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageSrc}
+                alt={image.alt || "Image extracted from uploaded document"}
+                className="jr-review-image"
+                style={{ width, height, display: "block" }}
+              />
+            </>
           ) : (
             <div
               className="jr-review-image-placeholder"
@@ -443,9 +344,7 @@ function ReviewContent() {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
   const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
-  const [pageStatuses, setPageStatuses] = useState<
-    Record<number, "deleted" | "exempted">
-  >({});
+  const [pageStatuses, setPageStatuses] = useState<Record<number, PageStatus>>({});
 
   useEffect(() => {
     async function loadReview() {
