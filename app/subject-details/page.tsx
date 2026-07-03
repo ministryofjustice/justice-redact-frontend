@@ -9,7 +9,6 @@ function SubjectDetailsContent() {
     const searchParams = useSearchParams();
 
     const documentId = searchParams.get("documentId");
-    const filename = searchParams.get("filename") || "Uploaded document";
 
     const [subjectName, setSubjectName] = useState("");
     const [subjectPrisonNumber, setSubjectPrisonNumber] = useState("");
