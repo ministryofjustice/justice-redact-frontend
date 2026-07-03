@@ -1,4 +1,5 @@
 "use client";
+
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -13,6 +14,7 @@ const MINIMUM_BODY_CHARACTERS = 50;
 type PdfAnalysisResult = {
   hasBodyText: boolean;
   mightBeScannedDocument: boolean;
+  isSupportedDocumentType: boolean;
 };
 
 type UploadDocumentResponse = {
@@ -37,6 +39,10 @@ export default function UploadPage() {
     );
   }
 
+  function normaliseText(text: string) {
+    return text.replace(/\s+/g, " ").trim();
+  }
+
   async function analysePdf(file: File): Promise<PdfAnalysisResult> {
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
@@ -44,8 +50,20 @@ export default function UploadPage() {
 
     const buffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const metadata = await pdf.getMetadata().catch(() => null);
+
+    const metadataTitle =
+      "info" in (metadata ?? {}) &&
+        metadata?.info &&
+        "Title" in metadata.info &&
+        typeof metadata.info.Title === "string"
+        ? metadata.info.Title
+        : "";
 
     const allBodyLines: string[] = [];
+    const allDocumentLines: string[] = [];
+    const firstPageLines: string[] = [];
+
     let imageCount = 0;
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
@@ -67,8 +85,11 @@ export default function UploadPage() {
           if (!("str" in item) || typeof item.str !== "string") {
             return null;
           }
+
           const text = item.str.trim();
-          const y = Array.isArray(item.transform) ? item.transform[5] : undefined;
+          const y = Array.isArray(item.transform)
+            ? item.transform[5]
+            : undefined;
 
           if (!text || typeof y !== "number") {
             return null;
@@ -77,6 +98,13 @@ export default function UploadPage() {
           return { text, y };
         })
         .filter(Boolean) as Array<{ text: string; y: number }>;
+
+      const pageTextLines = pageLines.map(({ text }) => text);
+      allDocumentLines.push(...pageTextLines);
+
+      if (pageNumber === 1) {
+        firstPageLines.push(...pageTextLines);
+      }
 
       const bodyLines = pageLines
         .filter(({ y }) => {
@@ -90,9 +118,7 @@ export default function UploadPage() {
       allBodyLines.push(...bodyLines);
     }
 
-    const normalisedLines = allBodyLines.map((line) =>
-      line.replace(/\s+/g, " ").trim()
-    );
+    const normalisedLines = allBodyLines.map(normaliseText);
 
     const lineCounts = normalisedLines.reduce<Record<string, number>>(
       (acc, line) => {
@@ -116,6 +142,24 @@ export default function UploadPage() {
       );
     });
 
+    const firstPageText = normaliseText(firstPageLines.join(" ")).toLowerCase();
+    const repeatedText = normaliseText(allDocumentLines.join(" ")).toLowerCase();
+    const title = metadataTitle.toLowerCase();
+
+    const isNomisDocument =
+      firstPageText.includes("nomis") ||
+      firstPageText.includes("noms") ||
+      repeatedText.includes("module: sar_");
+
+    const isDpsDocument =
+      (firstPageText.includes("location") &&
+        firstPageText.includes("category") &&
+        firstPageText.includes("csra") &&
+        firstPageText.includes("incentive level")) ||
+      title.includes("dps") ||
+      (repeatedText.includes("created by:") &&
+        repeatedText.includes("happened:"));
+
     const bodyTextLength = meaningfulLines.join(" ").length;
     const hasBodyText = bodyTextLength >= MINIMUM_BODY_CHARACTERS;
 
@@ -125,6 +169,7 @@ export default function UploadPage() {
     return {
       hasBodyText,
       mightBeScannedDocument,
+      isSupportedDocumentType: isNomisDocument || isDpsDocument,
     };
   }
 
@@ -137,7 +182,7 @@ export default function UploadPage() {
       return;
     }
 
-    let analysis;
+    let analysis: PdfAnalysisResult;
 
     try {
       analysis = await analysePdf(file);
@@ -182,7 +227,16 @@ export default function UploadPage() {
 
     if (analysis.mightBeScannedDocument) {
       router.push(
-        `/scanned-document?documentId=${encodeURIComponent(
+        `/document-warning?reason=scanned&documentId=${encodeURIComponent(
+          uploadedDocument.documentId
+        )}&filename=${encodeURIComponent(file.name)}`
+      );
+      return;
+    }
+
+    if (!analysis.isSupportedDocumentType) {
+      router.push(
+        `/document-warning?reason=unsupported-document-type&documentId=${encodeURIComponent(
           uploadedDocument.documentId
         )}&filename=${encodeURIComponent(file.name)}`
       );
@@ -228,7 +282,10 @@ export default function UploadPage() {
 
           <h1 className="govuk-heading-xl">Upload a document</h1>
 
-          <aside className="govuk-inset-text guidance-panel" aria-label="Upload guidance">
+          <aside
+            className="govuk-inset-text guidance-panel"
+            aria-label="Upload guidance"
+          >
             <p className="govuk-body">
               Only NOMIS and DPS documents can be processed at the moment.
             </p>
@@ -242,7 +299,10 @@ export default function UploadPage() {
             }}
           >
             <section aria-labelledby="upload-file-heading">
-              <div className={`govuk-form-group${error ? " govuk-form-group--error" : ""}`}>
+              <div
+                className={`govuk-form-group${error ? " govuk-form-group--error" : ""
+                  }`}
+              >
                 <h2 className="govuk-label-wrapper">
                   <label
                     className="govuk-label govuk-label--m"
@@ -266,7 +326,8 @@ export default function UploadPage() {
                 <div className="govuk-drop-zone" data-module="govuk-file-upload">
                   <input
                     ref={inputRef}
-                    className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""}`}
+                    className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""
+                      }`}
                     id="file-upload-1"
                     name="fileUpload1"
                     type="file"
