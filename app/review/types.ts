@@ -5,6 +5,11 @@ export type ReviewTextItem = {
     text: string;
     renderText: string;
     bbox: ReviewBBox | null;
+    style?: {
+        is_bold?: boolean;
+        font_size?: number | null;
+        font_names?: string[];
+    };
 };
 
 export type ReviewTableCell = {
