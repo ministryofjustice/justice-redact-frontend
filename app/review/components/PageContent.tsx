@@ -1,7 +1,6 @@
 import ImageRedactionFrame from "./ImageRedactionFrame";
 import {
     getExactLineRanges,
-    getStructuredKeyRanges,
     renderTextSegments,
 } from "../textRendering";
 import type {
@@ -200,10 +199,7 @@ export default function PageContent({
                                                     const isManuallyRedacted = manualForCell.length > 0;
                                                     const hasSuggestion = suggestionsForCell.length > 0;
                                                     const sourceText = cell.text;
-                                                    const isStructured = sourceText.includes("\n");
-                                                    const boldRanges = isStructured
-                                                        ? getStructuredKeyRanges(sourceText)
-                                                        : [];
+                                                    const boldRanges: Array<{ start: number; end: number }> = [];
 
                                                     const cellClassName = [
                                                         cell.isNumeric
@@ -233,7 +229,7 @@ export default function PageContent({
                                                         </span>
                                                     );
 
-                                                    if (cell.isHeader && !isStructured) {
+                                                    if (cell.isHeader) {
                                                         return (
                                                             <th
                                                                 key={cell.cellId}
