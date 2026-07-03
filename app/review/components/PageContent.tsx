@@ -118,8 +118,7 @@ export default function PageContent({
                     return (
                         <div
                             key={`text-${item.itemId}-${blockIndex}`}
-                            className={`jr-review-block redactable${item.style?.is_bold ? " jr-review-block--bold" : ""
-                                }`}
+                            className="jr-review-block redactable"
                             data-page-number={page.pageNumber}
                             data-item-id={item.itemId}
                         >

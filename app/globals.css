@@ -382,10 +382,6 @@ main {
   }
 }
 
-.jr-review-block--bold .govuk-body {
-  font-weight: 700;
-}
-
 /* Upload page */
 .jr-upload-page .govuk-inset-text {
   background-color: #e8f4f8;
