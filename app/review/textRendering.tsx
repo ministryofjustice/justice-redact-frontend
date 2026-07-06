@@ -273,3 +273,94 @@ export function renderTextSegments(
 
     return nodes;
 }
+
+export function renderStyledTextSegments(
+    textSpans: ReviewTextSpan[],
+    suggestions: ReviewFinding[],
+    manualSelections: Array<{ id: string; start: number; end: number }>,
+    isPreviewMode: boolean
+) {
+    const sourceText = textSpans.map((span) => span.text).join("");
+
+    const ranges = buildRenderRanges(
+        sourceText,
+        suggestions,
+        manualSelections,
+        isPreviewMode
+    );
+
+    const nodes: React.ReactNode[] = [];
+    let cursor = 0;
+
+    function renderStyledSlice(sliceStart: number, sliceEnd: number, keyPrefix: string) {
+        const sliceNodes: React.ReactNode[] = [];
+
+        textSpans.forEach((span, index) => {
+            const overlapStart = Math.max(sliceStart, span.start);
+            const overlapEnd = Math.min(sliceEnd, span.end);
+
+            if (overlapEnd <= overlapStart) return;
+
+            const localStart = overlapStart - span.start;
+            const localEnd = overlapEnd - span.start;
+            const content = span.text.slice(localStart, localEnd);
+
+            if (!content) return;
+
+            if (span.isBold) {
+                sliceNodes.push(
+                    <strong key={`${keyPrefix}-styled-${index}`}>
+                        {content}
+                    </strong>
+                );
+                return;
+            }
+
+            sliceNodes.push(
+                <React.Fragment key={`${keyPrefix}-styled-${index}`}>
+                    {content}
+                </React.Fragment>
+            );
+        });
+
+        return sliceNodes;
+    }
+
+    ranges.forEach((range) => {
+        if (range.start < cursor) return;
+
+        if (cursor < range.start) {
+            nodes.push(
+                <span key={`plain-${cursor}-${range.start}`}>
+                    {renderStyledSlice(cursor, range.start, `plain-${cursor}-${range.start}`)}
+                </span>
+            );
+        }
+
+        nodes.push(
+            <span
+                key={range.key}
+                className={range.className}
+                data-manual-id={range.manualId}
+            >
+                {renderStyledSlice(
+                    range.start,
+                    range.end,
+                    `${range.key}-${range.start}-${range.end}`
+                )}
+            </span>
+        );
+
+        cursor = range.end;
+    });
+
+    if (cursor < sourceText.length) {
+        nodes.push(
+            <span key={`plain-${cursor}-end`}>
+                {renderStyledSlice(cursor, sourceText.length, "plain-end")}
+            </span>
+        );
+    }
+
+    return nodes;
+}

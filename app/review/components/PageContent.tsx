@@ -2,6 +2,7 @@ import ImageRedactionFrame from "./ImageRedactionFrame";
 import {
     getBoldRangesFromTextSpans,
     getExactLineRanges,
+    renderStyledTextSegments,
     renderTextSegments,
 } from "../textRendering";
 import type {
@@ -126,13 +127,20 @@ export default function PageContent({
                             data-item-id={item.itemId}
                         >
                             <p className="govuk-body">
-                                {renderTextSegments(
-                                    sourceText,
-                                    suggestionsForItem,
-                                    manualForItem,
-                                    isPreviewMode,
-                                    boldRanges
-                                )}
+                                {item.textSpans?.length
+                                    ? renderStyledTextSegments(
+                                        item.textSpans,
+                                        suggestionsForItem,
+                                        manualForItem,
+                                        isPreviewMode
+                                    )
+                                    : renderTextSegments(
+                                        sourceText,
+                                        suggestionsForItem,
+                                        manualForItem,
+                                        isPreviewMode,
+                                        boldRanges
+                                    )}
                             </p>
                         </div>
                     );
