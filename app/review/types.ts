@@ -33,6 +33,7 @@ export type ReviewTableCell = {
     bbox: ReviewBBox | null;
     isHeader: boolean;
     isNumeric: boolean;
+    textSpans?: ReviewTextSpan[];
 };
 
 export type ReviewTableRow = { rowIndex: number; cells: ReviewTableCell[] };

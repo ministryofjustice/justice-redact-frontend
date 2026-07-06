@@ -230,13 +230,20 @@ export default function PageContent({
 
                                                     const content = (
                                                         <span className="jr-table-cell-text" style={{ whiteSpace: "pre-line" }}>
-                                                            {renderTextSegments(
-                                                                sourceText,
-                                                                suggestionsForCell,
-                                                                manualForCell,
-                                                                isPreviewMode,
-                                                                boldRanges
-                                                            )}
+                                                            {cell.textSpans?.length
+                                                                ? renderStyledTextSegments(
+                                                                    cell.textSpans,
+                                                                    suggestionsForCell,
+                                                                    manualForCell,
+                                                                    isPreviewMode
+                                                                )
+                                                                : renderTextSegments(
+                                                                    sourceText,
+                                                                    suggestionsForCell,
+                                                                    manualForCell,
+                                                                    isPreviewMode,
+                                                                    boldRanges
+                                                                )}
                                                         </span>
                                                     );
 
