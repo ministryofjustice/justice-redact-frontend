@@ -1,5 +1,5 @@
 import React from "react";
-import type { RenderRange, ReviewFinding } from "./types";
+import type { RenderRange, ReviewFinding, ReviewTextSpan } from "./types";
 
 export function clampRangeValue(value: number, max: number) {
     return Math.max(0, Math.min(max, value));
@@ -28,6 +28,37 @@ export function getExactLineRanges(fullText: string, label: string) {
         if (newlineIndex === -1) break;
         lineStart = newlineIndex + 1;
     }
+
+    return ranges;
+}
+
+export function getBoldRangesFromTextSpans(
+    text: string,
+    textSpans?: ReviewTextSpan[]
+) {
+    if (!textSpans?.length) return [];
+
+    const ranges: Array<{ start: number; end: number }> = [];
+    let searchFrom = 0;
+
+    textSpans.forEach((span) => {
+        const spanText = span.text.replace(/\s+/g, " ").trim();
+
+        if (!spanText) return;
+
+        const index = text.indexOf(spanText, searchFrom);
+
+        if (index === -1) return;
+
+        if (span.isBold) {
+            ranges.push({
+                start: index,
+                end: index + spanText.length,
+            });
+        }
+
+        searchFrom = index + spanText.length;
+    });
 
     return ranges;
 }

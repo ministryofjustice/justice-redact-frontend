@@ -7,9 +7,20 @@ export type ReviewTextItem = {
     bbox: ReviewBBox | null;
     style?: {
         is_bold?: boolean;
-        font_size?: number | null;
         font_names?: string[];
+        font_size?: number | null;
     };
+    textSpans?: ReviewTextSpan[];
+};
+
+export type ReviewTextSpan = {
+    text: string;
+    start: number;
+    end: number;
+    bbox: ReviewBBox | null;
+    fontName: string | null;
+    fontSize: number | null;
+    isBold: boolean;
 };
 
 export type ReviewTableCell = {

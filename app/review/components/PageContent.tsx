@@ -1,5 +1,6 @@
 import ImageRedactionFrame from "./ImageRedactionFrame";
 import {
+    getBoldRangesFromTextSpans,
     getExactLineRanges,
     renderTextSegments,
 } from "../textRendering";
@@ -113,7 +114,9 @@ export default function PageContent({
                         }));
 
                     const sourceText = item.text;
-                    const boldRanges = getExactLineRanges(sourceText, "Case Note");
+                    const pdfBoldRanges = getBoldRangesFromTextSpans(sourceText, item.textSpans);
+                    const fallbackBoldRanges = getExactLineRanges(sourceText, "Case Note");
+                    const boldRanges = [...pdfBoldRanges, ...fallbackBoldRanges];
 
                     return (
                         <div
