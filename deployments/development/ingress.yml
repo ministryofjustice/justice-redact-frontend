@@ -13,7 +13,7 @@ spec:
   rules:
     - host: ${NAMESPACE}.apps.live.cloud-platform.service.justice.gov.uk
       http:
-        paths: # <-- Removed the accidental hyphen here
+        paths:
           - path: /
             pathType: Prefix
             backend:
