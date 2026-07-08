@@ -7,14 +7,13 @@ metadata:
     external-dns.alpha.kubernetes.io/aws-weight: '100'
     external-dns.alpha.kubernetes.io/set-identifier: 'justice-redact-frontend-${NAMESPACE}-green'
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    # Added IP allowlist annotation below (comma-separated list of IPs)
     nginx.ingress.kubernetes.io/whitelist-source-range: "35.176.93.186,18.169.147.172,18.130.148.126,35.176.148.126"
 spec:
   ingressClassName: ${INGRESS_CLASS}
   rules:
     - host: ${NAMESPACE}.apps.live.cloud-platform.service.justice.gov.uk
       http:
-        - paths:
+        paths: # <-- Removed the accidental hyphen here
           - path: /
             pathType: Prefix
             backend:
