@@ -3,6 +3,8 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { ApiError, fetchJson } from "../lib/api";
+
 type DocumentStatusResponse = {
     documentId: string;
     filename: string;
@@ -11,7 +13,12 @@ type DocumentStatusResponse = {
 
 function LinearLoadingBar({ label = "Loading" }: { label?: string }) {
     return (
-        <div className="jr-linear-loading" role="status" aria-live="polite" aria-label={label}>
+        <div
+            className="jr-linear-loading"
+            role="status"
+            aria-live="polite"
+            aria-label={label}
+        >
             <div className="jr-linear-loading__track" aria-hidden="true">
                 <span className="jr-linear-loading__bar jr-linear-loading__bar--primary" />
             </div>
@@ -34,45 +41,82 @@ function ApplyingRedactionsContent() {
         if (!documentId) return;
 
         let isActive = true;
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        let controller: AbortController | null = null;
+
+        const scheduleNextPoll = () => {
+            if (!isActive) return;
+
+            timeoutId = setTimeout(() => {
+                void pollStatus();
+            }, 2000);
+        };
 
         async function pollStatus() {
+            if (!isActive) return;
+
+            controller = new AbortController();
+
             try {
-                const response = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/status`
+                const data = await fetchJson<DocumentStatusResponse>(
+                    `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/status`,
+                    {
+                        cache: "no-store",
+                        signal: controller.signal,
+                    }
                 );
-
-                const data: DocumentStatusResponse = await response.json();
-
-                if (!response.ok) {
-                    throw new Error("Failed to fetch document status.");
-                }
 
                 if (!isActive) return;
 
                 setStatus(data.status);
+                setError(null);
 
                 if (data.status === "redaction_complete") {
                     router.push(`/export?documentId=${documentId}`);
+                    return;
                 }
 
                 if (data.status === "redaction_failed") {
                     setError("Failed to apply redactions.");
+                    return;
                 }
+
+                scheduleNextPoll();
             } catch (err) {
                 if (!isActive) return;
-                setError(err instanceof Error ? err.message : "Something went wrong.");
+
+                if (err instanceof DOMException && err.name === "AbortError") {
+                    return;
+                }
+
+                if (err instanceof ApiError && err.retryable) {
+                    console.warn("Temporary redaction status polling failure", {
+                        status: err.status,
+                        message: err.message,
+                    });
+
+                    scheduleNextPoll();
+                    return;
+                }
+
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : "Unable to check the redaction status."
+                );
             }
         }
 
         void pollStatus();
 
-        const intervalId = setInterval(() => {
-            void pollStatus();
-        }, 2000);
-
         return () => {
             isActive = false;
-            clearInterval(intervalId);
+
+            controller?.abort();
+
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
         };
     }, [documentId, router]);
 
@@ -89,7 +133,10 @@ function ApplyingRedactionsContent() {
                                 role="alert"
                                 tabIndex={-1}
                             >
-                                <h2 className="govuk-error-summary__title" id="apply-redactions-error-title">
+                                <h2
+                                    className="govuk-error-summary__title"
+                                    id="apply-redactions-error-title"
+                                >
                                     There is a problem
                                 </h2>
 
@@ -108,7 +155,10 @@ function ApplyingRedactionsContent() {
                                 }
                             />
 
-                            <h1 className="govuk-heading-xl" id="applying-redactions-heading">
+                            <h1
+                                className="govuk-heading-xl"
+                                id="applying-redactions-heading"
+                            >
                                 Applying redactions
                             </h1>
 

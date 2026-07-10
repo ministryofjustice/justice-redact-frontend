@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { ApiError, fetchJson } from "../lib/api";
 import type { ReviewResponse } from "./types";
 
 export function useReviewData(documentId: string | null) {
@@ -8,6 +9,9 @@ export function useReviewData(documentId: string | null) {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        let isActive = true;
+        const controller = new AbortController();
+
         async function loadReview() {
             if (!documentId) {
                 setError("Missing document ID.");
@@ -20,27 +24,47 @@ export function useReviewData(documentId: string | null) {
                 setError(null);
                 setData(null);
 
-                const response = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/review`
+                const result = await fetchJson<ReviewResponse>(
+                    `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/review`,
+                    {
+                        cache: "no-store",
+                        signal: controller.signal,
+                    }
                 );
 
-                const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.detail || "Failed to load review data.");
-                }
+                if (!isActive) return;
 
                 setData(result);
             } catch (err) {
+                if (!isActive) return;
+
+                if (err instanceof DOMException && err.name === "AbortError") {
+                    return;
+                }
+
+                if (err instanceof ApiError) {
+                    setError(err.message);
+                    return;
+                }
+
                 setError(
-                    err instanceof Error ? err.message : "Failed to load review data."
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to load review data."
                 );
             } finally {
-                setIsLoading(false);
+                if (isActive) {
+                    setIsLoading(false);
+                }
             }
         }
 
-        loadReview();
+        void loadReview();
+
+        return () => {
+            isActive = false;
+            controller.abort();
+        };
     }, [documentId]);
 
     return {

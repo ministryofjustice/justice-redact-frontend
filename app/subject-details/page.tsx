@@ -2,7 +2,13 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { fetchJson } from "../lib/api";
 import Link from "next/link";
+
+type ProcessDocumentResponse = {
+    documentId: string;
+    status: string;
+};
 
 function SubjectDetailsContent() {
     const router = useRouter();
@@ -26,7 +32,7 @@ function SubjectDetailsContent() {
             setIsSubmitting(true);
             setError(null);
 
-            const response = await fetch(
+            await fetchJson<ProcessDocumentResponse>(
                 `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/process`,
                 {
                     method: "POST",
@@ -40,12 +46,6 @@ function SubjectDetailsContent() {
                     }),
                 }
             );
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.detail || "Failed to start processing.");
-            }
 
             router.push(`/processing?documentId=${documentId}`);
         } catch (err) {

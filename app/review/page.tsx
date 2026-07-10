@@ -3,6 +3,7 @@
 import { Suspense, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { fetchJson } from "../lib/api";
 
 import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
@@ -29,6 +30,11 @@ import type {
 } from "./types";
 
 const PAGES_PER_BATCH = 50;
+
+type ApplyRedactionsResponse = {
+  documentId: string;
+  status: string;
+};
 
 function ReviewContent() {
   const searchParams = useSearchParams();
@@ -97,11 +103,13 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       setIsApplyingRedactions(true);
       setApplyRedactionsError(null);
 
-      const response = await fetch(
+      await fetchJson<ApplyRedactionsResponse>(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${data.documentId}/apply-redactions`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(
             buildApplyRedactionsRequest(
               data.documentId,
@@ -112,16 +120,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         }
       );
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.detail || "Failed to apply redactions.");
-      }
-
       router.push(`/applying-redactions?documentId=${data.documentId}`);
     } catch (err) {
       setApplyRedactionsError(
-        err instanceof Error ? err.message : "Failed to apply redactions."
+        err instanceof Error
+          ? err.message
+          : "Failed to apply redactions."
       );
       setIsApplyingRedactions(false);
     }

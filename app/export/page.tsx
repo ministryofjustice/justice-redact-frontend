@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { fetchJson } from "../lib/api";
 
 type PageCounts = {
     original: number;
@@ -50,6 +51,9 @@ function ExportContent() {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        const controller = new AbortController();
+        let isActive = true;
+
         async function loadExport() {
             if (!documentId) {
                 setError("Missing document ID.");
@@ -60,26 +64,44 @@ function ExportContent() {
             try {
                 setIsLoading(true);
                 setError(null);
+                setData(null);
 
-                const response = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/export`
+                const result = await fetchJson<ExportResponse>(
+                    `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/export`,
+                    {
+                        cache: "no-store",
+                        signal: controller.signal,
+                    }
                 );
 
-                const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.detail || "Failed to load export details.");
-                }
+                if (!isActive) return;
 
                 setData(result);
             } catch (err) {
-                setError(err instanceof Error ? err.message : "Failed to load export details.");
+                if (!isActive) return;
+
+                if (err instanceof DOMException && err.name === "AbortError") {
+                    return;
+                }
+
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to load export details."
+                );
             } finally {
-                setIsLoading(false);
+                if (isActive) {
+                    setIsLoading(false);
+                }
             }
         }
 
-        loadExport();
+        void loadExport();
+
+        return () => {
+            isActive = false;
+            controller.abort();
+        };
     }, [documentId]);
 
     const redactedDownloadUrl = buildDownloadUrl(data?.redactedExportUrl);

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { fetchJson } from "../lib/api";
 
 const FILE_ERROR =
   "The selected file must be a NOMIS or DPS file in PDF format";
@@ -204,21 +205,13 @@ export default function UploadPage() {
     let uploadedDocument: UploadDocumentResponse;
 
     try {
-      const response = await fetch(
+      uploadedDocument = await fetchJson<UploadDocumentResponse>(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/upload`,
         {
           method: "POST",
           body: formData,
         }
       );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Failed to upload document.");
-      }
-
-      uploadedDocument = data;
     } catch (err) {
       console.error("Document upload failed", err);
       setError(err instanceof Error ? err.message : "Failed to upload document.");

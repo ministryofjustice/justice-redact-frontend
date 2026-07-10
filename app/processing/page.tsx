@@ -3,6 +3,8 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { ApiError, fetchJson } from "../lib/api";
+
 type DocumentStatusResponse = {
   documentId: string;
   filename: string;
@@ -34,41 +36,82 @@ function ProcessingContent() {
     if (!documentId) return;
 
     let isActive = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let controller: AbortController | null = null;
+
+    const scheduleNextPoll = () => {
+      if (!isActive) return;
+
+      timeoutId = setTimeout(() => {
+        void pollStatus();
+      }, 2000);
+    };
 
     async function pollStatus() {
+      if (!isActive) return;
+
+      controller = new AbortController();
+
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/status`
+        const data = await fetchJson<DocumentStatusResponse>(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/status`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          },
         );
-
-        const data: DocumentStatusResponse = await response.json();
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch document status.");
-        }
 
         if (!isActive) return;
 
         setStatus(data.status);
+        setError(null);
 
         if (data.status === "ready_for_review") {
           router.push(`/review?documentId=${documentId}`);
+          return;
         }
+
+        if (data.status === "failed") {
+          setError("The document could not be processed.");
+          return;
+        }
+
+        scheduleNextPoll();
       } catch (err) {
         if (!isActive) return;
-        setError(err instanceof Error ? err.message : "Something went wrong.");
+
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+
+        if (err instanceof ApiError && err.retryable) {
+          console.warn("Temporary status polling failure", {
+            status: err.status,
+            message: err.message,
+          });
+
+          scheduleNextPoll();
+          return;
+        }
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to check the document status.",
+        );
       }
     }
 
     void pollStatus();
 
-    const intervalId = setInterval(() => {
-      void pollStatus();
-    }, 2000);
-
     return () => {
       isActive = false;
-      clearInterval(intervalId);
+
+      controller?.abort();
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [documentId, router]);
 
