@@ -51,6 +51,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [manualSelections, setManualSelections] = useState<ManualDecision[]>([]);
   const [reviewMode, setReviewMode] = useState<ReviewMode>("redact");
   const isPreviewMode = reviewMode === "preview";
+  const isRedactMode = reviewMode === "redact";
   const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
   const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
   const [pageStatuses, setPageStatuses] = useState<Record<number, PageStatus>>({});
@@ -262,7 +263,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   }
 
   function handleTableCellSelection() {
-    if (isPreviewMode || !data) return false;
+    if (!isRedactMode || !data) return false;
 
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false;
@@ -337,7 +338,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   }
 
   function handleTextSelection() {
-    if (isPreviewMode || !data) return;
+    if (!isRedactMode || !data) return;
 
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
@@ -437,7 +438,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   }
 
   function handleRedactionClick(event: MouseEvent<HTMLElement>) {
-    if (isPreviewMode) return;
+    if (!isRedactMode) return;
 
     const target = event.target as HTMLElement | null;
     const element = target?.closest?.("[data-manual-id]") as HTMLElement | null;
@@ -449,7 +450,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   }
 
   function toggleImageRedaction(pageNumber: number, imageId: string) {
-    if (!documentId || isPreviewMode) return;
+    if (!documentId || !isRedactMode) return;
 
     setManualSelections((prev) => {
       const existing = prev.find(
