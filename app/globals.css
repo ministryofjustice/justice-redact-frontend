@@ -142,7 +142,6 @@ main {
   background-color: #1d70b8;
   color: #ffffff;
   border-color: #1d70b8;
-  border-bottom: 0;
   box-shadow: 0 -2px #003078;
 }
 
@@ -150,6 +149,7 @@ main {
   background-color: #003078;
   color: #ffffff;
   border-color: #003078;
+  box-shadow: 0 -2px #003078;
 }
 
 .govuk-button--secondary.jr-mode-toggle__button:focus:not(:focus-visible) {
