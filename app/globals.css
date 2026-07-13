@@ -142,14 +142,18 @@ main {
   background-color: #1d70b8;
   color: #ffffff;
   border-color: #1d70b8;
-  box-shadow: inset 0 2px 0 #003078;
+  box-shadow:
+    inset 0 2px 0 #003078,
+    0 2px 0 #929191;
 }
 
 .govuk-button--secondary.jr-mode-toggle__button--active:hover {
   background-color: #003078;
   color: #ffffff;
   border-color: #003078;
-  box-shadow: inset 0 2px 0 #0b0c0c;
+  box-shadow:
+    inset 0 2px 0 #0b0c0c,
+    0 2px 0 #929191;
 }
 
 .govuk-button--secondary.jr-mode-toggle__button:focus:not(:focus-visible) {
@@ -160,7 +164,9 @@ main {
   background-color: #1d70b8;
   color: #ffffff;
   border-color: #1d70b8;
-  box-shadow: inset 0 2px 0 #003078;
+  box-shadow:
+    inset 0 2px 0 #003078,
+    0 2px 0 #929191;
 }
 
 /* Review page */
