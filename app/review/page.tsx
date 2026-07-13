@@ -27,6 +27,7 @@ import type {
   PageStatus,
   ReviewPageData,
   ReviewTableCell,
+  ReviewMode
 } from "./types";
 
 const PAGES_PER_BATCH = 50;
@@ -48,7 +49,8 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   const [selectedRangeStart, setSelectedRangeStart] = useState(0);
   const [manualSelections, setManualSelections] = useState<ManualDecision[]>([]);
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [reviewMode, setReviewMode] = useState<ReviewMode>("redact");
+  const isPreviewMode = reviewMode === "preview";
   const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
   const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
   const [pageStatuses, setPageStatuses] = useState<Record<number, PageStatus>>({});
@@ -500,9 +502,8 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     <main className="jr-review-root govuk-main-wrapper" id="main-content">
       <ReviewControlsHeader
         filename={data?.filename || "Document"}
-        isPreviewMode={isPreviewMode}
-        onSetRedactMode={() => setIsPreviewMode(false)}
-        onSetPreviewMode={() => setIsPreviewMode(true)}
+        reviewMode={reviewMode}
+        onReviewModeChange={setReviewMode}
       />
 
       <div className="govuk-grid-column-full-width">

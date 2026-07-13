@@ -154,3 +154,5 @@ export type ManualSpan = {
 };
 
 export type PageStatus = "deleted" | "exempted";
+
+export type ReviewMode = "select" | "redact" | "preview";

@@ -119,6 +119,39 @@ main {
   margin-bottom: 0;
 }
 
+.jr-mode-toggle {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.jr-mode-toggle__label {
+  margin: 0 15px 0 0;
+}
+
+.jr-mode-toggle__buttons {
+  margin: 0 -1px 0 0;
+}
+
+.jr-mode-toggle__button {
+  margin: 0;
+  box-shadow: none;
+}
+
+.govuk-button--secondary.jr-mode-toggle__button--active {
+  background-color: #1d70b8;
+  color: #ffffff;
+  border-color: #1d70b8;
+  border-bottom: 4px solid #003078;
+  box-shadow: 0 -2px #003078;
+}
+
+.govuk-button--secondary.jr-mode-toggle__button--active:hover {
+  background-color: #003078;
+  color: #ffffff;
+  border-color: #003078;
+}
+
 .jr-modes-label {
   margin-left: auto;
 }
