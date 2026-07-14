@@ -8,7 +8,7 @@ metadata:
     external-dns.alpha.kubernetes.io/set-identifier: 'justice-redact-frontend-${NAMESPACE}-green'
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     # Combined digital-mac and moj_official production/pre-production VPN IP ranges
-    nginx.ingress.kubernetes.io/whitelist-source-range: "35.176.93.186,18.169.147.172,18.130.148.126,35.176.148.126,51.149.250.0/24,51.149.249.0/29,194.33.249.0/29,51.149.249.32/29,194.33.248.0/29,20.49.214.199/32,20.49.214.228/32,20.26.11.71/32,20.26.11.108/32,51.149.251.0/24,51.149.249.64/29,194.33.192.0/18, 128.77.75.67/32, 128.77.75.74/29"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "35.176.93.186,18.169.147.172,18.130.148.126,35.176.148.126,51.149.250.0/24,51.149.249.0/29,194.33.249.0/29,51.149.249.32/29,194.33.248.0/29,20.49.214.199/32,20.49.214.228/32,20.26.11.71/32,20.26.11.108/32,51.149.251.0/24,51.149.249.64/29,194.33.192.0/18,128.77.75.67/27"
 spec:
   ingressClassName: ${INGRESS_CLASS}
   rules:
