@@ -9,11 +9,15 @@ export default function GovukInit() {
     useEffect(() => {
         const timeout = window.setTimeout(async () => {
             try {
-                const govuk = await import("govuk-frontend/dist/govuk/all.mjs");
+                const [govuk, moj] = await Promise.all([
+                    import("govuk-frontend/dist/govuk/all.mjs"),
+                    import("@ministryofjustice/frontend/moj/all.mjs"),
+                ]);
 
                 govuk.initAll(document.body);
+                moj.initAll(document.body);
             } catch (error) {
-                console.error("GOVUK initAll failed:", error);
+                console.error("Design system initialisation failed:", error);
             }
         }, 0);
 

@@ -1,3 +1,5 @@
+@use "govuk-frontend/dist/govuk" as govuk;
+
 :root {
   --govuk-assets-path: "/assets/";
   --moj-assets-path: "/moj/assets/";
@@ -81,7 +83,7 @@ main {
 }
 
 .filename-bar {
-  background: #d2e2f1;
+  background: govuk.govuk-colour("blue", $variant: "tint-80");
   padding: 5px 10px;
   box-sizing: border-box;
 }
@@ -102,8 +104,8 @@ main {
 }
 
 .actions-bar {
-  background-color: #ffffff;
-  border-bottom: 1px solid #b1b4b6;
+  background-color: govuk.govuk-colour("white");
+  border-bottom: 1px solid govuk.govuk-colour("mid-grey");
   padding: 10px 0;
 }
 
@@ -134,47 +136,39 @@ main {
 }
 
 .jr-mode-toggle__button {
-  position: relative;
-  margin: 0;
+  margin: -10px 0 0;
 }
 
+/* Selected state */
 .govuk-button--secondary.jr-mode-toggle__button--active {
-  background-color: #1d70b8;
-  color: #ffffff;
-  border-color: #1d70b8;
-  box-shadow: 0 2px 0 #1d70b8;
+  background-color: var(--govuk-link-colour, #1a65a6);
+  color: govuk.govuk-colour("white");
+  // border-color: var(--govuk-link-colour, #1a65a6);
+  border-bottom: 4px solid var(--govuk-link-colour, #1a65a6);
+  box-shadow: 0 -2px var(--govuk-link-hover-colour, #0f385c);
 }
 
-.govuk-button--secondary.jr-mode-toggle__button--active::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background-color: #003078;
-}
-
+/* Selected and hovered state */
 .govuk-button--secondary.jr-mode-toggle__button--active:hover {
-  background-color: #003078;
-  color: #ffffff;
-  border-color: #003078;
-  box-shadow: 0 2px 0 #003078;
+  background-color: var(--govuk-link-hover-colour, #0f385c);
+  color: govuk.govuk-colour("white");
+  border-color: var(--govuk-link-hover-colour, #0f385c);
 }
 
-.govuk-button--secondary.jr-mode-toggle__button--active:hover::before {
-  background-color: #003078;
-}
-
-.govuk-button--secondary.jr-mode-toggle__button:focus:not(:focus-visible) {
+/* Selected and focussed and hovered state */
+.govuk-button--secondary.jr-mode-toggle__button--active:focus:hover {
+  background-color: govuk.govuk-functional-colour("link-hover");
+  color: govuk.govuk-colour("white");
+  border-color: govuk.govuk-functional-colour("link-hover");
+  box-shadow: 0 -2px govuk.govuk-functional-colour("link-hover");
   outline: none;
 }
 
-.govuk-button--secondary.jr-mode-toggle__button--active:focus:not(:focus-visible) {
-  background-color: #1d70b8;
-  color: #ffffff;
-  border-color: #1d70b8;
-  box-shadow: 0 2px 0 #1d70b8;
+/* Selected while being pressed */
+.govuk-button--secondary.jr-mode-toggle__button--active:active {
+  background-color: var(--govuk-link-hover-colour, #0f385c);
+  color: govuk.govuk-colour("white");
+  border-color: var(--govuk-link-hover-colour, #0f385c);
 }
 
 /* Review page */

@@ -1,4 +1,4 @@
-import "./globals.css";
+import "./globals.scss";
 import type { Metadata } from "next";
 import Link from "next/link";
 import MojCrest from "./components/MojCrest";

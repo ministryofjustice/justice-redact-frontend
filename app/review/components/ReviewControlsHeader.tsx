@@ -1,6 +1,7 @@
 import FilenameBar from "@/app/components/FilenameBar";
 import type { ReviewMode } from "../types";
 import ModeToggleGroup from "./ModeToggleGroup";
+import FindInDocumentMenu from "./FindInDocumentMenu";
 
 type ReviewControlsHeaderProps = {
     filename: string;
@@ -22,35 +23,19 @@ export default function ReviewControlsHeader({
                     <p className="govuk-body">
                         <strong>Menu:</strong>
                     </p>
-
-                    <a
-                        href="#"
-                        className="govuk-link govuk-link--no-visited-state"
-                    >
-                        Find and redact
-                    </a>
-
-                    <a
-                        href="#"
-                        className="govuk-link govuk-link--no-visited-state"
-                    >
-                        Find and unredact
-                    </a>
-
+                    <FindInDocumentMenu />
                     <a
                         href="#"
                         className="govuk-link govuk-link--no-visited-state"
                     >
                         Edit allow list
                     </a>
-
                     <a
                         href="#"
                         className="govuk-link govuk-link--no-visited-state"
                     >
                         Quick help
                     </a>
-
                     <ModeToggleGroup
                         value={reviewMode}
                         onChange={onReviewModeChange}
