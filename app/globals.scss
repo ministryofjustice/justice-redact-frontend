@@ -185,6 +185,126 @@ main {
   margin-top: 0;
 }
 
+/* Shared review modal */
+.jr-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 15vh govuk.govuk-spacing(3) govuk.govuk-spacing(6);
+  background: rgba(govuk.govuk-colour("black"), 0.8);
+}
+
+.jr-modal {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  border: 4px solid govuk.govuk-colour("black");
+  background-color: govuk.govuk-colour("white");
+}
+
+.jr-modal:focus {
+  outline: 4px solid govuk.govuk-colour("yellow");
+  outline-offset: 0;
+}
+
+.jr-modal__header {
+  display: flex;
+  justify-content: flex-end;
+  padding: govuk.govuk-spacing(2);
+  background-color: govuk.govuk-colour("black");
+}
+
+.jr-modal__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: govuk.govuk-colour("white");
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.jr-modal__close:hover {
+  color: govuk.govuk-colour("mid-grey");
+}
+
+.jr-modal__close:focus {
+  color: govuk.govuk-colour("black");
+  background-color: govuk.govuk-colour("yellow");
+  outline: 3px solid transparent;
+  box-shadow: 0 4px 0 govuk.govuk-colour("black");
+}
+
+.jr-modal__content {
+  padding: govuk.govuk-spacing(4);
+}
+
+.jr-modal__content> :last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 40.0525em) {
+  .jr-modal__backdrop {
+    align-items: flex-start;
+    padding:
+      govuk.govuk-spacing(3) govuk.govuk-spacing(2) govuk.govuk-spacing(4);
+  }
+
+  .jr-modal__content {
+    padding: govuk.govuk-spacing(3);
+  }
+}
+
+.jr-quick-help__redaction-example,
+.jr-quick-help__redaction-example:hover,
+.jr-quick-help__redaction-example.highlight--redaction-hover {
+  cursor: text;
+  border-top-width: 2px;
+  border-bottom-width: 2px;
+}
+
+.jr-modal__link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+
+  color: govuk.govuk-colour("blue");
+
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.jr-modal__link-button:hover {
+  color: govuk.govuk-colour("dark-blue");
+}
+
+.jr-modal__link-button:focus {
+  color: govuk.govuk-colour("black");
+  background: govuk.govuk-colour("yellow");
+  outline: 3px solid transparent;
+  box-shadow: 0 4px 0 govuk.govuk-colour("black");
+}
+
+.jr-modal__link-button:active {
+  color: govuk.govuk-colour("black");
+}
+
 /* Review page */
 .jr-mark-for-redaction__header {
   padding-top: 50px;
@@ -248,16 +368,19 @@ main {
 
 /* Highlights and redactions */
 .highlight {
-  padding: 0;
   display: inline;
+  padding: 0;
+  line-height: inherit;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
-  line-height: inherit;
 }
 
 .highlight--suggestion {
-  background: #fff7bf;
-  border-bottom: 2px dashed #ffdd00;
+  background: govuk.govuk-colour("blue", $variant: "tint-80");
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: govuk.govuk-colour("blue");
+  text-decoration-skip-ink: none;
 }
 
 .highlight--allow {
@@ -267,12 +390,15 @@ main {
 
 .highlight--none {
   background: transparent;
-  border-bottom: none;
+  border-bottom: 0;
 }
 
 .highlight--redaction {
-  background: #f6d7d7;
-  border-bottom: 2px solid #d4351c;
+  background: govuk.govuk-colour("orange", $variant: "tint-80");
+  border-top: 2px solid govuk.govuk-colour("orange");
+  border-right: 0;
+  border-bottom: 2px solid govuk.govuk-colour("orange");
+  border-left: 0;
 }
 
 .highlight--redaction:hover,
@@ -282,17 +408,19 @@ main {
 }
 
 .highlight--redaction.highlight--redaction-hover {
-  border-bottom: 3px solid #d4351c;
+  background: govuk.govuk-colour("orange", $variant: "tint-80");
+  border-top-width: 4px;
+  border-bottom-width: 4px;
 }
 
 .applied-redaction {
-  padding: 0;
   display: inline;
+  padding: 0;
+  background: govuk.govuk-colour("black");
+  border-bottom: 2px solid govuk.govuk-colour("black");
+  line-height: inherit;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
-  line-height: inherit;
-  background: #0b0c0c;
-  border-bottom: 2px solid #0b0c0c;
 }
 
 /* Manual redactions panel */

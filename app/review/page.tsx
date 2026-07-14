@@ -13,6 +13,7 @@ import ReviewControlsHeader from "./components/ReviewControlsHeader";
 import ReviewPageHeader from "./components/ReviewPageHeader";
 import ReviewPagination from "./components/ReviewPagination";
 import ReviewStatusMessages from "./components/ReviewStatusMessages";
+import QuickHelpModal from "./components/QuickHelpModal";
 import { clampRangeValue } from "./textRendering";
 import {
   getClosestElementWithAttribute,
@@ -508,7 +509,10 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         onReviewModeChange={setReviewMode}
         onQuickHelp={() => setIsQuickHelpOpen(true)}
       />
-
+      <QuickHelpModal
+        isOpen={isQuickHelpOpen}
+        onClose={() => setIsQuickHelpOpen(false)}
+      />
       <div className="govuk-grid-column-full-width">
         <h1 className="govuk-heading-xl jr-mark-for-redaction__header">
           Mark for redaction
