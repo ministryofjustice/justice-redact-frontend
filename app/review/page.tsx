@@ -55,6 +55,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
   const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
   const [pageStatuses, setPageStatuses] = useState<Record<number, PageStatus>>({});
+  const [isQuickHelpOpen, setIsQuickHelpOpen] = useState(false);
 
   const { data, isLoading, error } = useReviewData(documentId);
 
@@ -500,11 +501,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   }
 
   return (
-    <main className="jr-review-root govuk-main-wrapper" id="main-content">
+    <div className="jr-review-root">
       <ReviewControlsHeader
         filename={data?.filename || "Document"}
         reviewMode={reviewMode}
         onReviewModeChange={setReviewMode}
+        onQuickHelp={() => setIsQuickHelpOpen(true)}
       />
 
       <div className="govuk-grid-column-full-width">
@@ -602,7 +604,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           )}
         </>
       )}
-    </main>
+    </div>
   );
 }
 

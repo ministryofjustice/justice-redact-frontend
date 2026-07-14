@@ -15,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="govuk-template">
+    <html lang="en" className="govuk-template js-enabled">
       <head>
         <link rel="stylesheet" href="/styles/govuk-frontend.min.css" />
         <link rel="stylesheet" href="/styles/moj-frontend.min.css" />

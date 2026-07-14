@@ -1,4 +1,14 @@
-export default function FindInDocumentMenu() {
+type FindInDocumentMenuProps = {
+    onFindAndRedact: () => void;
+    onFindAndPartiallyRedact: () => void;
+    onFindAndDisclose: () => void;
+};
+
+export default function FindInDocumentMenu({
+    onFindAndRedact,
+    onFindAndPartiallyRedact,
+    onFindAndDisclose,
+}: FindInDocumentMenuProps) {
     return (
         <div
             className="moj-button-menu"
@@ -9,7 +19,7 @@ export default function FindInDocumentMenu() {
             <button
                 type="button"
                 className="govuk-button moj-button-menu__item govuk-button--secondary"
-                data-module="govuk-button"
+                onClick={onFindAndRedact}
             >
                 Find and redact
             </button>
@@ -17,7 +27,7 @@ export default function FindInDocumentMenu() {
             <button
                 type="button"
                 className="govuk-button moj-button-menu__item govuk-button--secondary"
-                data-module="govuk-button"
+                onClick={onFindAndPartiallyRedact}
             >
                 Find and partially redact
             </button>
@@ -25,7 +35,7 @@ export default function FindInDocumentMenu() {
             <button
                 type="button"
                 className="govuk-button moj-button-menu__item govuk-button--secondary"
-                data-module="govuk-button"
+                onClick={onFindAndDisclose}
             >
                 Find and disclose
             </button>

@@ -21,9 +21,9 @@ export default function ModeToggleGroup({
             role="group"
             aria-label="Review mode"
         >
-            <p className="govuk-body jr-mode-toggle__label">
+            <span className="jr-mode-toggle__label">
                 <strong>Mode:</strong>
-            </p>
+            </span>
 
             <div className="moj-button-group jr-mode-toggle__buttons">
                 {modes.map((mode) => {

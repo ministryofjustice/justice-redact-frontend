@@ -7,7 +7,7 @@ export default function GovukInit() {
     const pathname = usePathname();
 
     useEffect(() => {
-        const timeout = window.setTimeout(async () => {
+        async function init() {
             try {
                 const [govuk, moj] = await Promise.all([
                     import("govuk-frontend/dist/govuk/all.mjs"),
@@ -17,11 +17,11 @@ export default function GovukInit() {
                 govuk.initAll(document.body);
                 moj.initAll(document.body);
             } catch (error) {
-                console.error("Design system initialisation failed:", error);
+                console.error("Initialisation failed:", error);
             }
-        }, 0);
+        }
 
-        return () => window.clearTimeout(timeout);
+        init();
     }, [pathname]);
 
     return null;
