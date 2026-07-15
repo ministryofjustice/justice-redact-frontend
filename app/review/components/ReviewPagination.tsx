@@ -73,6 +73,7 @@ function buildVisibleItems(
 export default function ReviewPagination({
     pageRanges,
     selectedRangeStart,
+    totalPages,
     onSelectRangeStart,
 }: ReviewPaginationProps) {
     if (pageRanges.length === 0) return null;
@@ -88,7 +89,6 @@ export default function ReviewPagination({
     const previousRange = pageRanges[selectedIndex - 1];
     const nextRange = pageRanges[selectedIndex + 1];
     const visibleItems = buildVisibleItems(pageRanges, selectedIndex);
-    const totalPages = pageRanges[pageRanges.length - 1].end;
 
     function selectRange(start: number) {
         onSelectRangeStart(start);
@@ -156,7 +156,7 @@ export default function ReviewPagination({
                         const isCurrent =
                             range.start === currentRange.start;
 
-                        const label = `${range.start + 1} to ${range.end}`;
+                        const label = `${range.start + 1} to ${range.end + 1}`;
 
                         return (
                             <li
@@ -217,7 +217,7 @@ export default function ReviewPagination({
             </nav>
 
             <p className="moj-pagination__results">
-                Showing {currentRange.start + 1} to {currentRange.end} of{" "}
+                Showing {currentRange.start + 1} to {currentRange.end + 1} of{" "}
                 {totalPages} total pages
             </p>
         </div>
