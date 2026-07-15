@@ -471,7 +471,25 @@ main {
   border: 0;
   background: transparent;
   font: inherit;
+  color: govuk.govuk-functional-colour("link");
   cursor: pointer;
+
+  &:hover {
+    color: govuk.govuk-functional-colour("link-hover");
+  }
+
+  &:focus {
+    color: govuk.govuk-colour("black");
+  }
+}
+
+.govuk-pagination__item--current .jr-pagination__link-button {
+  color: govuk.govuk-colour("white");
+
+  &:hover,
+  &:focus {
+    color: govuk.govuk-colour("white");
+  }
 }
 
 .govuk-pagination__link:visited {
