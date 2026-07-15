@@ -63,13 +63,20 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const visiblePages = useMemo(() => {
     if (!data) return [];
 
-    const start = Math.max(0, selectedRangeStart);
-    const endExclusive = Math.min(data.summary.totalPages, start + PAGES_PER_BATCH);
+    const firstPageNumber = selectedRangeStart + 1;
+    const lastPageNumber = Math.min(
+      data.summary.totalPages,
+      selectedRangeStart + PAGES_PER_BATCH
+    );
 
     return data.pages
       .slice()
       .sort((a, b) => a.pageNumber - b.pageNumber)
-      .filter((page) => page.pageNumber >= start && page.pageNumber < endExclusive);
+      .filter(
+        (page) =>
+          page.pageNumber >= firstPageNumber &&
+          page.pageNumber <= lastPageNumber
+      );
   }, [data, selectedRangeStart]);
 
   const pageRanges = useMemo(() => {
