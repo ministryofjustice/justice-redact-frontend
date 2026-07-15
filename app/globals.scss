@@ -504,10 +504,13 @@ main {
 
 .end-of-page {
   width: 960px;
-  margin: 0 auto 40px;
-  padding: 20px;
-  background: #f3f2f1;
+  padding: govuk.govuk-spacing(4);
+  background-color: govuk.govuk-colour("black", $variant: "tint-95");
   box-sizing: border-box;
+
+  & :last-child {
+    margin-bottom: 0;
+  }
 }
 
 /* Loading spinner */

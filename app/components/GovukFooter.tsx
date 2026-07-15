@@ -31,7 +31,7 @@ export default function GovukFooter() {
                             Support links
                         </h2>
 
-                        <ul className="govuk-footer__inline-list">
+                        <ul hidden className="govuk-footer__inline-list">
                             <li className="govuk-footer__inline-list-item">
                                 <a
                                     className="govuk-footer__link"
