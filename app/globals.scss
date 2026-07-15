@@ -444,17 +444,44 @@ main {
   border-bottom: none;
 }
 
-/* Review pagination and end of document */
+/* Review pagination */
 .jr-pagination {
-  width: 960px;
-  margin: 0 auto 30px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
 }
 
-.jr-pagination__status {
-  margin-bottom: 0;
+.moj-pagination__pagination {
+  margin-bottom: govuk.govuk-spacing(2);
+}
+
+.moj-pagination__results {
+  margin-top: 0;
+  margin-bottom: govuk.govuk-spacing(6);
+  padding-right: govuk.govuk-spacing(1);
+  padding-left: govuk.govuk-spacing(1);
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 19px;
+  line-height: 1.31579;
+  text-align: center;
+}
+
+.jr-pagination__link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.govuk-pagination__link:visited {
+  color: govuk.govuk-functional-colour("link");
+}
+
+@media (min-width: 40.0625em) {
+  .moj-pagination__results {
+    text-align: left;
+  }
 }
 
 .end-of-page {

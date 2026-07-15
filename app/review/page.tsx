@@ -592,6 +592,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           <ReviewPagination
             pageRanges={pageRanges}
             selectedRangeStart={selectedRangeStart}
+            totalPages={data.summary.totalPages}
             onSelectRangeStart={setSelectedRangeStart}
           />
 
