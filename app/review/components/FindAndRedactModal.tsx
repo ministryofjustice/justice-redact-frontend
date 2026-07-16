@@ -257,30 +257,28 @@ export default function FindAndRedactModal({
                                         return (
                                             <div
                                                 key={result.id}
-                                                className="govuk-checkboxes__item jr-find-and-redact-result"
+                                                className="jr-find-and-redact-result"
                                             >
-                                                <input
-                                                    id={checkboxId}
-                                                    name="searchResults"
-                                                    type="checkbox"
-                                                    className="govuk-checkboxes__input"
-                                                    value={result.id}
-                                                    checked={selectedResultIds.has(
-                                                        result.id
-                                                    )}
-                                                    onChange={(event) => {
-                                                        handleResultSelection(
-                                                            result.id,
-                                                            event.target.checked
-                                                        );
-                                                    }}
-                                                />
+                                                <div className="govuk-checkboxes__item">
+                                                    <input
+                                                        id={checkboxId}
+                                                        name="searchResults"
+                                                        type="checkbox"
+                                                        className="govuk-checkboxes__input"
+                                                        value={result.id}
+                                                        checked={selectedResultIds.has(result.id)}
+                                                        onChange={(event) => {
+                                                            handleResultSelection(
+                                                                result.id,
+                                                                event.target.checked
+                                                            );
+                                                        }}
+                                                    />
 
-                                                <label
-                                                    htmlFor={checkboxId}
-                                                    className="govuk-label govuk-checkboxes__label jr-find-and-redact-result__label"
-                                                >
-                                                    <span className="jr-find-and-redact-result__content">
+                                                    <label
+                                                        htmlFor={checkboxId}
+                                                        className="govuk-label govuk-checkboxes__label jr-find-and-redact-result__label"
+                                                    >
                                                         {excerpt.hasLeadingEllipsis && "…"}
                                                         {excerpt.before}
 
@@ -293,8 +291,8 @@ export default function FindAndRedactModal({
                                                             {" "}
                                                             on page {result.pageNumber}
                                                         </span>
-                                                    </span>
-                                                </label>
+                                                    </label>
+                                                </div>
                                             </div>
                                         );
                                     })}
