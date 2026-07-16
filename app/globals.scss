@@ -349,11 +349,11 @@ main {
   line-height: 1.45;
 }
 
-.jr-find-and-redact-result .govuk-checkboxes__label::before {
+.govuk-checkboxes--small .jr-find-and-redact-result .govuk-checkboxes__label::before {
   top: 6px;
 }
 
-.jr-find-and-redact-result .govuk-checkboxes__label::after {
+.govuk-checkboxes--small .jr-find-and-redact-result .govuk-checkboxes__label::after {
   top: 13px;
 }
 
