@@ -228,7 +228,7 @@ export default function FindAndRedactModal({
                         className="govuk-heading-m"
                     >
                         {results.length}{" "}
-                        {results.length === 1 ? "result" : "results"} found
+                        {results.length === 1 ? "result " : "results "} found
                         for &lsquo;{submittedSearchTerm}&rsquo;
                     </h3>
 

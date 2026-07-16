@@ -332,7 +332,6 @@ main {
   width: 100%;
   box-sizing: border-box;
   margin: 0;
-  position: relative;
   padding-top: govuk.govuk-spacing(3);
   padding-bottom: govuk.govuk-spacing(3);
   border-bottom: 1px solid govuk.govuk-colour("mid-grey");
@@ -350,8 +349,12 @@ main {
   line-height: 1.45;
 }
 
-.jr-find-and-redact-result .govuk-checkboxes__input {
-  top: 0.2em;
+.jr-find-and-redact-result .govuk-checkboxes__label::before {
+  top: 6px;
+}
+
+.jr-find-and-redact-result .govuk-checkboxes__label::after {
+  top: 13px;
 }
 
 @media (max-width: 40.0525em) {
