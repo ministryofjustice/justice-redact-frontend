@@ -244,7 +244,7 @@ export default function FindAndRedactModal({
                                     Select results to highlight
                                 </legend>
 
-                                <div className="govuk-checkboxes">
+                                <div className="govuk-checkboxes govuk-checkboxes--small">
                                     {results.map((result, index) => {
                                         const checkboxId =
                                             `${inputId}-result-${index}`;

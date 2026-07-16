@@ -346,6 +346,11 @@ main {
   line-height: 1.45;
 }
 
+.jr-find-and-redact-result__content {
+  display: block;
+  padding: 0;
+}
+
 @media (max-width: 40.0525em) {
   .jr-modal--content-dense {
     max-width: 100%;
