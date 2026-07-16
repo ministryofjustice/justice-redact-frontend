@@ -317,9 +317,9 @@ main {
 .jr-find-and-redact-results {
   max-height: 360px;
   overflow-y: auto;
+  padding-right: govuk.govuk-spacing(2);
   border-top: 1px solid govuk.govuk-colour("mid-grey");
   border-bottom: 5px solid govuk.govuk-colour("mid-grey");
-  padding-right: govuk.govuk-spacing(2);
 }
 
 .jr-find-and-redact-results:focus {
@@ -332,8 +332,7 @@ main {
   width: 100%;
   box-sizing: border-box;
   margin: 0;
-  padding-top: govuk.govuk-spacing(3);
-  padding-bottom: govuk.govuk-spacing(3);
+  padding: govuk.govuk-spacing(3) 0;
   border-bottom: 1px solid govuk.govuk-colour("mid-grey");
 }
 
@@ -344,17 +343,7 @@ main {
 .jr-find-and-redact-result__label {
   display: block;
   max-width: none;
-  padding-top: 0;
-  padding-bottom: 0;
   line-height: 1.45;
-}
-
-.govuk-checkboxes--small .jr-find-and-redact-result .govuk-checkboxes__label::before {
-  top: 6px;
-}
-
-.govuk-checkboxes--small .jr-find-and-redact-result .govuk-checkboxes__label::after {
-  top: 13px;
 }
 
 @media (max-width: 40.0525em) {

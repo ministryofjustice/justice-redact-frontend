@@ -244,7 +244,7 @@ export default function FindAndRedactModal({
                                     Select results to highlight
                                 </legend>
 
-                                <div className="govuk-checkboxes govuk-checkboxes--small">
+                                <div className="govuk-checkboxes">
                                     {results.map((result, index) => {
                                         const checkboxId =
                                             `${inputId}-result-${index}`;
@@ -280,22 +280,19 @@ export default function FindAndRedactModal({
                                                     htmlFor={checkboxId}
                                                     className="govuk-label govuk-checkboxes__label jr-find-and-redact-result__label"
                                                 >
-                                                    {excerpt.hasLeadingEllipsis &&
-                                                        "…"}
-                                                    {excerpt.before}
+                                                    <span className="jr-find-and-redact-result__content">
+                                                        {excerpt.hasLeadingEllipsis && "…"}
+                                                        {excerpt.before}
 
-                                                    <strong>
-                                                        {excerpt.match}
-                                                    </strong>
+                                                        <strong>{excerpt.match}</strong>
 
-                                                    {excerpt.after}
-                                                    {excerpt.hasTrailingEllipsis &&
-                                                        "…"}
+                                                        {excerpt.after}
+                                                        {excerpt.hasTrailingEllipsis && "…"}
 
-                                                    <span className="govuk-visually-hidden">
-                                                        {" "}
-                                                        on page{" "}
-                                                        {result.pageNumber}
+                                                        <span className="govuk-visually-hidden">
+                                                            {" "}
+                                                            on page {result.pageNumber}
+                                                        </span>
                                                     </span>
                                                 </label>
                                             </div>
