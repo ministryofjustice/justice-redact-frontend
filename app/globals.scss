@@ -195,8 +195,8 @@ main {
   justify-content: center;
   width: 100vw;
   height: 100vh;
-  overflow-y: auto;
   box-sizing: border-box;
+  overflow-y: auto;
   padding: 15vh govuk.govuk-spacing(3) govuk.govuk-spacing(6);
   background: rgba(govuk.govuk-colour("black"), 0.8);
 }
@@ -206,7 +206,6 @@ main {
   width: 100%;
   max-width: 640px;
   box-sizing: border-box;
-  overflow-y: auto;
   border: 4px solid govuk.govuk-colour("black");
   background-color: govuk.govuk-colour("white");
 }
@@ -260,7 +259,6 @@ main {
 
 @media (max-width: 40.0525em) {
   .jr-modal__backdrop {
-    align-items: flex-start;
     padding:
       govuk.govuk-spacing(3) govuk.govuk-spacing(2) govuk.govuk-spacing(4);
   }
@@ -268,6 +266,14 @@ main {
   .jr-modal__content {
     padding: govuk.govuk-spacing(3);
   }
+}
+
+.jr-modal .govuk-button-group {
+  margin-bottom: 0;
+}
+
+.jr-modal .govuk-button-group .govuk-button {
+  margin-bottom: 0;
 }
 
 .jr-quick-help__redaction-example,
@@ -302,6 +308,55 @@ main {
 
 .jr-modal__link-button:active {
   color: govuk.govuk-colour("black");
+}
+
+.jr-modal--content-dense {
+  max-width: 960px;
+}
+
+.jr-find-and-redact-results {
+  max-height: 360px;
+  overflow-y: auto;
+  border-top: 1px solid govuk.govuk-colour("mid-grey");
+  border-bottom: 5px solid govuk.govuk-colour("mid-grey");
+  padding-right: govuk.govuk-spacing(2);
+}
+
+.jr-find-and-redact-results:focus {
+  outline: 3px solid govuk.govuk-colour("yellow");
+  outline-offset: 0;
+}
+
+.jr-find-and-redact-result {
+  float: none;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding-top: govuk.govuk-spacing(3);
+  padding-bottom: govuk.govuk-spacing(3);
+  border-bottom: 1px solid govuk.govuk-colour("mid-grey");
+}
+
+.jr-find-and-redact-result:last-child {
+  border-bottom: 0;
+}
+
+.jr-find-and-redact-result__label {
+  display: block;
+  max-width: none;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1.45;
+}
+
+@media (max-width: 40.0525em) {
+  .jr-modal--content-dense {
+    max-width: 100%;
+  }
+
+  .jr-find-and-redact-results {
+    max-height: 50vh;
+  }
 }
 
 /* Review page */

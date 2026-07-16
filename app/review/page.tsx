@@ -30,6 +30,7 @@ import type {
   ReviewTableCell,
   ReviewMode
 } from "./types";
+import FindAndRedactModal from "./components/FindAndRedactModal";
 
 const PAGES_PER_BATCH = 50;
 
@@ -57,6 +58,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
   const [pageStatuses, setPageStatuses] = useState<Record<number, PageStatus>>({});
   const [isQuickHelpOpen, setIsQuickHelpOpen] = useState(false);
+  const [isFindAndRedactOpen, setIsFindAndRedactOpen] = useState(false);
 
   const { data, isLoading, error } = useReviewData(documentId);
 
@@ -515,6 +517,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         reviewMode={reviewMode}
         onReviewModeChange={setReviewMode}
         onQuickHelp={() => setIsQuickHelpOpen(true)}
+        onFindAndRedact={() => setIsFindAndRedactOpen(true)}
+      />
+      <FindAndRedactModal
+        isOpen={isFindAndRedactOpen}
+        pages={data?.pages ?? []}
+        onClose={() => setIsFindAndRedactOpen(false)}
       />
       <QuickHelpModal
         isOpen={isQuickHelpOpen}

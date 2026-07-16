@@ -3,6 +3,7 @@
 import {
     type KeyboardEvent,
     type ReactNode,
+    type RefObject,
     useEffect,
     useId,
     useRef,
@@ -10,12 +11,18 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+export type ModalVariant = "standard" | "content-dense";
+
 type ModalProps = {
     isOpen: boolean;
     title: string;
     onClose: () => void;
     children: ReactNode;
+    variant?: ModalVariant;
     closeOnBackdrop?: boolean;
+    initialFocusRef?: RefObject<HTMLElement | null>;
+    contentClassName?: string;
+    renderTitle?: boolean;
 };
 
 const FOCUSABLE_SELECTOR = [
@@ -24,6 +31,7 @@ const FOCUSABLE_SELECTOR = [
     'input:not([disabled])',
     'select:not([disabled])',
     'textarea:not([disabled])',
+    '[contenteditable="true"]',
     '[tabindex]:not([tabindex="-1"])',
 ].join(",");
 
@@ -32,10 +40,16 @@ export default function Modal({
     title,
     onClose,
     children,
+    variant = "standard",
     closeOnBackdrop = true,
+    initialFocusRef,
+    contentClassName,
+    renderTitle = true,
 }: ModalProps) {
     const [isMounted, setIsMounted] = useState(false);
     const titleId = useId();
+
+    const backdropRef = useRef<HTMLDivElement>(null);
     const dialogRef = useRef<HTMLDivElement>(null);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
     const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
@@ -55,15 +69,52 @@ export default function Modal({
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
 
+        const modalRoot = backdropRef.current;
+        const backgroundElements = Array.from(document.body.children).filter(
+            (element): element is HTMLElement =>
+                element instanceof HTMLElement && element !== modalRoot
+        );
+
+        const previousBackgroundState = backgroundElements.map((element) => ({
+            element,
+            inert: element.inert,
+            ariaHidden: element.getAttribute("aria-hidden"),
+        }));
+
+        backgroundElements.forEach((element) => {
+            element.inert = true;
+            element.setAttribute("aria-hidden", "true");
+        });
+
         window.requestAnimationFrame(() => {
+            const initialFocusElement = initialFocusRef?.current;
+
+            if (initialFocusElement) {
+                initialFocusElement.focus();
+                return;
+            }
+
             closeButtonRef.current?.focus();
         });
 
         return () => {
             document.body.style.overflow = previousOverflow;
+
+            previousBackgroundState.forEach(
+                ({ element, inert, ariaHidden }) => {
+                    element.inert = inert;
+
+                    if (ariaHidden === null) {
+                        element.removeAttribute("aria-hidden");
+                    } else {
+                        element.setAttribute("aria-hidden", ariaHidden);
+                    }
+                }
+            );
+
             previouslyFocusedElementRef.current?.focus();
         };
-    }, [isOpen]);
+    }, [initialFocusRef, isOpen]);
 
     function handleDialogKeyDown(event: KeyboardEvent<HTMLDivElement>) {
         if (event.key === "Escape") {
@@ -100,7 +151,10 @@ export default function Modal({
         ) {
             event.preventDefault();
             lastElement.focus();
-        } else if (
+            return;
+        }
+
+        if (
             !event.shiftKey &&
             document.activeElement === lastElement
         ) {
@@ -111,8 +165,21 @@ export default function Modal({
 
     if (!isMounted || !isOpen) return null;
 
+    const modalClasses = [
+        "jr-modal",
+        `jr-modal--${variant}`,
+    ].join(" ");
+
+    const contentClasses = [
+        "jr-modal__content",
+        contentClassName,
+    ]
+        .filter(Boolean)
+        .join(" ");
+
     return createPortal(
         <div
+            ref={backdropRef}
             className="jr-modal__backdrop"
             onMouseDown={(event) => {
                 if (
@@ -125,7 +192,7 @@ export default function Modal({
         >
             <div
                 ref={dialogRef}
-                className="jr-modal"
+                className={modalClasses}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}
@@ -144,13 +211,22 @@ export default function Modal({
                     </button>
                 </div>
 
-                <div className="jr-modal__content">
-                    <h2
-                        id={titleId}
-                        className="govuk-heading-l"
-                    >
-                        {title}
-                    </h2>
+                <div className={contentClasses}>
+                    {renderTitle ? (
+                        <h2
+                            id={titleId}
+                            className="govuk-heading-l jr-modal__title"
+                        >
+                            {title}
+                        </h2>
+                    ) : (
+                        <span
+                            id={titleId}
+                            className="govuk-visually-hidden"
+                        >
+                            {title}
+                        </span>
+                    )}
 
                     {children}
                 </div>
