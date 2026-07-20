@@ -20,6 +20,9 @@ type FindAndRedactModalProps = {
     isOpen: boolean;
     pages: ReviewPageData[];
     onClose: () => void;
+    onHighlightSelected: (
+        results: FindInDocumentResult[]
+    ) => void;
 };
 
 const EMPTY_SEARCH_ERROR =
@@ -29,6 +32,7 @@ export default function FindAndRedactModal({
     isOpen,
     pages,
     onClose,
+    onHighlightSelected,
 }: FindAndRedactModalProps) {
     const [searchTerm, setSearchTerm] = useState("");
     const [submittedSearchTerm, setSubmittedSearchTerm] =
@@ -97,6 +101,22 @@ export default function FindAndRedactModal({
 
             return next;
         });
+    }
+
+    function handleHighlightSelected() {
+        if (selectedResultIds.size === 0) {
+            return;
+        }
+
+        const selectedResults = results.filter((result) =>
+            selectedResultIds.has(result.id)
+        );
+
+        if (selectedResults.length === 0) {
+            return;
+        }
+
+        onHighlightSelected(selectedResults);
     }
 
     function handleClose() {
@@ -314,6 +334,9 @@ export default function FindAndRedactModal({
                             type="button"
                             className="govuk-button"
                             data-module="govuk-button"
+                            disabled={selectedResultIds.size === 0}
+                            aria-disabled={selectedResultIds.size === 0}
+                            onClick={handleHighlightSelected}
                         >
                             Highlight selected
                         </button>

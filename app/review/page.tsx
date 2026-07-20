@@ -31,6 +31,7 @@ import type {
   ReviewMode
 } from "./types";
 import FindAndRedactModal from "./components/FindAndRedactModal";
+import type { FindInDocumentResult } from "./findInDocument";
 
 const PAGES_PER_BATCH = 50;
 
@@ -510,6 +511,64 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     });
   }
 
+  function handleHighlightSelected(
+    selectedResults: FindInDocumentResult[]
+  ) {
+    if (!documentId) {
+      return;
+    }
+
+    const newSelections: ManualDecision[] = [];
+
+    selectedResults.forEach((result) => {
+      if (result.kind === "text" && result.itemId) {
+        newSelections.push({
+          id: crypto.randomUUID(),
+          documentId,
+          kind: "text",
+          pageNumber: result.pageNumber,
+          itemId: result.itemId,
+          start: result.matchStart,
+          end: result.matchEnd,
+          text: result.sourceText.slice(
+            result.matchStart,
+            result.matchEnd
+          ),
+        });
+
+        return;
+      }
+
+      if (
+        result.kind === "table_cell" &&
+        result.tableId &&
+        result.cellId
+      ) {
+        newSelections.push({
+          id: crypto.randomUUID(),
+          documentId,
+          kind: "table_cell",
+          pageNumber: result.pageNumber,
+          tableId: result.tableId,
+          cellId: result.cellId,
+          start: result.matchStart,
+          end: result.matchEnd,
+          text: result.sourceText.slice(
+            result.matchStart,
+            result.matchEnd
+          ),
+        });
+      }
+    });
+
+    setManualSelections((previous) => [
+      ...previous,
+      ...newSelections,
+    ]);
+
+    setIsFindAndRedactOpen(false);
+  }
+
   return (
     <div className="jr-review-root">
       <ReviewControlsHeader
@@ -523,6 +582,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         isOpen={isFindAndRedactOpen}
         pages={data?.pages ?? []}
         onClose={() => setIsFindAndRedactOpen(false)}
+        onHighlightSelected={handleHighlightSelected}
       />
       <QuickHelpModal
         isOpen={isQuickHelpOpen}
