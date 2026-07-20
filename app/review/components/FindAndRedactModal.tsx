@@ -281,7 +281,11 @@ export default function FindAndRedactModal({
                                                             {excerpt.hasLeadingEllipsis && "…"}
                                                             {excerpt.before}
 
+                                                            {excerpt.before && excerpt.match && " "}
+
                                                             <strong>{excerpt.match}</strong>
+
+                                                            {excerpt.match && excerpt.after && " "}
 
                                                             {excerpt.after}
                                                             {excerpt.hasTrailingEllipsis && "…"}

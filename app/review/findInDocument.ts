@@ -125,6 +125,10 @@ export function findInDocument(
     return results;
 }
 
+function normalizeExcerptWhitespace(text: string): string {
+    return text.replace(/\s+/g, " ").trim();
+}
+
 export function buildFindInDocumentExcerpt(
     result: FindInDocumentResult,
     contextLength = DEFAULT_CONTEXT_LENGTH
@@ -137,20 +141,16 @@ export function buildFindInDocumentExcerpt(
         matchEnd + contextLength
     );
 
-    const before = preventOrphanBeforeLineBreak(
-        sourceText
-            .slice(excerptStart, matchStart)
-            .replace(/^\s+/, "")
+    const before = normalizeExcerptWhitespace(
+        sourceText.slice(excerptStart, matchStart)
     );
 
-    const match = preventOrphanBeforeLineBreak(
+    const match = normalizeExcerptWhitespace(
         sourceText.slice(matchStart, matchEnd)
     );
 
-    const after = preventOrphanBeforeLineBreak(
-        sourceText
-            .slice(matchEnd, excerptEnd)
-            .replace(/\s+$/, "")
+    const after = normalizeExcerptWhitespace(
+        sourceText.slice(matchEnd, excerptEnd)
     );
 
     return {
@@ -160,11 +160,4 @@ export function buildFindInDocumentExcerpt(
         hasLeadingEllipsis: excerptStart > 0,
         hasTrailingEllipsis: excerptEnd < sourceText.length,
     };
-}
-
-function preventOrphanBeforeLineBreak(text: string): string {
-    return text.replace(
-        /([^\s\n]+) ([^\s\n]+)(?=\n)/g,
-        "$1\u00A0$2"
-    );
 }
