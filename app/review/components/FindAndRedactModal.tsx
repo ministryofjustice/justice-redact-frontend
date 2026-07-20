@@ -154,7 +154,11 @@ export default function FindAndRedactModal({
             onClose={handleClose}
             initialFocusRef={inputRef}
             renderTitle={false}
-            variant={isShowingResults ? "content-dense" : "standard"}
+            variant={
+                isShowingResults && !isShowingSuccess
+                    ? "content-dense"
+                    : "standard"
+            }
         >
             {isShowingSuccess ? (
                 <>
