@@ -137,11 +137,34 @@ export function buildFindInDocumentExcerpt(
         matchEnd + contextLength
     );
 
+    const before = preventOrphanBeforeLineBreak(
+        sourceText
+            .slice(excerptStart, matchStart)
+            .replace(/^\s+/, "")
+    );
+
+    const match = preventOrphanBeforeLineBreak(
+        sourceText.slice(matchStart, matchEnd)
+    );
+
+    const after = preventOrphanBeforeLineBreak(
+        sourceText
+            .slice(matchEnd, excerptEnd)
+            .replace(/\s+$/, "")
+    );
+
     return {
-        before: sourceText.slice(excerptStart, matchStart),
-        match: sourceText.slice(matchStart, matchEnd),
-        after: sourceText.slice(matchEnd, excerptEnd),
+        before,
+        match,
+        after,
         hasLeadingEllipsis: excerptStart > 0,
         hasTrailingEllipsis: excerptEnd < sourceText.length,
     };
+}
+
+function preventOrphanBeforeLineBreak(text: string): string {
+    return text.replace(
+        /([^\s\n]+) ([^\s\n]+)(?=\n)/g,
+        "$1\u00A0$2"
+    );
 }
