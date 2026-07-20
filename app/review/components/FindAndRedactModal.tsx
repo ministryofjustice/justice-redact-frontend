@@ -169,14 +169,6 @@ export default function FindAndRedactModal({
                         aria-labelledby={`${resultsHeadingId}-success-title`}
                         tabIndex={-1}
                     >
-                        <div className="govuk-notification-banner__header">
-                            <h3
-                                id={`${resultsHeadingId}-success-title`}
-                                className="govuk-notification-banner__title"
-                            >
-                                Success
-                            </h3>
-                        </div>
 
                         <div className="govuk-notification-banner__content">
                             <p className="govuk-notification-banner__heading">
