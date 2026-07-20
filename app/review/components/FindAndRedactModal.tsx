@@ -169,9 +169,18 @@ export default function FindAndRedactModal({
                         aria-labelledby={`${resultsHeadingId}-success-title`}
                         tabIndex={-1}
                     >
-
                         <div className="govuk-notification-banner__content">
-                            <p className="govuk-body govuk-!-margin-bottom-0">
+                            <p
+                                id={`${resultsHeadingId}-success-title`}
+                                className="govuk-body govuk-!-margin-bottom-0"
+                            >
+                                <span
+                                    className="govuk-notification-banner__icon"
+                                    aria-hidden="true"
+                                >
+                                    ✓
+                                </span>
+
                                 Successfully highlighted &lsquo;{submittedSearchTerm}&rsquo; in{" "}
                                 {highlightedCount}{" "}
                                 {highlightedCount === 1 ? "place" : "places"}.
