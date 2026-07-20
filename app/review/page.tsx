@@ -513,14 +513,26 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   function handleHighlightSelected(
     selectedResults: FindInDocumentResult[]
-  ) {
-    if (!documentId) {
-      return;
+  ): number {
+    if (!documentId || selectedResults.length === 0) {
+      return 0;
     }
 
     const newSelections: ManualDecision[] = [];
 
     selectedResults.forEach((result) => {
+      const selectedText = result.sourceText.slice(
+        result.matchStart,
+        result.matchEnd
+      );
+
+      if (
+        result.matchEnd <= result.matchStart ||
+        !selectedText.trim()
+      ) {
+        return;
+      }
+
       if (result.kind === "text" && result.itemId) {
         newSelections.push({
           id: crypto.randomUUID(),
@@ -530,10 +542,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           itemId: result.itemId,
           start: result.matchStart,
           end: result.matchEnd,
-          text: result.sourceText.slice(
-            result.matchStart,
-            result.matchEnd
-          ),
+          text: selectedText,
         });
 
         return;
@@ -553,20 +562,21 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           cellId: result.cellId,
           start: result.matchStart,
           end: result.matchEnd,
-          text: result.sourceText.slice(
-            result.matchStart,
-            result.matchEnd
-          ),
+          text: selectedText,
         });
       }
     });
+
+    if (newSelections.length === 0) {
+      return 0;
+    }
 
     setManualSelections((previous) => [
       ...previous,
       ...newSelections,
     ]);
 
-    setIsFindAndRedactOpen(false);
+    return newSelections.length;
   }
 
   return (

@@ -22,7 +22,7 @@ type FindAndRedactModalProps = {
     onClose: () => void;
     onHighlightSelected: (
         results: FindInDocumentResult[]
-    ) => void;
+    ) => number;
 };
 
 const EMPTY_SEARCH_ERROR =
@@ -37,6 +37,9 @@ export default function FindAndRedactModal({
     const [searchTerm, setSearchTerm] = useState("");
     const [submittedSearchTerm, setSubmittedSearchTerm] =
         useState<string | null>(null);
+    const [highlightedCount, setHighlightedCount] = useState<number | null>(
+        null
+    );
     const [results, setResults] = useState<FindInDocumentResult[]>([]);
     const [selectedResultIds, setSelectedResultIds] = useState<Set<string>>(
         new Set()
@@ -49,8 +52,10 @@ export default function FindAndRedactModal({
 
     const inputRef = useRef<HTMLInputElement>(null);
     const errorSummaryRef = useRef<HTMLDivElement>(null);
+    const successBannerRef = useRef<HTMLDivElement>(null);
 
     const isShowingResults = submittedSearchTerm !== null;
+    const isShowingSuccess = highlightedCount !== null;
 
     useEffect(() => {
         if (!isOpen) {
@@ -58,6 +63,7 @@ export default function FindAndRedactModal({
             setSubmittedSearchTerm(null);
             setResults([]);
             setSelectedResultIds(new Set());
+            setHighlightedCount(null);
             setError(null);
         }
     }, [isOpen]);
@@ -69,6 +75,14 @@ export default function FindAndRedactModal({
             errorSummaryRef.current?.focus();
         });
     }, [error]);
+
+    useEffect(() => {
+        if (!isShowingSuccess) return;
+
+        window.requestAnimationFrame(() => {
+            successBannerRef.current?.focus();
+        });
+    }, [isShowingSuccess]);
 
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -116,7 +130,11 @@ export default function FindAndRedactModal({
             return;
         }
 
-        onHighlightSelected(selectedResults);
+        const highlighted = onHighlightSelected(selectedResults);
+
+        if (highlighted > 0) {
+            setHighlightedCount(highlighted);
+        }
     }
 
     function handleClose() {
@@ -124,6 +142,7 @@ export default function FindAndRedactModal({
         setSubmittedSearchTerm(null);
         setResults([]);
         setSelectedResultIds(new Set());
+        setHighlightedCount(null);
         setError(null);
         onClose();
     }
@@ -137,7 +156,47 @@ export default function FindAndRedactModal({
             renderTitle={false}
             variant={isShowingResults ? "content-dense" : "standard"}
         >
-            {!isShowingResults ? (
+            {isShowingSuccess ? (
+                <>
+                    <h2 className="govuk-heading-l">
+                        Search and highlight
+                    </h2>
+
+                    <div
+                        ref={successBannerRef}
+                        className="govuk-notification-banner govuk-notification-banner--success"
+                        role="alert"
+                        aria-labelledby={`${resultsHeadingId}-success-title`}
+                        tabIndex={-1}
+                    >
+                        <div className="govuk-notification-banner__header">
+                            <h3
+                                id={`${resultsHeadingId}-success-title`}
+                                className="govuk-notification-banner__title"
+                            >
+                                Success
+                            </h3>
+                        </div>
+
+                        <div className="govuk-notification-banner__content">
+                            <p className="govuk-notification-banner__heading">
+                                Successfully highlighted &lsquo;{submittedSearchTerm}&rsquo; in{" "}
+                                {highlightedCount}{" "}
+                                {highlightedCount === 1 ? "place" : "places"}.
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        className="govuk-button"
+                        data-module="govuk-button"
+                        onClick={handleClose}
+                    >
+                        Close window
+                    </button>
+                </>
+            ) : !isShowingResults ? (
                 <form noValidate onSubmit={handleSubmit}>
                     {error && (
                         <div
@@ -210,9 +269,7 @@ export default function FindAndRedactModal({
                                 .join(" ")}
                             value={searchTerm}
                             aria-invalid={error ? true : undefined}
-                            aria-describedby={
-                                error ? errorId : undefined
-                            }
+                            aria-describedby={error ? errorId : undefined}
                             onChange={(event) => {
                                 setSearchTerm(event.target.value);
                             }}
@@ -267,7 +324,9 @@ export default function FindAndRedactModal({
 
                                     <div className="govuk-checkboxes govuk-checkboxes--small">
                                         {results.map((result, index) => {
-                                            const checkboxId = `${inputId}-result-${index}`;
+                                            const checkboxId =
+                                                `${inputId}-result-${index}`;
+
                                             const excerpt =
                                                 buildFindInDocumentExcerpt(result);
 
@@ -301,11 +360,17 @@ export default function FindAndRedactModal({
                                                             {excerpt.hasLeadingEllipsis && "…"}
                                                             {excerpt.before}
 
-                                                            {excerpt.before && excerpt.match && " "}
+                                                            {excerpt.before &&
+                                                                excerpt.match &&
+                                                                " "}
 
-                                                            <strong>{excerpt.match}</strong>
+                                                            <strong>
+                                                                {excerpt.match}
+                                                            </strong>
 
-                                                            {excerpt.match && excerpt.after && " "}
+                                                            {excerpt.match &&
+                                                                excerpt.after &&
+                                                                " "}
 
                                                             {excerpt.after}
                                                             {excerpt.hasTrailingEllipsis && "…"}
