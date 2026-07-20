@@ -238,71 +238,71 @@ export default function FindAndRedactModal({
                         aria-labelledby={resultsHeadingId}
                         tabIndex={0}
                     >
-                        {results.length > 0 ? (
-                            <fieldset className="govuk-fieldset">
-                                <legend className="govuk-visually-hidden">
-                                    Select results to highlight
-                                </legend>
+                        <div className="jr-find-and-redact-results__inner">
+                            {results.length > 0 ? (
+                                <fieldset className="govuk-fieldset">
+                                    <legend className="govuk-visually-hidden">
+                                        Select results to highlight
+                                    </legend>
 
-                                <div className="govuk-checkboxes govuk-checkboxes--small">
-                                    {results.map((result, index) => {
-                                        const checkboxId =
-                                            `${inputId}-result-${index}`;
+                                    <div className="govuk-checkboxes govuk-checkboxes--small">
+                                        {results.map((result, index) => {
+                                            const checkboxId = `${inputId}-result-${index}`;
+                                            const excerpt =
+                                                buildFindInDocumentExcerpt(result);
 
-                                        const excerpt =
-                                            buildFindInDocumentExcerpt(
-                                                result
-                                            );
+                                            return (
+                                                <div
+                                                    key={result.id}
+                                                    className="jr-find-and-redact-result"
+                                                >
+                                                    <div className="govuk-checkboxes__item">
+                                                        <input
+                                                            id={checkboxId}
+                                                            name="searchResults"
+                                                            type="checkbox"
+                                                            className="govuk-checkboxes__input"
+                                                            value={result.id}
+                                                            checked={selectedResultIds.has(
+                                                                result.id
+                                                            )}
+                                                            onChange={(event) => {
+                                                                handleResultSelection(
+                                                                    result.id,
+                                                                    event.target.checked
+                                                                );
+                                                            }}
+                                                        />
 
-                                        return (
-                                            <div
-                                                key={result.id}
-                                                className="jr-find-and-redact-result"
-                                            >
-                                                <div className="govuk-checkboxes__item">
-                                                    <input
-                                                        id={checkboxId}
-                                                        name="searchResults"
-                                                        type="checkbox"
-                                                        className="govuk-checkboxes__input"
-                                                        value={result.id}
-                                                        checked={selectedResultIds.has(result.id)}
-                                                        onChange={(event) => {
-                                                            handleResultSelection(
-                                                                result.id,
-                                                                event.target.checked
-                                                            );
-                                                        }}
-                                                    />
+                                                        <label
+                                                            htmlFor={checkboxId}
+                                                            className="govuk-label govuk-checkboxes__label jr-find-and-redact-result__label"
+                                                        >
+                                                            {excerpt.hasLeadingEllipsis && "…"}
+                                                            {excerpt.before}
 
-                                                    <label
-                                                        htmlFor={checkboxId}
-                                                        className="govuk-label govuk-checkboxes__label jr-find-and-redact-result__label"
-                                                    >
-                                                        {excerpt.hasLeadingEllipsis && "…"}
-                                                        {excerpt.before}
+                                                            <strong>{excerpt.match}</strong>
 
-                                                        <strong>{excerpt.match}</strong>
+                                                            {excerpt.after}
+                                                            {excerpt.hasTrailingEllipsis && "…"}
 
-                                                        {excerpt.after}
-                                                        {excerpt.hasTrailingEllipsis && "…"}
-
-                                                        <span className="govuk-visually-hidden">
-                                                            {" "}
-                                                            on page {result.pageNumber}
-                                                        </span>
-                                                    </label>
+                                                            <span className="govuk-visually-hidden">
+                                                                {" "}
+                                                                on page {result.pageNumber}
+                                                            </span>
+                                                        </label>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </fieldset>
-                        ) : (
-                            <p className="govuk-body govuk-!-margin-bottom-0">
-                                No results found.
-                            </p>
-                        )}
+                                            );
+                                        })}
+                                    </div>
+                                </fieldset>
+                            ) : (
+                                <p className="govuk-body govuk-!-margin-bottom-0">
+                                    No results found.
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     <div className="govuk-button-group govuk-!-margin-top-4">
