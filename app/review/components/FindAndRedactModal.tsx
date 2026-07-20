@@ -171,7 +171,7 @@ export default function FindAndRedactModal({
                     >
 
                         <div className="govuk-notification-banner__content">
-                            <p className="govuk-notification-banner__heading">
+                            <p className="govuk-body govuk-!-margin-bottom-0">
                                 Successfully highlighted &lsquo;{submittedSearchTerm}&rsquo; in{" "}
                                 {highlightedCount}{" "}
                                 {highlightedCount === 1 ? "place" : "places"}.
