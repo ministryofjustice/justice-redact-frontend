@@ -172,18 +172,20 @@ export default function FindAndRedactModal({
                         <div className="govuk-notification-banner__content">
                             <p
                                 id={`${resultsHeadingId}-success-title`}
-                                className="govuk-body govuk-!-margin-bottom-0"
+                                className="govuk-body govuk-!-margin-bottom-0 jr-find-and-redact-success"
                             >
                                 <span
-                                    className="govuk-notification-banner__icon"
+                                    className="jr-find-and-redact-success__icon"
                                     aria-hidden="true"
                                 >
                                     ✓
                                 </span>
 
-                                Successfully highlighted &lsquo;{submittedSearchTerm}&rsquo; in{" "}
-                                {highlightedCount}{" "}
-                                {highlightedCount === 1 ? "place" : "places"}.
+                                <span>
+                                    Successfully highlighted &lsquo;{submittedSearchTerm}&rsquo; in{" "}
+                                    {highlightedCount}{" "}
+                                    {highlightedCount === 1 ? "place" : "places"}.
+                                </span>
                             </p>
                         </div>
                     </div>

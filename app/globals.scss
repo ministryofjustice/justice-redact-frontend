@@ -427,6 +427,25 @@ main {
   white-space: pre-line;
 }
 
+.jr-find-and-redact-success {
+  display: flex;
+  align-items: center;
+}
+
+.jr-find-and-redact-success__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-right: govuk.govuk-spacing(3);
+  color: govuk.govuk-colour("green");
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 /* Highlights and redactions */
 .highlight {
   display: inline;
