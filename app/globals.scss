@@ -315,11 +315,20 @@ main {
   color: govuk.govuk-colour("black");
 }
 
+.jr-find-and-redact-results-group {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .jr-modal--content-dense {
   display: flex;
   flex-direction: column;
+  width: 100%;
   max-width: 960px;
-  max-height: calc(100vh - 240px);
+  height: calc(100vh - 240px);
+  min-height: 0;
 }
 
 .jr-modal--content-dense .jr-modal__content {
