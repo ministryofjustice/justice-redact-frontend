@@ -621,6 +621,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       />
       <FindAndDiscloseModal
         isOpen={isFindAndDiscloseOpen}
+        pages={data?.pages ?? []}
         manualSelections={manualSelections}
         onClose={() => setIsFindAndDiscloseOpen(false)}
         onUndoSelected={handleUndoSelected}

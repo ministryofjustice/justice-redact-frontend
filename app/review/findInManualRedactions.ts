@@ -1,9 +1,17 @@
+import {
+    containsContentRange,
+    getFindResultContentRange,
+    getManualDecisionContentRange,
+} from "./contentRangeUtils";
+import {
+    findInDocument,
+    type FindInDocumentResult,
+} from "./findInDocument";
+import { mergeContentRanges } from "./mergeContentRanges";
 import type {
     ManualDecision,
-    ManualTableCellDecision,
-    ManualTextDecision,
+    ReviewPageData,
 } from "./types";
-import type { FindInDocumentResult } from "./findInDocument";
 
 export type FindInManualRedactionResult =
     FindInDocumentResult & {
@@ -12,55 +20,8 @@ export type FindInManualRedactionResult =
         absoluteMatchEnd: number;
     };
 
-type SearchableManualDecision =
-    | ManualTextDecision
-    | ManualTableCellDecision;
-
-function isSearchableManualDecision(
-    decision: ManualDecision
-): decision is SearchableManualDecision {
-    return (
-        decision.kind === "text" ||
-        decision.kind === "table_cell"
-    );
-}
-
-function findOccurrences(
-    sourceText: string,
-    searchTerm: string
-): Array<{ start: number; end: number }> {
-    const occurrences: Array<{ start: number; end: number }> = [];
-
-    const normalisedSource = sourceText.toLocaleLowerCase();
-    const normalisedSearchTerm = searchTerm.toLocaleLowerCase();
-
-    let searchFrom = 0;
-
-    while (searchFrom < normalisedSource.length) {
-        const relativeStart = normalisedSource.indexOf(
-            normalisedSearchTerm,
-            searchFrom
-        );
-
-        if (relativeStart === -1) {
-            break;
-        }
-
-        const relativeEnd =
-            relativeStart + normalisedSearchTerm.length;
-
-        occurrences.push({
-            start: relativeStart,
-            end: relativeEnd,
-        });
-
-        searchFrom = relativeEnd;
-    }
-
-    return occurrences;
-}
-
 export function findInManualRedactions(
+    pages: ReviewPageData[],
     manualSelections: ManualDecision[],
     searchTerm: string
 ): FindInManualRedactionResult[] {
@@ -70,52 +31,75 @@ export function findInManualRedactions(
         return [];
     }
 
-    const results: FindInManualRedactionResult[] = [];
+    const searchableManualSelections = manualSelections.flatMap(
+        (selection) => {
+            const range = getManualDecisionContentRange(selection);
 
-    manualSelections
-        .filter(isSearchableManualDecision)
-        .forEach((selection) => {
-            findOccurrences(selection.text, trimmedSearchTerm).forEach(
-                ({ start, end }, occurrenceIndex) => {
-                    const absoluteStart = selection.start + start;
-                    const absoluteEnd = selection.start + end;
+            return range
+                ? [{ selection, range }]
+                : [];
+        }
+    );
 
-                    results.push({
-                        id: [
-                            "manual-redaction",
-                            selection.id,
-                            absoluteStart,
-                            absoluteEnd,
-                            occurrenceIndex,
-                        ].join("-"),
-                        manualSelectionId: selection.id,
-                        absoluteMatchStart: absoluteStart,
-                        absoluteMatchEnd: absoluteEnd,
-                        kind: selection.kind,
-                        pageNumber: selection.pageNumber,
-                        itemId:
-                            selection.kind === "text"
-                                ? selection.itemId
-                                : null,
-                        tableId:
-                            selection.kind === "table_cell"
-                                ? selection.tableId
-                                : null,
-                        cellId:
-                            selection.kind === "table_cell"
-                                ? selection.cellId
-                                : null,
-                        sourceText: selection.text,
-                        matchStart: start,
-                        matchEnd: end,
-                    });
-                }
-            );
-        });
+    if (searchableManualSelections.length === 0) {
+        return [];
+    }
 
-    return results.sort(
-        (a, b) =>
-            a.pageNumber - b.pageNumber ||
-            a.matchStart - b.matchStart
+    const mergedRedactionRanges = mergeContentRanges(
+        searchableManualSelections.map(({ range }) => range)
+    );
+
+    const documentResults = findInDocument(
+        pages,
+        trimmedSearchTerm
+    );
+
+    return documentResults.flatMap<FindInManualRedactionResult>(
+        (result) => {
+            const resultRange =
+                getFindResultContentRange(result);
+
+            if (!resultRange) {
+                return [];
+            }
+
+            const isCurrentlyRedacted =
+                mergedRedactionRanges.some(
+                    (redactionRange) =>
+                        containsContentRange(
+                            redactionRange,
+                            resultRange
+                        )
+                );
+
+            if (!isCurrentlyRedacted) {
+                return [];
+            }
+
+            const containingSelection =
+                searchableManualSelections.find(
+                    ({ range }) =>
+                        containsContentRange(
+                            range,
+                            resultRange
+                        )
+                );
+
+            if (!containingSelection) {
+                return [];
+            }
+
+            return [
+                {
+                    ...result,
+                    manualSelectionId:
+                        containingSelection.selection.id,
+                    absoluteMatchStart:
+                        result.matchStart,
+                    absoluteMatchEnd:
+                        result.matchEnd,
+                },
+            ];
+        }
     );
 }

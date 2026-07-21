@@ -15,11 +15,15 @@ import {
     findInManualRedactions,
     type FindInManualRedactionResult,
 } from "../findInManualRedactions";
-import type { ManualDecision } from "../types";
+import type {
+    ManualDecision,
+    ReviewPageData,
+} from "../types";
 import Modal from "./Modal";
 
 type FindAndDiscloseModalProps = {
     isOpen: boolean;
+    pages: ReviewPageData[];
     manualSelections: ManualDecision[];
     onClose: () => void;
     onUndoSelected: (
@@ -32,6 +36,7 @@ const EMPTY_SEARCH_ERROR =
 
 export default function FindAndDiscloseModal({
     isOpen,
+    pages,
     manualSelections,
     onClose,
     onUndoSelected,
@@ -104,6 +109,7 @@ export default function FindAndDiscloseModal({
         setSubmittedSearchTerm(trimmedSearchTerm);
         setResults(
             findInManualRedactions(
+                pages,
                 manualSelections,
                 trimmedSearchTerm
             )
