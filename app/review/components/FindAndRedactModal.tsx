@@ -13,12 +13,21 @@ import {
     findInDocument,
     type FindInDocumentResult,
 } from "../findInDocument";
-import type { ReviewPageData } from "../types";
+import {
+    containsContentRange,
+    getFindResultContentRange,
+    getManualDecisionContentRange,
+} from "../contentRanges";
+import type {
+    ManualDecision,
+    ReviewPageData,
+} from "../types";
 import Modal from "./Modal";
 
 type FindAndRedactModalProps = {
     isOpen: boolean;
     pages: ReviewPageData[];
+    manualSelections: ManualDecision[];
     onClose: () => void;
     onHighlightSelected: (
         results: FindInDocumentResult[]
@@ -31,6 +40,7 @@ const EMPTY_SEARCH_ERROR =
 export default function FindAndRedactModal({
     isOpen,
     pages,
+    manualSelections,
     onClose,
     onHighlightSelected,
 }: FindAndRedactModalProps) {
@@ -87,6 +97,29 @@ export default function FindAndRedactModal({
         });
     }, [isShowingSuccess]);
 
+    function isAlreadyManuallyRedacted(
+        result: FindInDocumentResult
+    ): boolean {
+        const resultRange = getFindResultContentRange(result);
+
+        if (!resultRange) {
+            return false;
+        }
+
+        return manualSelections.some((selection) => {
+            const selectionRange =
+                getManualDecisionContentRange(selection);
+
+            return (
+                selectionRange !== null &&
+                containsContentRange(
+                    selectionRange,
+                    resultRange
+                )
+            );
+        });
+    }
+
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
@@ -99,7 +132,16 @@ export default function FindAndRedactModal({
 
         setError(null);
         setSubmittedSearchTerm(trimmedSearchTerm);
-        setResults(findInDocument(pages, trimmedSearchTerm));
+        const searchResults = findInDocument(
+            pages,
+            trimmedSearchTerm
+        );
+
+        setResults(
+            searchResults.filter(
+                (result) => !isAlreadyManuallyRedacted(result)
+            )
+        );
         setSelectedResultIds(new Set());
     }
 

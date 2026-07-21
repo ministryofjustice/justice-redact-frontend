@@ -35,6 +35,13 @@ import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
 import type { FindInDocumentResult } from "./findInDocument";
 import { discloseManualRedactions } from "./discloseManualRedactions";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
+import {
+  containsContentRange,
+  getManualDecisionContentRanges,
+} from "./contentRanges";
+import { mergeContentRanges } from "./mergeContentRanges";
+import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
+import { buildManualSelectionsFromContentRanges } from "./buildManualSelectionsFromContentRanges";
 
 const PAGES_PER_BATCH = 50;
 
@@ -518,69 +525,57 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   function handleHighlightSelected(
     selectedResults: FindInDocumentResult[]
   ): number {
-    if (!documentId || selectedResults.length === 0) {
+    if (!documentId || !data || selectedResults.length === 0) {
       return 0;
     }
 
-    const newSelections: ManualDecision[] = [];
+    const selectedRanges =
+      buildContentRangesFromFindResults(selectedResults);
 
-    selectedResults.forEach((result) => {
-      const selectedText = result.sourceText.slice(
-        result.matchStart,
-        result.matchEnd
-      );
-
-      if (
-        result.matchEnd <= result.matchStart ||
-        !selectedText.trim()
-      ) {
-        return;
-      }
-
-      if (result.kind === "text" && result.itemId) {
-        newSelections.push({
-          id: crypto.randomUUID(),
-          documentId,
-          kind: "text",
-          pageNumber: result.pageNumber,
-          itemId: result.itemId,
-          start: result.matchStart,
-          end: result.matchEnd,
-          text: selectedText,
-        });
-
-        return;
-      }
-
-      if (
-        result.kind === "table_cell" &&
-        result.tableId &&
-        result.cellId
-      ) {
-        newSelections.push({
-          id: crypto.randomUUID(),
-          documentId,
-          kind: "table_cell",
-          pageNumber: result.pageNumber,
-          tableId: result.tableId,
-          cellId: result.cellId,
-          start: result.matchStart,
-          end: result.matchEnd,
-          text: selectedText,
-        });
-      }
-    });
-
-    if (newSelections.length === 0) {
+    if (selectedRanges.length === 0) {
       return 0;
     }
 
-    setManualSelections((previous) => [
-      ...previous,
-      ...newSelections,
+    const existingRanges =
+      getManualDecisionContentRanges(manualSelections);
+
+    const genuinelyNewRanges = selectedRanges.filter(
+      (candidateRange) =>
+        !existingRanges.some((existingRange) =>
+          containsContentRange(
+            existingRange,
+            candidateRange
+          )
+        )
+    );
+
+    if (genuinelyNewRanges.length === 0) {
+      return 0;
+    }
+
+    const mergedRanges = mergeContentRanges([
+      ...existingRanges,
+      ...genuinelyNewRanges,
     ]);
 
-    return newSelections.length;
+    const rebuiltTextSelections =
+      buildManualSelectionsFromContentRanges(
+        mergedRanges,
+        data.pages,
+        documentId,
+        () => crypto.randomUUID()
+      );
+
+    const existingImageSelections = manualSelections.filter(
+      (selection) => selection.kind === "image"
+    );
+
+    setManualSelections([
+      ...existingImageSelections,
+      ...rebuiltTextSelections,
+    ]);
+
+    return genuinelyNewRanges.length;
   }
 
   function handleUndoSelected(
@@ -620,6 +615,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       <FindAndRedactModal
         isOpen={isFindAndRedactOpen}
         pages={data?.pages ?? []}
+        manualSelections={manualSelections}
         onClose={() => setIsFindAndRedactOpen(false)}
         onHighlightSelected={handleHighlightSelected}
       />
