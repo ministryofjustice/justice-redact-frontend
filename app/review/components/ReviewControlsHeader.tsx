@@ -10,6 +10,7 @@ type ReviewControlsHeaderProps = {
     onReviewModeChange: (mode: ReviewMode) => void;
     onQuickHelp: () => void;
     onFindAndRedact: () => void;
+    onFindAndDisclose: () => void;
 };
 
 export default function ReviewControlsHeader({
@@ -18,6 +19,7 @@ export default function ReviewControlsHeader({
     onReviewModeChange,
     onQuickHelp,
     onFindAndRedact,
+    onFindAndDisclose,
 }: ReviewControlsHeaderProps) {
     return (
         <header className="sticky-container" aria-label="Review controls">
@@ -28,7 +30,7 @@ export default function ReviewControlsHeader({
                     <FindInDocumentMenu
                         onFindAndRedact={onFindAndRedact}
                         onFindAndPartiallyRedact={() => { }}
-                        onFindAndDisclose={() => { }}
+                        onFindAndDisclose={onFindAndDisclose}
                     />
 
                     <QuickHelpButton onClick={onQuickHelp} />

@@ -31,7 +31,10 @@ import type {
   ReviewMode
 } from "./types";
 import FindAndRedactModal from "./components/FindAndRedactModal";
+import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
 import type { FindInDocumentResult } from "./findInDocument";
+import { discloseManualRedactions } from "./discloseManualRedactions";
+import type { FindInManualRedactionResult } from "./findInManualRedactions";
 
 const PAGES_PER_BATCH = 50;
 
@@ -60,6 +63,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [pageStatuses, setPageStatuses] = useState<Record<number, PageStatus>>({});
   const [isQuickHelpOpen, setIsQuickHelpOpen] = useState(false);
   const [isFindAndRedactOpen, setIsFindAndRedactOpen] = useState(false);
+  const [isFindAndDiscloseOpen, setIsFindAndDiscloseOpen] = useState(false);
 
   const { data, isLoading, error } = useReviewData(documentId);
 
@@ -579,6 +583,30 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     return newSelections.length;
   }
 
+  function handleUndoSelected(
+    selectedResults: FindInManualRedactionResult[]
+  ): number {
+    if (selectedResults.length === 0) {
+      return 0;
+    }
+
+    let disclosedCount = 0;
+
+    setManualSelections((previous) => {
+      const result = discloseManualRedactions(
+        previous,
+        selectedResults,
+        () => crypto.randomUUID()
+      );
+
+      disclosedCount = result.disclosedCount;
+
+      return result.manualSelections;
+    });
+
+    return disclosedCount;
+  }
+
   return (
     <div className="jr-review-root">
       <ReviewControlsHeader
@@ -587,12 +615,19 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         onReviewModeChange={setReviewMode}
         onQuickHelp={() => setIsQuickHelpOpen(true)}
         onFindAndRedact={() => setIsFindAndRedactOpen(true)}
+        onFindAndDisclose={() => setIsFindAndDiscloseOpen(true)}
       />
       <FindAndRedactModal
         isOpen={isFindAndRedactOpen}
         pages={data?.pages ?? []}
         onClose={() => setIsFindAndRedactOpen(false)}
         onHighlightSelected={handleHighlightSelected}
+      />
+      <FindAndDiscloseModal
+        isOpen={isFindAndDiscloseOpen}
+        manualSelections={manualSelections}
+        onClose={() => setIsFindAndDiscloseOpen(false)}
+        onUndoSelected={handleUndoSelected}
       />
       <QuickHelpModal
         isOpen={isQuickHelpOpen}
