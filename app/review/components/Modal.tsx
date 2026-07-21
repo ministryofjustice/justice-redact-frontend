@@ -170,6 +170,11 @@ export default function Modal({
         `jr-modal--${variant}`,
     ].join(" ");
 
+    const backdropClasses = [
+        "jr-modal__backdrop",
+        `jr-modal__backdrop--${variant}`,
+    ].join(" ");
+
     const contentClasses = [
         "jr-modal__content",
         contentClassName,
@@ -180,7 +185,7 @@ export default function Modal({
     return createPortal(
         <div
             ref={backdropRef}
-            className="jr-modal__backdrop"
+            className={backdropClasses}
             onMouseDown={(event) => {
                 if (
                     closeOnBackdrop &&

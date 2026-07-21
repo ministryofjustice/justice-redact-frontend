@@ -201,6 +201,11 @@ main {
   background: rgba(govuk.govuk-colour("black"), 0.8);
 }
 
+.jr-modal__backdrop--content-dense {
+  padding-top: 120px;
+  padding-bottom: 120px;
+}
+
 .jr-modal {
   position: relative;
   width: 100%;
@@ -311,11 +316,22 @@ main {
 }
 
 .jr-modal--content-dense {
+  display: flex;
+  flex-direction: column;
   max-width: 960px;
+  max-height: calc(100vh - 240px);
+}
+
+.jr-modal--content-dense .jr-modal__content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .jr-find-and-redact-results {
-  max-height: 360px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   box-sizing: border-box;
   border-top: 1px solid govuk.govuk-colour("mid-grey");
