@@ -15,7 +15,6 @@ import type {
 
 export type FindInManualRedactionResult =
     FindInDocumentResult & {
-        manualSelectionId: string;
         absoluteMatchStart: number;
         absoluteMatchEnd: number;
     };
@@ -92,8 +91,6 @@ export function findInManualRedactions(
             return [
                 {
                     ...result,
-                    manualSelectionId:
-                        containingSelection.selection.id,
                     absoluteMatchStart:
                         result.matchStart,
                     absoluteMatchEnd:

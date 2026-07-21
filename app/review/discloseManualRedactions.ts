@@ -1,171 +1,123 @@
-import type {
-    ManualDecision,
-    ManualTableCellDecision,
-    ManualTextDecision,
-} from "./types";
+import {
+    containsContentRange,
+    getContentRangeKey,
+    getManualDecisionContentRanges,
+    isSameContentLocation,
+    type ContentRange,
+} from "./contentRangeUtils";
+import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
-
-type SearchableManualDecision =
-    | ManualTextDecision
-    | ManualTableCellDecision;
-
-type Range = {
-    start: number;
-    end: number;
-};
+import { mergeContentRanges } from "./mergeContentRanges";
+import type { ManualDecision } from "./types";
 
 type DiscloseManualRedactionsResult = {
-    manualSelections: ManualDecision[];
+    remainingRanges: ContentRange[];
     disclosedCount: number;
 };
 
-function isSearchableManualDecision(
-    decision: ManualDecision
-): decision is SearchableManualDecision {
-    return (
-        decision.kind === "text" ||
-        decision.kind === "table_cell"
+function subtractRangesFromRange(
+    sourceRange: ContentRange,
+    rangesToRemove: ContentRange[]
+): ContentRange[] {
+    const relevantRanges = mergeContentRanges(
+        rangesToRemove.filter(
+            (range) =>
+                isSameContentLocation(sourceRange, range) &&
+                containsContentRange(sourceRange, range)
+        )
+    ).sort(
+        (left, right) =>
+            left.start - right.start ||
+            left.end - right.end
     );
-}
 
-function mergeRanges(ranges: Range[]): Range[] {
-    const sorted = ranges
-        .filter((range) => range.end > range.start)
-        .sort((a, b) => a.start - b.start || a.end - b.end);
+    if (relevantRanges.length === 0) {
+        return [sourceRange];
+    }
 
-    const merged: Range[] = [];
+    const remainingRanges: ContentRange[] = [];
+    let cursor = sourceRange.start;
 
-    sorted.forEach((range) => {
-        const previous = merged.at(-1);
-
-        if (!previous || range.start > previous.end) {
-            merged.push({ ...range });
-            return;
-        }
-
-        previous.end = Math.max(previous.end, range.end);
-    });
-
-    return merged;
-}
-
-function subtractRanges(
-    selectionStart: number,
-    selectionEnd: number,
-    rangesToRemove: Range[]
-): Range[] {
-    const remaining: Range[] = [];
-    let cursor = selectionStart;
-
-    rangesToRemove.forEach((range) => {
-        const start = Math.max(selectionStart, range.start);
-        const end = Math.min(selectionEnd, range.end);
-
-        if (end <= start) {
-            return;
-        }
-
-        if (cursor < start) {
-            remaining.push({
+    relevantRanges.forEach((range) => {
+        if (cursor < range.start) {
+            remainingRanges.push({
+                ...sourceRange,
                 start: cursor,
-                end: start,
+                end: range.start,
             });
         }
 
-        cursor = Math.max(cursor, end);
+        cursor = Math.max(cursor, range.end);
     });
 
-    if (cursor < selectionEnd) {
-        remaining.push({
+    if (cursor < sourceRange.end) {
+        remainingRanges.push({
+            ...sourceRange,
             start: cursor,
-            end: selectionEnd,
+            end: sourceRange.end,
         });
     }
 
-    return remaining;
+    return remainingRanges;
 }
 
 export function discloseManualRedactions(
     manualSelections: ManualDecision[],
-    selectedResults: FindInManualRedactionResult[],
-    createId: () => string
+    selectedResults: FindInManualRedactionResult[]
 ): DiscloseManualRedactionsResult {
-    const selectedResultsByManualId = new Map<
-        string,
-        FindInManualRedactionResult[]
-    >();
+    const existingRanges = mergeContentRanges(
+        getManualDecisionContentRanges(manualSelections)
+    );
 
-    selectedResults.forEach((result) => {
-        const existing =
-            selectedResultsByManualId.get(result.manualSelectionId) ?? [];
+    const selectedRanges =
+        buildContentRangesFromFindResults(selectedResults);
 
-        existing.push(result);
-        selectedResultsByManualId.set(
-            result.manualSelectionId,
-            existing
-        );
-    });
+    /*
+     * Deduplicate selected results by their exact document position.
+     * This prevents duplicate UI results or stale state from inflating
+     * the disclosed count.
+     */
+    const uniqueSelectedRanges = Array.from(
+        new Map(
+            selectedRanges.map((range) => [
+                getContentRangeKey(range),
+                range,
+            ])
+        ).values()
+    );
 
-    let disclosedCount = 0;
-    const nextSelections: ManualDecision[] = [];
+    /*
+     * Only remove a selected range when it is still fully covered by a
+     * current manual redaction. Results that became stale while the modal
+     * was open are ignored safely.
+     */
+    const validRangesToRemove = uniqueSelectedRanges.filter(
+        (selectedRange) =>
+            existingRanges.some((existingRange) =>
+                containsContentRange(
+                    existingRange,
+                    selectedRange
+                )
+            )
+    );
 
-    manualSelections.forEach((selection) => {
-        const selectedForThisRedaction =
-            selectedResultsByManualId.get(selection.id);
+    if (validRangesToRemove.length === 0) {
+        return {
+            remainingRanges: existingRanges,
+            disclosedCount: 0,
+        };
+    }
 
-        if (
-            !isSearchableManualDecision(selection) ||
-            !selectedForThisRedaction?.length
-        ) {
-            nextSelections.push(selection);
-            return;
-        }
-
-        const rangesToRemove = mergeRanges(
-            selectedForThisRedaction.map((result) => ({
-                start: result.absoluteMatchStart,
-                end: result.absoluteMatchEnd,
-            }))
-        );
-
-        const validRangesToRemove = rangesToRemove.filter(
-            (range) =>
-                range.start >= selection.start &&
-                range.end <= selection.end
-        );
-
-        if (validRangesToRemove.length === 0) {
-            nextSelections.push(selection);
-            return;
-        }
-
-        disclosedCount += validRangesToRemove.length;
-
-        const remainingRanges = subtractRanges(
-            selection.start,
-            selection.end,
-            validRangesToRemove
-        );
-
-        remainingRanges.forEach((range) => {
-            const relativeStart = range.start - selection.start;
-            const relativeEnd = range.end - selection.start;
-
-            nextSelections.push({
-                ...selection,
-                id: createId(),
-                start: range.start,
-                end: range.end,
-                text: selection.text.slice(
-                    relativeStart,
-                    relativeEnd
-                ),
-            });
-        });
-    });
+    const remainingRanges = existingRanges.flatMap(
+        (existingRange) =>
+            subtractRangesFromRange(
+                existingRange,
+                validRangesToRemove
+            )
+    );
 
     return {
-        manualSelections: nextSelections,
-        disclosedCount,
+        remainingRanges: mergeContentRanges(remainingRanges),
+        disclosedCount: validRangesToRemove.length,
     };
 }

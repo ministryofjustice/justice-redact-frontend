@@ -581,25 +581,41 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   function handleUndoSelected(
     selectedResults: FindInManualRedactionResult[]
   ): number {
-    if (selectedResults.length === 0) {
+    if (
+      !documentId ||
+      !data ||
+      selectedResults.length === 0
+    ) {
       return 0;
     }
 
-    let disclosedCount = 0;
+    const result = discloseManualRedactions(
+      manualSelections,
+      selectedResults
+    );
 
-    setManualSelections((previous) => {
-      const result = discloseManualRedactions(
-        previous,
-        selectedResults,
+    if (result.disclosedCount === 0) {
+      return 0;
+    }
+
+    const rebuiltTextSelections =
+      buildManualSelectionsFromContentRanges(
+        result.remainingRanges,
+        data.pages,
+        documentId,
         () => crypto.randomUUID()
       );
 
-      disclosedCount = result.disclosedCount;
+    const existingImageSelections = manualSelections.filter(
+      (selection) => selection.kind === "image"
+    );
 
-      return result.manualSelections;
-    });
+    setManualSelections([
+      ...existingImageSelections,
+      ...rebuiltTextSelections,
+    ]);
 
-    return disclosedCount;
+    return result.disclosedCount;
   }
 
   return (
