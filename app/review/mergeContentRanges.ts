@@ -1,7 +1,7 @@
 import {
     getContentLocationKey,
     type ContentRange,
-} from "./contentRanges";
+} from "./contentRangeUtils";
 
 export function mergeContentRanges(
     ranges: ContentRange[]

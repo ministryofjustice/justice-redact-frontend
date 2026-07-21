@@ -38,7 +38,7 @@ import type { FindInManualRedactionResult } from "./findInManualRedactions";
 import {
   containsContentRange,
   getManualDecisionContentRanges,
-} from "./contentRanges";
+} from "./contentRangeUtils";
 import { mergeContentRanges } from "./mergeContentRanges";
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import { buildManualSelectionsFromContentRanges } from "./buildManualSelectionsFromContentRanges";

@@ -1,4 +1,4 @@
-import type { ContentRange } from "./contentRanges";
+import type { ContentRange } from "./contentRangeUtils";
 import type {
     ManualTableCellDecision,
     ManualTextDecision,

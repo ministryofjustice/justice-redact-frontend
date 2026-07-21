@@ -17,7 +17,7 @@ import {
     containsContentRange,
     getFindResultContentRange,
     getManualDecisionContentRange,
-} from "../contentRanges";
+} from "../contentRangeUtils";
 import type {
     ManualDecision,
     ReviewPageData,

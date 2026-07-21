@@ -1,4 +1,4 @@
-import type { ContentRange } from "./contentRanges";
+import type { ContentRange } from "./contentRangeUtils";
 import type { FindInDocumentResult } from "./findInDocument";
 
 export function buildContentRangesFromFindResults(
