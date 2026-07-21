@@ -45,6 +45,7 @@ export default function FindAndRedactModal({
         new Set()
     );
     const [error, setError] = useState<string | null>(null);
+    const [resultsError, setResultsError] = useState<string | null>(null);
 
     const inputId = useId();
     const resultsHeadingId = useId();
@@ -53,6 +54,7 @@ export default function FindAndRedactModal({
     const inputRef = useRef<HTMLInputElement>(null);
     const errorSummaryRef = useRef<HTMLDivElement>(null);
     const successBannerRef = useRef<HTMLDivElement>(null);
+    const firstResultCheckboxRef = useRef<HTMLInputElement>(null);
 
     const isShowingResults = submittedSearchTerm !== null;
     const isShowingSuccess = highlightedCount !== null;
@@ -65,16 +67,17 @@ export default function FindAndRedactModal({
             setSelectedResultIds(new Set());
             setHighlightedCount(null);
             setError(null);
+            setResultsError(null);
         }
     }, [isOpen]);
 
     useEffect(() => {
-        if (!error) return;
+        if (!error && !resultsError) return;
 
         window.requestAnimationFrame(() => {
             errorSummaryRef.current?.focus();
         });
-    }, [error]);
+    }, [error, resultsError]);
 
     useEffect(() => {
         if (!isShowingSuccess) return;
@@ -115,12 +118,17 @@ export default function FindAndRedactModal({
 
             return next;
         });
+
+        setResultsError(null);
     }
 
     function handleHighlightSelected() {
         if (selectedResultIds.size === 0) {
+            setResultsError("Select at least one result to redact");
             return;
         }
+
+        setResultsError(null);
 
         const selectedResults = results.filter((result) =>
             selectedResultIds.has(result.id)
@@ -144,6 +152,7 @@ export default function FindAndRedactModal({
         setSelectedResultIds(new Set());
         setHighlightedCount(null);
         setError(null);
+        setResultsError(null);
         onClose();
     }
 
@@ -162,6 +171,7 @@ export default function FindAndRedactModal({
         >
             {isShowingSuccess ? (
                 <>
+
                     <h2 className="govuk-heading-l">
                         Search and highlight
                     </h2>
@@ -231,6 +241,8 @@ export default function FindAndRedactModal({
                             </div>
                         </div>
                     )}
+
+
 
                     <h2 className="govuk-heading-l">
                         Search and highlight
@@ -303,6 +315,40 @@ export default function FindAndRedactModal({
                 </form>
             ) : (
                 <>
+
+                    {resultsError && (
+                        <div
+                            ref={errorSummaryRef}
+                            className="govuk-error-summary"
+                            aria-labelledby={`${resultsHeadingId}-error-summary-title`}
+                            role="alert"
+                            tabIndex={-1}
+                        >
+                            <h2
+                                id={`${resultsHeadingId}-error-summary-title`}
+                                className="govuk-error-summary__title"
+                            >
+                                There is a problem
+                            </h2>
+
+                            <div className="govuk-error-summary__body">
+                                <ul className="govuk-list govuk-error-summary__list">
+                                    <li>
+                                        <a
+                                            href={`#${inputId}-result-0`}
+                                            onClick={(event) => {
+                                                event.preventDefault();
+                                                firstResultCheckboxRef.current?.focus();
+                                            }}
+                                        >
+                                            {resultsError}
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+
                     <h2 className="govuk-heading-l">
                         Search and highlight
                     </h2>
@@ -317,87 +363,116 @@ export default function FindAndRedactModal({
                     </h3>
 
                     <div
-                        className="moj-scrollable-pane jr-find-and-redact-results"
-                        role="region"
-                        aria-labelledby={resultsHeadingId}
-                        tabIndex={0}
+                        className={[
+                            "govuk-form-group",
+                            resultsError ? "govuk-form-group--error" : "",
+                            "jr-find-and-redact-results-group",
+                        ]
+                            .filter(Boolean)
+                            .join(" ")}
                     >
-                        <div className="jr-find-and-redact-results__inner">
-                            {results.length > 0 ? (
-                                <fieldset className="govuk-fieldset">
-                                    <legend className="govuk-visually-hidden">
-                                        Select results to highlight
-                                    </legend>
+                        {resultsError && (
+                            <p
+                                id={`${resultsHeadingId}-selection-error`}
+                                className="govuk-error-message"
+                            >
+                                <span className="govuk-visually-hidden">
+                                    Error:
+                                </span>{" "}
+                                {resultsError}
+                            </p>
+                        )}
 
-                                    <div className="govuk-checkboxes govuk-checkboxes--small">
-                                        {results.map((result, index) => {
-                                            const checkboxId =
-                                                `${inputId}-result-${index}`;
+                        <div
+                            id="find-and-redact-results"
+                            className="moj-scrollable-pane jr-find-and-redact-results"
+                            role="region"
+                            aria-labelledby={resultsHeadingId}
+                            aria-describedby={
+                                resultsError
+                                    ? `${resultsHeadingId}-selection-error`
+                                    : undefined
+                            }
+                            tabIndex={0}
+                        >
+                            <div className="jr-find-and-redact-results__inner">
+                                {results.length > 0 ? (
+                                    <fieldset className="govuk-fieldset">
+                                        <legend className="govuk-visually-hidden">
+                                            Select results to highlight
+                                        </legend>
 
-                                            const excerpt =
-                                                buildFindInDocumentExcerpt(result);
+                                        <div className="govuk-checkboxes govuk-checkboxes--small">
+                                            {results.map((result, index) => {
+                                                const checkboxId =
+                                                    `${inputId}-result-${index}`;
 
-                                            return (
-                                                <div
-                                                    key={result.id}
-                                                    className="jr-find-and-redact-result"
-                                                >
-                                                    <div className="govuk-checkboxes__item">
-                                                        <input
-                                                            id={checkboxId}
-                                                            name="searchResults"
-                                                            type="checkbox"
-                                                            className="govuk-checkboxes__input"
-                                                            value={result.id}
-                                                            checked={selectedResultIds.has(
-                                                                result.id
-                                                            )}
-                                                            onChange={(event) => {
-                                                                handleResultSelection(
-                                                                    result.id,
-                                                                    event.target.checked
-                                                                );
-                                                            }}
-                                                        />
+                                                const excerpt =
+                                                    buildFindInDocumentExcerpt(result);
 
-                                                        <label
-                                                            htmlFor={checkboxId}
-                                                            className="govuk-label govuk-checkboxes__label jr-find-and-redact-result__label"
-                                                        >
-                                                            {excerpt.hasLeadingEllipsis && "…"}
-                                                            {excerpt.before}
+                                                return (
+                                                    <div
+                                                        key={result.id}
+                                                        className="jr-find-and-redact-result"
+                                                    >
+                                                        <div className="govuk-checkboxes__item">
+                                                            <input
+                                                                ref={index === 0 ? firstResultCheckboxRef : undefined}
+                                                                id={checkboxId}
+                                                                name="searchResults"
+                                                                type="checkbox"
+                                                                className="govuk-checkboxes__input"
+                                                                value={result.id}
+                                                                checked={selectedResultIds.has(
+                                                                    result.id
+                                                                )}
+                                                                onChange={(event) => {
+                                                                    handleResultSelection(
+                                                                        result.id,
+                                                                        event.target.checked
+                                                                    );
+                                                                }}
+                                                            />
 
-                                                            {excerpt.before &&
-                                                                excerpt.match &&
-                                                                " "}
+                                                            <label
+                                                                htmlFor={checkboxId}
+                                                                className="govuk-label govuk-checkboxes__label jr-find-and-redact-result__label"
+                                                            >
+                                                                {excerpt.hasLeadingEllipsis && "…"}
+                                                                {excerpt.before}
 
-                                                            <strong>
-                                                                {excerpt.match}
-                                                            </strong>
+                                                                {excerpt.before &&
+                                                                    excerpt.match &&
+                                                                    " "}
 
-                                                            {excerpt.match &&
-                                                                excerpt.after &&
-                                                                " "}
+                                                                <strong>
+                                                                    {excerpt.match}
+                                                                </strong>
 
-                                                            {excerpt.after}
-                                                            {excerpt.hasTrailingEllipsis && "…"}
+                                                                {excerpt.match &&
+                                                                    excerpt.after &&
+                                                                    " "}
 
-                                                            <span className="govuk-visually-hidden">
-                                                                {" "}
-                                                                on page {result.pageNumber}
-                                                            </span>
-                                                        </label>
+                                                                {excerpt.after}
+                                                                {excerpt.hasTrailingEllipsis && "…"}
+
+                                                                <span className="govuk-visually-hidden">
+                                                                    {" "}
+                                                                    on page {result.pageNumber}
+                                                                </span>
+                                                            </label>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </fieldset>
-                            ) : (
-                                <p className="govuk-body govuk-!-margin-bottom-0">
-                                    No results found.
-                                </p>
-                            )}
+                                                );
+                                            })}
+                                        </div>
+                                    </fieldset>
+                                ) : (
+                                    <p className="govuk-body govuk-!-margin-bottom-0">
+                                        No results found.
+                                    </p>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -406,8 +481,6 @@ export default function FindAndRedactModal({
                             type="button"
                             className="govuk-button"
                             data-module="govuk-button"
-                            disabled={selectedResultIds.size === 0}
-                            aria-disabled={selectedResultIds.size === 0}
                             onClick={handleHighlightSelected}
                         >
                             Highlight selected
