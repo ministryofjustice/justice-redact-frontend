@@ -587,9 +587,9 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       start: number;
       end: number;
     }
-  ) {
+  ): number {
     if (!documentId || !data) {
-      return;
+      return 0;
     }
 
     const selectedResults = results
@@ -599,28 +599,25 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       .map((result) => ({
         ...result,
         matchStart:
-          result.matchStart +
-          selectedRange.start,
+          result.matchStart + selectedRange.start,
         matchEnd:
-          result.matchStart +
-          selectedRange.end,
+          result.matchStart + selectedRange.end,
       }));
 
+    if (selectedResults.length === 0) {
+      return 0;
+    }
+
     const newRanges =
-      buildContentRangesFromFindResults(
-        selectedResults
-      );
+      buildContentRangesFromFindResults(selectedResults);
 
     const existingRanges =
-      getManualDecisionContentRanges(
-        manualSelections
-      );
+      getManualDecisionContentRanges(manualSelections);
 
-    const mergedRanges =
-      mergeContentRanges([
-        ...existingRanges,
-        ...newRanges,
-      ]);
+    const mergedRanges = mergeContentRanges([
+      ...existingRanges,
+      ...newRanges,
+    ]);
 
     const rebuiltSelections =
       buildManualSelectionsFromContentRanges(
@@ -639,6 +636,8 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       ...existingImageSelections,
       ...rebuiltSelections,
     ]);
+
+    return selectedResults.length;
   }
 
   function handleUndoSelected(

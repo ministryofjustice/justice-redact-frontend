@@ -29,7 +29,7 @@ type FindAndPartiallyRedactModalProps = {
             start: number;
             end: number;
         }
-    ) => void;
+    ) => number;
 };
 
 type SelectedRange = {
@@ -65,6 +65,8 @@ export default function FindAndPartiallyRedactModal({
         useState<string | null>(null);
     const [resultsError, setResultsError] =
         useState<string | null>(null);
+    const [highlightedCount, setHighlightedCount] =
+        useState<number | null>(null);
 
     const inputId = useId();
     const resultsHeadingId = useId();
@@ -74,10 +76,15 @@ export default function FindAndPartiallyRedactModal({
 
     const inputRef = useRef<HTMLInputElement>(null);
     const errorSummaryRef = useRef<HTMLDivElement>(null);
+    const successBannerRef = useRef<HTMLDivElement>(null);
+    const firstResultCheckboxRef =
+        useRef<HTMLInputElement>(null);
     const selectablePhraseRef = useRef<HTMLDivElement>(null);
 
     const isShowingSelectionStep =
         submittedSearchTerm !== null && !isShowingResults;
+    const isShowingSuccess =
+        highlightedCount !== null;
 
     function resetState() {
         setSearchTerm("");
@@ -85,6 +92,7 @@ export default function FindAndPartiallyRedactModal({
         setSelectedRange(null);
         setResults([]);
         setSelectedResultIds(new Set());
+        setHighlightedCount(null);
         setIsShowingResults(false);
         setError(null);
         setSelectionError(null);
@@ -106,6 +114,16 @@ export default function FindAndPartiallyRedactModal({
             errorSummaryRef.current?.focus();
         });
     }, [error, selectionError]);
+
+    useEffect(() => {
+        if (!isShowingSuccess) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            successBannerRef.current?.focus();
+        });
+    }, [isShowingSuccess]);
 
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -233,13 +251,15 @@ export default function FindAndPartiallyRedactModal({
 
         setResultsError(null);
 
-        onHighlightSelected(
+        const highlighted = onHighlightSelected(
             results,
             selectedResultIds,
             selectedRange!
         );
 
-        handleClose();
+        if (highlighted > 0) {
+            setHighlightedCount(highlighted);
+        }
     }
 
     function handleClose() {
@@ -260,7 +280,55 @@ export default function FindAndPartiallyRedactModal({
                     : "standard"
             }
         >
-            {isShowingResults ? (
+            {isShowingSuccess ? (
+                <>
+                    <h2 className="govuk-heading-l">
+                        Search and highlight part
+                    </h2>
+
+                    <div
+                        ref={successBannerRef}
+                        className="govuk-notification-banner govuk-notification-banner--success"
+                        role="alert"
+                        aria-labelledby={`${resultsHeadingId}-success-title`}
+                        tabIndex={-1}
+                    >
+                        <div className="govuk-notification-banner__content">
+                            <p
+                                id={`${resultsHeadingId}-success-title`}
+                                className="govuk-body govuk-!-margin-bottom-0 jr-find-and-redact-success"
+                            >
+                                <span
+                                    className="jr-find-and-redact-success__icon"
+                                    aria-hidden="true"
+                                >
+                                    ✓
+                                </span>
+
+                                <span>
+                                    Successfully highlighted part of &lsquo;
+                                    {submittedSearchTerm}
+                                    &rsquo; in{" "}
+                                    {highlightedCount}{" "}
+                                    {highlightedCount === 1
+                                        ? "place"
+                                        : "places"}
+                                    .
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        className="govuk-button"
+                        data-module="govuk-button"
+                        onClick={handleClose}
+                    >
+                        Close window
+                    </button>
+                </>
+            ) : isShowingResults ? (
                 <>
                     {resultsError && (
                         <div
@@ -281,13 +349,10 @@ export default function FindAndPartiallyRedactModal({
                                 <ul className="govuk-list govuk-error-summary__list">
                                     <li>
                                         <a
-                                            href={`#${resultsHeadingId}`}
+                                            href={`#${inputId}-result-0`}
                                             onClick={(event) => {
                                                 event.preventDefault();
-
-                                                document
-                                                    .getElementById(resultsHeadingId)
-                                                    ?.focus();
+                                                firstResultCheckboxRef.current?.focus();
                                             }}
                                         >
                                             {resultsError}
@@ -324,7 +389,10 @@ export default function FindAndPartiallyRedactModal({
                             .join(" ")}
                     >
                         {resultsError && (
-                            <p className="govuk-error-message">
+                            <p
+                                id={`${resultsHeadingId}-selection-error`}
+                                className="govuk-error-message"
+                            >
                                 <span className="govuk-visually-hidden">
                                     Error:
                                 </span>{" "}
@@ -335,6 +403,11 @@ export default function FindAndPartiallyRedactModal({
                             className="moj-scrollable-pane jr-find-and-redact-results"
                             role="region"
                             aria-labelledby={resultsHeadingId}
+                            aria-describedby={
+                                resultsError
+                                    ? `${resultsHeadingId}-selection-error`
+                                    : undefined
+                            }
                             tabIndex={0}
                         >
                             <div className="jr-find-and-redact-results__inner">
@@ -367,6 +440,11 @@ export default function FindAndPartiallyRedactModal({
                                                         >
                                                             <div className="govuk-checkboxes__item">
                                                                 <input
+                                                                    ref={
+                                                                        index === 0
+                                                                            ? firstResultCheckboxRef
+                                                                            : undefined
+                                                                    }
                                                                     id={checkboxId}
                                                                     name="searchResults"
                                                                     type="checkbox"
