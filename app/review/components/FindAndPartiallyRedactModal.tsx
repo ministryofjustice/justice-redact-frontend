@@ -15,6 +15,7 @@ import {
 } from "../findInDocument";
 import type { ReviewPageData } from "../types";
 import Modal from "./Modal";
+import { renderTextSegments } from "../textRendering";
 
 type FindAndPartiallyRedactModalProps = {
     isOpen: boolean;
@@ -545,14 +546,23 @@ export default function FindAndPartiallyRedactModal({
                                     : undefined
                             }
                             tabIndex={0}
-                            onMouseUp={
-                                captureSelectedRange
-                            }
-                            onKeyUp={
-                                captureSelectedRange
-                            }
+                            onMouseUp={captureSelectedRange}
+                            onKeyUp={captureSelectedRange}
                         >
-                            {submittedSearchTerm}
+                            {renderTextSegments(
+                                submittedSearchTerm,
+                                [],
+                                selectedRange
+                                    ? [
+                                        {
+                                            id: "partial-redaction-selection",
+                                            start: selectedRange.start,
+                                            end: selectedRange.end,
+                                        },
+                                    ]
+                                    : [],
+                                false
+                            )}
                         </div>
                     </div>
 
