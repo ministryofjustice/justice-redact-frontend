@@ -31,6 +31,7 @@ import type {
   ReviewMode
 } from "./types";
 import FindAndRedactModal from "./components/FindAndRedactModal";
+import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModal";
 import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
 import type { FindInDocumentResult } from "./findInDocument";
 import { discloseManualRedactions } from "./discloseManualRedactions";
@@ -71,6 +72,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isQuickHelpOpen, setIsQuickHelpOpen] = useState(false);
   const [isFindAndRedactOpen, setIsFindAndRedactOpen] = useState(false);
   const [isFindAndDiscloseOpen, setIsFindAndDiscloseOpen] = useState(false);
+  const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
 
   const { data, isLoading, error } = useReviewData(documentId);
 
@@ -578,6 +580,67 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     return genuinelyNewRanges.length;
   }
 
+  function handleFindAndPartiallyRedact(
+    results: FindInDocumentResult[],
+    selectedResultIds: Set<string>,
+    selectedRange: {
+      start: number;
+      end: number;
+    }
+  ) {
+    if (!documentId || !data) {
+      return;
+    }
+
+    const selectedResults = results
+      .filter((result) =>
+        selectedResultIds.has(result.id)
+      )
+      .map((result) => ({
+        ...result,
+        matchStart:
+          result.matchStart +
+          selectedRange.start,
+        matchEnd:
+          result.matchStart +
+          selectedRange.end,
+      }));
+
+    const newRanges =
+      buildContentRangesFromFindResults(
+        selectedResults
+      );
+
+    const existingRanges =
+      getManualDecisionContentRanges(
+        manualSelections
+      );
+
+    const mergedRanges =
+      mergeContentRanges([
+        ...existingRanges,
+        ...newRanges,
+      ]);
+
+    const rebuiltSelections =
+      buildManualSelectionsFromContentRanges(
+        mergedRanges,
+        data.pages,
+        documentId,
+        () => crypto.randomUUID()
+      );
+
+    const existingImageSelections =
+      manualSelections.filter(
+        (selection) => selection.kind === "image"
+      );
+
+    setManualSelections([
+      ...existingImageSelections,
+      ...rebuiltSelections,
+    ]);
+  }
+
   function handleUndoSelected(
     selectedResults: FindInManualRedactionResult[]
   ): number {
@@ -626,6 +689,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         onReviewModeChange={setReviewMode}
         onQuickHelp={() => setIsQuickHelpOpen(true)}
         onFindAndRedact={() => setIsFindAndRedactOpen(true)}
+        onFindAndPartiallyRedact={() => setIsFindAndPartiallyRedactOpen(true)}
         onFindAndDisclose={() => setIsFindAndDiscloseOpen(true)}
       />
       <FindAndRedactModal
@@ -634,6 +698,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         manualSelections={manualSelections}
         onClose={() => setIsFindAndRedactOpen(false)}
         onHighlightSelected={handleHighlightSelected}
+      />
+      <FindAndPartiallyRedactModal
+        isOpen={isFindAndPartiallyRedactOpen}
+        pages={data?.pages ?? []}
+        onClose={() => setIsFindAndPartiallyRedactOpen(false)}
+        onHighlightSelected={handleFindAndPartiallyRedact}
       />
       <FindAndDiscloseModal
         isOpen={isFindAndDiscloseOpen}
