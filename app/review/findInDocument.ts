@@ -1,4 +1,7 @@
 import type { ReviewPageData } from "./types";
+import type { ContentRange } from "./contentRangeUtils";
+
+export type FindInDocumentMatchSegment = ContentRange;
 
 export type FindInDocumentResult = {
     id: string;
@@ -10,6 +13,7 @@ export type FindInDocumentResult = {
     sourceText: string;
     matchStart: number;
     matchEnd: number;
+    segments: FindInDocumentMatchSegment[];
 };
 
 export type FindInDocumentExcerpt = {
@@ -18,6 +22,21 @@ export type FindInDocumentExcerpt = {
     after: string;
     hasLeadingEllipsis: boolean;
     hasTrailingEllipsis: boolean;
+};
+
+type SearchableTextChunk = {
+    pageNumber: number;
+    itemId: string;
+
+    sourceText: string;
+
+    combinedStart: number;
+    combinedEnd: number;
+};
+
+type SearchableDocument = {
+    text: string;
+    chunks: SearchableTextChunk[];
 };
 
 const DEFAULT_CONTEXT_LENGTH = 75;
@@ -42,11 +61,83 @@ function findOccurrences(sourceText: string, searchTerm: string) {
 
         occurrences.push({ start, end });
 
-        // Matches do not overlap. This also guarantees the loop progresses.
         searchFrom = end;
     }
 
     return occurrences;
+}
+
+function buildSearchableDocument(
+    pages: ReviewPageData[]
+): SearchableDocument {
+    const chunks: SearchableTextChunk[] = [];
+    const textParts: string[] = [];
+
+    let currentOffset = 0;
+
+    pages
+        .slice()
+        .sort((a, b) => a.pageNumber - b.pageNumber)
+        .forEach((page) => {
+            page.textItems.forEach((item) => {
+                if (textParts.length > 0) {
+                    textParts.push(" ");
+                    currentOffset += 1;
+                }
+
+                const combinedStart = currentOffset;
+
+                textParts.push(item.text);
+                currentOffset += item.text.length;
+
+                chunks.push({
+                    pageNumber: page.pageNumber,
+                    itemId: item.itemId,
+                    sourceText: item.text,
+                    combinedStart,
+                    combinedEnd: currentOffset,
+                });
+            });
+        });
+
+    return {
+        text: textParts.join(""),
+        chunks,
+    };
+}
+
+function buildTextMatchSegments(
+    chunks: SearchableTextChunk[],
+    matchStart: number,
+    matchEnd: number
+): ContentRange[] {
+    return chunks.flatMap<ContentRange>((chunk) => {
+        const overlapStart = Math.max(
+            matchStart,
+            chunk.combinedStart
+        );
+
+        const overlapEnd = Math.min(
+            matchEnd,
+            chunk.combinedEnd
+        );
+
+        if (overlapEnd <= overlapStart) {
+            return [];
+        }
+
+        return [
+            {
+                kind: "text",
+                pageNumber: chunk.pageNumber,
+                itemId: chunk.itemId,
+                tableId: null,
+                cellId: null,
+                start: overlapStart - chunk.combinedStart,
+                end: overlapEnd - chunk.combinedStart,
+            },
+        ];
+    });
 }
 
 export function findInDocument(
@@ -58,34 +149,50 @@ export function findInDocument(
     if (!trimmedSearchTerm) return [];
 
     const results: FindInDocumentResult[] = [];
+    const searchableDocument = buildSearchableDocument(pages);
 
     pages
         .slice()
         .sort((a, b) => a.pageNumber - b.pageNumber)
         .forEach((page) => {
-            page.textItems.forEach((item) => {
-                findOccurrences(item.text, trimmedSearchTerm).forEach(
-                    ({ start, end }, occurrenceIndex) => {
-                        results.push({
-                            id: [
-                                "text",
-                                page.pageNumber,
-                                item.itemId,
-                                start,
-                                end,
-                                occurrenceIndex,
-                            ].join("-"),
-                            kind: "text",
-                            pageNumber: page.pageNumber,
-                            itemId: item.itemId,
-                            tableId: null,
-                            cellId: null,
-                            sourceText: item.text,
-                            matchStart: start,
-                            matchEnd: end,
-                        });
-                    }
+            findOccurrences(
+                searchableDocument.text,
+                trimmedSearchTerm
+            ).forEach(({ start, end }, occurrenceIndex) => {
+                const segments = buildTextMatchSegments(
+                    searchableDocument.chunks,
+                    start,
+                    end
                 );
+
+                if (segments.length === 0) {
+                    return;
+                }
+
+                const firstSegment = segments[0];
+
+                results.push({
+                    id: [
+                        "text",
+                        occurrenceIndex,
+                        start,
+                        end,
+                    ].join("-"),
+
+                    kind: "text",
+
+                    pageNumber: firstSegment.pageNumber,
+                    itemId: firstSegment.itemId,
+                    tableId: null,
+                    cellId: null,
+
+                    sourceText: searchableDocument.text,
+
+                    matchStart: start,
+                    matchEnd: end,
+
+                    segments,
+                });
             });
 
             page.tables.forEach((table) => {
@@ -114,6 +221,17 @@ export function findInDocument(
                                     sourceText: cell.text,
                                     matchStart: start,
                                     matchEnd: end,
+                                    segments: [
+                                        {
+                                            kind: "table_cell",
+                                            pageNumber: page.pageNumber,
+                                            itemId: null,
+                                            tableId: table.tableId,
+                                            cellId: cell.cellId,
+                                            start,
+                                            end,
+                                        },
+                                    ],
                                 });
                             }
                         );
