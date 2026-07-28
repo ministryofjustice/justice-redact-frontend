@@ -133,41 +133,12 @@ export function getManualDecisionContentRange(
     return null;
 }
 
-export function getFindResultContentRange(
+export function getFindResultContentRanges(
     result: FindInDocumentResult
-): ContentRange | null {
-    if (
-        result.kind === "text" &&
-        result.itemId
-    ) {
-        return {
-            kind: "text",
-            pageNumber: result.pageNumber,
-            itemId: result.itemId,
-            tableId: null,
-            cellId: null,
-            start: result.matchStart,
-            end: result.matchEnd,
-        };
-    }
-
-    if (
-        result.kind === "table_cell" &&
-        result.tableId &&
-        result.cellId
-    ) {
-        return {
-            kind: "table_cell",
-            pageNumber: result.pageNumber,
-            itemId: null,
-            tableId: result.tableId,
-            cellId: result.cellId,
-            start: result.matchStart,
-            end: result.matchEnd,
-        };
-    }
-
-    return null;
+): ContentRange[] {
+    return result.segments.filter(
+        (segment) => segment.end > segment.start
+    );
 }
 
 export function getManualDecisionContentRanges(

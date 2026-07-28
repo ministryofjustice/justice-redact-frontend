@@ -4,7 +4,7 @@ import type { FindInDocumentResult } from "./findInDocument";
 export function buildContentRangesFromFindResults(
     results: FindInDocumentResult[]
 ): ContentRange[] {
-    return results.flatMap<ContentRange>((result) =>
+    return results.flatMap((result) =>
         result.segments.filter(
             (segment) => segment.end > segment.start
         )

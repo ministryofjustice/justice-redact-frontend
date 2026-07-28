@@ -15,7 +15,7 @@ import {
 } from "../findInDocument";
 import {
     containsContentRange,
-    getFindResultContentRange,
+    getFindResultContentRanges,
     getManualDecisionContentRange,
 } from "../contentRangeUtils";
 import type {
@@ -100,24 +100,27 @@ export default function FindAndRedactModal({
     function isAlreadyManuallyRedacted(
         result: FindInDocumentResult
     ): boolean {
-        const resultRange = getFindResultContentRange(result);
+        const resultRanges =
+            getFindResultContentRanges(result);
 
-        if (!resultRange) {
+        if (resultRanges.length === 0) {
             return false;
         }
 
-        return manualSelections.some((selection) => {
-            const selectionRange =
-                getManualDecisionContentRange(selection);
+        return resultRanges.every((resultRange) =>
+            manualSelections.some((selection) => {
+                const selectionRange =
+                    getManualDecisionContentRange(selection);
 
-            return (
-                selectionRange !== null &&
-                containsContentRange(
-                    selectionRange,
-                    resultRange
-                )
-            );
-        });
+                return (
+                    selectionRange !== null &&
+                    containsContentRange(
+                        selectionRange,
+                        resultRange
+                    )
+                );
+            })
+        );
     }
 
     function handleSubmit(event: FormEvent<HTMLFormElement>) {

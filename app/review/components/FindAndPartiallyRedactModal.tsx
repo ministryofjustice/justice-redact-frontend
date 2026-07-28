@@ -15,7 +15,7 @@ import {
 } from "../findInDocument";
 import {
     containsContentRange,
-    getFindResultContentRange,
+    getFindResultContentRanges,
     getManualDecisionContentRange,
 } from "../contentRangeUtils";
 import type {
@@ -216,11 +216,14 @@ export default function FindAndPartiallyRedactModal({
         result: FindInDocumentResult,
         range: SelectedRange
     ): boolean {
-        const resultRange = getFindResultContentRange(result);
+        const resultRanges =
+            getFindResultContentRanges(result);
 
-        if (!resultRange) {
+        if (resultRanges.length !== 1) {
             return false;
         }
+
+        const [resultRange] = resultRanges;
 
         const partialRange = {
             ...resultRange,

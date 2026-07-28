@@ -240,6 +240,141 @@ function buildTextMatchSegments(
     });
 }
 
+function buildPartialContentRangesFromFindResult(
+    result: FindInDocumentResult,
+    searchableDocument: SearchableDocument,
+    selectedRange: {
+        start: number;
+        end: number;
+    }
+): ContentRange[] {
+
+    const firstTextSegment = result.segments.find(
+        (segment) =>
+            segment.kind === "text" &&
+            segment.itemId !== null
+    );
+
+    if (!firstTextSegment) {
+        return [];
+    }
+
+    const firstChunk = searchableDocument.chunks.find(
+        (chunk) =>
+            chunk.pageNumber === firstTextSegment.pageNumber &&
+            chunk.itemId === firstTextSegment.itemId
+    );
+
+    if (!firstChunk) {
+        return [];
+    }
+
+    const firstSegmentNormalisedStart =
+        firstChunk.normalisedOffsets.findIndex(
+            (originalOffset) =>
+                originalOffset >= firstTextSegment.start
+        );
+
+    if (firstSegmentNormalisedStart === -1) {
+        return [];
+    }
+
+    const matchCombinedStart =
+        firstChunk.combinedStart +
+        firstSegmentNormalisedStart;
+
+    return result.segments.flatMap((segment) => {
+        if (segment.kind !== "text" || segment.itemId === null) {
+            return [];
+        }
+
+        const chunk = searchableDocument.chunks.find(
+            (chunk) =>
+                chunk.pageNumber === segment.pageNumber &&
+                chunk.itemId === segment.itemId
+        );
+
+        if (!chunk) {
+            return [];
+        }
+
+        const segmentNormalisedStart =
+            chunk.normalisedOffsets.findIndex(
+                (originalOffset) =>
+                    originalOffset >= segment.start
+            );
+
+        if (segmentNormalisedStart === -1) {
+            return [];
+        }
+
+        const segmentNormalisedEnd =
+            chunk.normalisedOffsets.findIndex(
+                (originalOffset) =>
+                    originalOffset >= segment.end
+            );
+
+        const resolvedSegmentNormalisedEnd =
+            segmentNormalisedEnd === -1
+                ? chunk.normalisedOffsets.length
+                : segmentNormalisedEnd;
+
+        const segmentCombinedStart =
+            chunk.combinedStart +
+            segmentNormalisedStart;
+
+        const segmentCombinedEnd =
+            chunk.combinedStart +
+            resolvedSegmentNormalisedEnd;
+
+        const selectionCombinedStart =
+            matchCombinedStart +
+            selectedRange.start;
+
+        const selectionCombinedEnd =
+            matchCombinedStart +
+            selectedRange.end;
+
+        const overlapStart = Math.max(
+            segmentCombinedStart,
+            selectionCombinedStart
+        );
+
+        const overlapEnd = Math.min(
+            segmentCombinedEnd,
+            selectionCombinedEnd
+        );
+
+        if (overlapEnd <= overlapStart) {
+            return [];
+        }
+
+        const localOverlapStart =
+            overlapStart - chunk.combinedStart;
+
+        const localOverlapEnd =
+            overlapEnd - chunk.combinedStart;
+
+        const originalStart =
+            chunk.normalisedOffsets[localOverlapStart];
+
+        const originalEnd =
+            chunk.normalisedOffsets[localOverlapEnd - 1] + 1;
+
+        return [
+            {
+                kind: "text",
+                pageNumber: segment.pageNumber,
+                itemId: segment.itemId,
+                tableId: null,
+                cellId: null,
+                start: originalStart,
+                end: originalEnd,
+            },
+        ];
+    });
+}
+
 function buildDisplayMatch(
     sourceText: string,
     matchStart: number,

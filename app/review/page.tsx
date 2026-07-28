@@ -592,17 +592,9 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return 0;
     }
 
-    const selectedResults = results
-      .filter((result) =>
-        selectedResultIds.has(result.id)
-      )
-      .map((result) => ({
-        ...result,
-        matchStart:
-          result.matchStart + selectedRange.start,
-        matchEnd:
-          result.matchStart + selectedRange.end,
-      }));
+    const selectedResults = results.filter((result) =>
+      selectedResultIds.has(result.id)
+    );
 
     if (selectedResults.length === 0) {
       return 0;
