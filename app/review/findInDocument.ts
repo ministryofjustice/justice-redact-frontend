@@ -6,13 +6,14 @@ export type FindInDocumentMatchSegment = ContentRange;
 export type FindInDocumentResult = {
     id: string;
     kind: "text" | "table_cell";
+
     pageNumber: number;
     itemId: string | null;
     tableId: string | null;
     cellId: string | null;
-    sourceText: string;
-    matchStart: number;
-    matchEnd: number;
+
+    display: DisplayMatch;
+
     segments: FindInDocumentMatchSegment[];
 };
 
@@ -20,6 +21,15 @@ export type FindInDocumentExcerpt = {
     before: string;
     match: string;
     after: string;
+    hasLeadingEllipsis: boolean;
+    hasTrailingEllipsis: boolean;
+};
+
+type DisplayMatch = {
+    text: string;
+    matchStart: number;
+    matchEnd: number;
+
     hasLeadingEllipsis: boolean;
     hasTrailingEllipsis: boolean;
 };
@@ -65,12 +75,10 @@ function normaliseWhitespaceForSearch(
                 index++;
             }
 
-            // Ignore leading whitespace.
             if (!hasWrittenContent) {
                 continue;
             }
 
-            // Ignore trailing whitespace.
             if (index >= sourceText.length) {
                 break;
             }
@@ -128,36 +136,33 @@ function buildSearchableDocument(
 
     let currentOffset = 0;
 
-    pages
-        .slice()
-        .sort((a, b) => a.pageNumber - b.pageNumber)
-        .forEach((page) => {
-            page.textItems.forEach((item) => {
-                if (textParts.length > 0) {
-                    textParts.push(" ");
-                    currentOffset += 1;
-                }
+    pages.forEach((page) => {
+        page.textItems.forEach((item) => {
+            if (textParts.length > 0) {
+                textParts.push(" ");
+                currentOffset += 1;
+            }
 
-                const combinedStart = currentOffset;
+            const combinedStart = currentOffset;
 
-                const normalised = normaliseWhitespaceForSearch(
-                    item.text
-                );
+            const normalised = normaliseWhitespaceForSearch(
+                item.text
+            );
 
-                textParts.push(normalised.text);
+            textParts.push(normalised.text);
 
-                currentOffset += normalised.text.length;
+            currentOffset += normalised.text.length;
 
-                chunks.push({
-                    pageNumber: page.pageNumber,
-                    itemId: item.itemId,
-                    sourceText: item.text,
-                    normalisedOffsets: normalised.originalOffsets,
-                    combinedStart,
-                    combinedEnd: currentOffset,
-                });
+            chunks.push({
+                pageNumber: page.pageNumber,
+                itemId: item.itemId,
+                sourceText: item.text,
+                normalisedOffsets: normalised.originalOffsets,
+                combinedStart,
+                combinedEnd: currentOffset,
             });
         });
+    });
 
     return {
         text: textParts.join(""),
@@ -165,12 +170,18 @@ function buildSearchableDocument(
     };
 }
 
-function buildTextMatchSegments(
+type OverlappingChunk = {
+    chunk: SearchableTextChunk;
+    overlapStart: number;
+    overlapEnd: number;
+};
+
+function findOverlappingChunks(
     chunks: SearchableTextChunk[],
     matchStart: number,
     matchEnd: number
-): ContentRange[] {
-    return chunks.flatMap<ContentRange>((chunk) => {
+): OverlappingChunk[] {
+    return chunks.flatMap((chunk) => {
         const overlapStart = Math.max(
             matchStart,
             chunk.combinedStart
@@ -185,6 +196,26 @@ function buildTextMatchSegments(
             return [];
         }
 
+        return [
+            {
+                chunk,
+                overlapStart,
+                overlapEnd,
+            },
+        ];
+    });
+}
+
+function buildTextMatchSegments(
+    chunks: SearchableTextChunk[],
+    matchStart: number,
+    matchEnd: number
+): ContentRange[] {
+    return findOverlappingChunks(
+        chunks,
+        matchStart,
+        matchEnd
+    ).map(({ chunk, overlapStart, overlapEnd }) => {
         const localStart =
             overlapStart - chunk.combinedStart;
 
@@ -197,18 +228,185 @@ function buildTextMatchSegments(
         const originalEnd =
             chunk.normalisedOffsets[localEnd - 1] + 1;
 
-        return [
-            {
-                kind: "text",
-                pageNumber: chunk.pageNumber,
-                itemId: chunk.itemId,
-                tableId: null,
-                cellId: null,
-                start: originalStart,
-                end: originalEnd,
-            },
-        ];
+        return {
+            kind: "text",
+            pageNumber: chunk.pageNumber,
+            itemId: chunk.itemId,
+            tableId: null,
+            cellId: null,
+            start: originalStart,
+            end: originalEnd,
+        };
     });
+}
+
+function buildDisplayMatch(
+    sourceText: string,
+    matchStart: number,
+    matchEnd: number,
+    contextLength = DEFAULT_CONTEXT_LENGTH
+): DisplayMatch {
+    const excerptStart = Math.max(
+        0,
+        matchStart - contextLength
+    );
+
+    const excerptEnd = Math.min(
+        sourceText.length,
+        matchEnd + contextLength
+    );
+
+    const excerptSource = sourceText.slice(
+        excerptStart,
+        excerptEnd
+    );
+
+    const relativeMatchStart =
+        matchStart - excerptStart;
+
+    const relativeMatchEnd =
+        matchEnd - excerptStart;
+
+    const normalisedExcerpt =
+        normaliseWhitespaceForSearch(excerptSource);
+
+    const displayMatchStart =
+        normalisedExcerpt.originalOffsets.findIndex(
+            (originalOffset) =>
+                originalOffset >= relativeMatchStart
+        );
+
+    const firstOffsetAfterMatch =
+        normalisedExcerpt.originalOffsets.findIndex(
+            (originalOffset) =>
+                originalOffset >= relativeMatchEnd
+        );
+
+    const resolvedMatchStart =
+        displayMatchStart === -1
+            ? normalisedExcerpt.text.length
+            : displayMatchStart;
+
+    const resolvedMatchEnd =
+        firstOffsetAfterMatch === -1
+            ? normalisedExcerpt.text.length
+            : firstOffsetAfterMatch;
+
+    return {
+        text: normalisedExcerpt.text,
+        matchStart: resolvedMatchStart,
+        matchEnd: resolvedMatchEnd,
+
+        hasLeadingEllipsis: excerptStart > 0,
+        hasTrailingEllipsis:
+            excerptEnd < sourceText.length,
+    };
+}
+
+function buildDisplaySourceText(
+    chunks: SearchableTextChunk[],
+    matchStart: number,
+    matchEnd: number,
+    contextLength = DEFAULT_CONTEXT_LENGTH
+): {
+    text: string;
+    matchStart: number;
+    matchEnd: number;
+} {
+    const overlappingChunks = findOverlappingChunks(
+        chunks,
+        matchStart,
+        matchEnd
+    );
+
+    const overlapLookup = new Map(
+        overlappingChunks.map((overlap) => [
+            overlap.chunk,
+            overlap,
+        ])
+    );
+
+    if (overlappingChunks.length === 0) {
+        return {
+            text: "",
+            matchStart: 0,
+            matchEnd: 0,
+        };
+    }
+
+    const firstChunk = overlappingChunks[0].chunk;
+    const lastChunk =
+        overlappingChunks[overlappingChunks.length - 1].chunk;
+
+    const displayStart = Math.max(
+        0,
+        firstChunk.combinedStart - contextLength
+    );
+
+    const displayEnd = Math.min(
+        chunks[chunks.length - 1].combinedEnd,
+        lastChunk.combinedEnd + contextLength
+    );
+
+    const includedChunks = chunks.filter(
+        (chunk) =>
+            chunk.combinedEnd > displayStart &&
+            chunk.combinedStart < displayEnd
+    );
+
+    const textParts: string[] = [];
+
+    let displayOffset = 0;
+    let displayMatchStart: number | null = null;
+    let displayMatchEnd: number | null = null;
+
+    includedChunks.forEach((chunk, index) => {
+        if (index > 0) {
+            textParts.push(" ");
+            displayOffset += 1;
+        }
+
+        const normalised =
+            normaliseWhitespaceForSearch(chunk.sourceText).text;
+
+        const chunkDisplayStart = displayOffset;
+
+        textParts.push(normalised);
+
+        displayOffset += normalised.length;
+
+        const overlap = overlapLookup.get(chunk);
+
+        if (!overlap) {
+            return;
+        }
+
+        const { overlapStart, overlapEnd } = overlap;
+
+        const localMatchStart =
+            overlapStart - chunk.combinedStart;
+
+        const localMatchEnd =
+            overlapEnd - chunk.combinedStart;
+
+        const candidateStart =
+            chunkDisplayStart + localMatchStart;
+
+        const candidateEnd =
+            chunkDisplayStart + localMatchEnd;
+
+        if (displayMatchStart === null) {
+            displayMatchStart = candidateStart;
+        }
+
+        displayMatchEnd = candidateEnd;
+    });
+
+    return {
+        text: textParts.join(""),
+        matchStart: displayMatchStart ?? 0,
+        matchEnd: displayMatchEnd ?? 0,
+    };
 }
 
 export function findInDocument(
@@ -219,136 +417,145 @@ export function findInDocument(
         searchTerm
     ).text;
 
-    if (!trimmedSearchTerm) return [];
+    if (!trimmedSearchTerm) {
+        return [];
+    }
 
     const results: FindInDocumentResult[] = [];
-    const searchableDocument = buildSearchableDocument(pages);
 
-    pages
+    const sortedPages = pages
         .slice()
-        .sort((a, b) => a.pageNumber - b.pageNumber)
-        .forEach((page) => {
-            findOccurrences(
-                searchableDocument.text,
-                trimmedSearchTerm
-            ).forEach(({ start, end }, occurrenceIndex) => {
-                const segments = buildTextMatchSegments(
-                    searchableDocument.chunks,
-                    start,
-                    end
-                );
+        .sort((a, b) => a.pageNumber - b.pageNumber);
 
-                if (segments.length === 0) {
-                    return;
-                }
+    const searchableDocument =
+        buildSearchableDocument(sortedPages);
 
-                const firstSegment = segments[0];
+    findOccurrences(
+        searchableDocument.text,
+        trimmedSearchTerm
+    ).forEach(({ start, end }, occurrenceIndex) => {
+        const segments = buildTextMatchSegments(
+            searchableDocument.chunks,
+            start,
+            end
+        );
 
-                results.push({
-                    id: [
-                        "text",
-                        occurrenceIndex,
-                        start,
-                        end,
-                    ].join("-"),
+        if (segments.length === 0) {
+            return;
+        }
 
-                    kind: "text",
+        const firstSegment = segments[0];
 
-                    pageNumber: firstSegment.pageNumber,
-                    itemId: firstSegment.itemId,
-                    tableId: null,
-                    cellId: null,
+        const displaySource = buildDisplaySourceText(
+            searchableDocument.chunks,
+            start,
+            end
+        );
 
-                    sourceText: searchableDocument.text,
+        const display = buildDisplayMatch(
+            displaySource.text,
+            displaySource.matchStart,
+            displaySource.matchEnd
+        );
 
-                    matchStart: start,
-                    matchEnd: end,
+        results.push({
+            id: [
+                "text",
+                occurrenceIndex,
+                start,
+                end,
+            ].join("-"),
 
-                    segments,
-                });
-            });
+            kind: "text",
 
-            page.tables.forEach((table) => {
-                table.rows.forEach((row) => {
-                    row.cells.forEach((cell) => {
-                        findOccurrences(
-                            cell.text,
-                            trimmedSearchTerm
-                        ).forEach(
-                            ({ start, end }, occurrenceIndex) => {
-                                results.push({
-                                    id: [
-                                        "table-cell",
-                                        page.pageNumber,
-                                        table.tableId,
-                                        cell.cellId,
+            pageNumber: firstSegment.pageNumber,
+            itemId: firstSegment.itemId,
+            tableId: null,
+            cellId: null,
+
+            display,
+
+            segments,
+        });
+    });
+
+    sortedPages.forEach((page) => {
+        page.tables.forEach((table) => {
+            table.rows.forEach((row) => {
+                row.cells.forEach((cell) => {
+                    findOccurrences(
+                        cell.text,
+                        trimmedSearchTerm
+                    ).forEach(
+                        ({ start, end }, occurrenceIndex) => {
+                            results.push({
+                                id: [
+                                    "table-cell",
+                                    page.pageNumber,
+                                    table.tableId,
+                                    cell.cellId,
+                                    start,
+                                    end,
+                                    occurrenceIndex,
+                                ].join("-"),
+
+                                kind: "table_cell",
+
+                                pageNumber: page.pageNumber,
+                                itemId: null,
+                                tableId: table.tableId,
+                                cellId: cell.cellId,
+
+                                display: buildDisplayMatch(
+                                    cell.text,
+                                    start,
+                                    end
+                                ),
+
+                                segments: [
+                                    {
+                                        kind: "table_cell",
+                                        pageNumber: page.pageNumber,
+                                        itemId: null,
+                                        tableId: table.tableId,
+                                        cellId: cell.cellId,
                                         start,
                                         end,
-                                        occurrenceIndex,
-                                    ].join("-"),
-                                    kind: "table_cell",
-                                    pageNumber: page.pageNumber,
-                                    itemId: null,
-                                    tableId: table.tableId,
-                                    cellId: cell.cellId,
-                                    sourceText: cell.text,
-                                    matchStart: start,
-                                    matchEnd: end,
-                                    segments: [
-                                        {
-                                            kind: "table_cell",
-                                            pageNumber: page.pageNumber,
-                                            itemId: null,
-                                            tableId: table.tableId,
-                                            cellId: cell.cellId,
-                                            start,
-                                            end,
-                                        },
-                                    ],
-                                });
-                            }
-                        );
-                    });
+                                    },
+                                ],
+                            });
+                        }
+                    );
                 });
             });
         });
+    });
 
     return results;
 }
 
-function normalizeExcerptWhitespace(text: string): string {
-    return text.replace(/\s+/g, " ").trim();
-}
-
 export function buildFindInDocumentExcerpt(
-    result: FindInDocumentResult,
-    contextLength = DEFAULT_CONTEXT_LENGTH
+    result: FindInDocumentResult
 ): FindInDocumentExcerpt {
-    const { sourceText, matchStart, matchEnd } = result;
-
-    const excerptStart = Math.max(0, matchStart - contextLength);
-    const excerptEnd = Math.min(
-        sourceText.length,
-        matchEnd + contextLength
-    );
-
-    const before = normalizeExcerptWhitespace(
-        sourceText.slice(excerptStart, matchStart)
-    );
-
-    const match = normalizeExcerptWhitespace(
-        sourceText.slice(matchStart, matchEnd)
-    );
-
-    const after = normalizeExcerptWhitespace(
-        sourceText.slice(matchEnd, excerptEnd)
-    );
-
     return {
-        before,
-        match,
-        after,
-        hasLeadingEllipsis: excerptStart > 0,
-        hasTrailingEllipsis: excerptEnd < sourceText.length,
+        before: result.display.text.slice(
+            0,
+            result.display.matchStart
+        ),
+
+        match: result.display.text.slice(
+            result.display.matchStart,
+            result.display.matchEnd
+        ),
+
+        after: result.display.text.slice(
+            result.display.matchEnd
+        ),
+
+        hasLeadingEllipsis:
+            result.display.hasLeadingEllipsis,
+
+        hasTrailingEllipsis:
+            result.display.hasTrailingEllipsis,
     };
 }
