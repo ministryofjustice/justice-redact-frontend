@@ -614,9 +614,23 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     const existingRanges =
       getManualDecisionContentRanges(manualSelections);
 
+    const genuinelyNewRanges = newRanges.filter(
+      (candidateRange) =>
+        !existingRanges.some((existingRange) =>
+          containsContentRange(
+            existingRange,
+            candidateRange
+          )
+        )
+    );
+
+    if (genuinelyNewRanges.length === 0) {
+      return 0;
+    }
+
     const mergedRanges = mergeContentRanges([
       ...existingRanges,
-      ...newRanges,
+      ...genuinelyNewRanges,
     ]);
 
     const rebuiltSelections =
@@ -637,7 +651,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       ...rebuiltSelections,
     ]);
 
-    return selectedResults.length;
+    return genuinelyNewRanges.length;
   }
 
   function handleUndoSelected(
@@ -701,6 +715,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       <FindAndPartiallyRedactModal
         isOpen={isFindAndPartiallyRedactOpen}
         pages={data?.pages ?? []}
+        manualSelections={manualSelections}
         onClose={() => setIsFindAndPartiallyRedactOpen(false)}
         onHighlightSelected={handleFindAndPartiallyRedact}
       />

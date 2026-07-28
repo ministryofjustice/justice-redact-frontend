@@ -13,13 +13,22 @@ import {
     findInDocument,
     type FindInDocumentResult,
 } from "../findInDocument";
-import type { ReviewPageData } from "../types";
+import {
+    containsContentRange,
+    getFindResultContentRange,
+    getManualDecisionContentRange,
+} from "../contentRangeUtils";
+import type {
+    ManualDecision,
+    ReviewPageData,
+} from "../types";
 import Modal from "./Modal";
 import { renderTextSegments } from "../textRendering";
 
 type FindAndPartiallyRedactModalProps = {
     isOpen: boolean;
     pages: ReviewPageData[];
+    manualSelections: ManualDecision[];
     onClose: () => void;
 
     onHighlightSelected: (
@@ -46,6 +55,7 @@ const EMPTY_PARTIAL_SELECTION_ERROR =
 export default function FindAndPartiallyRedactModal({
     isOpen,
     pages,
+    manualSelections,
     onClose,
     onHighlightSelected,
 }: FindAndPartiallyRedactModalProps) {
@@ -106,14 +116,14 @@ export default function FindAndPartiallyRedactModal({
     }, [isOpen]);
 
     useEffect(() => {
-        if (!error && !selectionError) {
+        if (!error && !selectionError && !resultsError) {
             return;
         }
 
         window.requestAnimationFrame(() => {
             errorSummaryRef.current?.focus();
         });
-    }, [error, selectionError]);
+    }, [error, selectionError, resultsError]);
 
     useEffect(() => {
         if (!isShowingSuccess) {
@@ -202,6 +212,36 @@ export default function FindAndPartiallyRedactModal({
         });
     }
 
+    function isSelectedRangeAlreadyRedacted(
+        result: FindInDocumentResult,
+        range: SelectedRange
+    ): boolean {
+        const resultRange = getFindResultContentRange(result);
+
+        if (!resultRange) {
+            return false;
+        }
+
+        const partialRange = {
+            ...resultRange,
+            start: resultRange.start + range.start,
+            end: resultRange.start + range.end,
+        };
+
+        return manualSelections.some((selection) => {
+            const selectionRange =
+                getManualDecisionContentRange(selection);
+
+            return (
+                selectionRange !== null &&
+                containsContentRange(
+                    selectionRange,
+                    partialRange
+                )
+            );
+        });
+    }
+
     function handleContinue() {
         if (!selectedRange || !submittedSearchTerm) {
             setSelectionError(
@@ -212,10 +252,18 @@ export default function FindAndPartiallyRedactModal({
 
         setSelectionError(null);
 
+        const searchResults = findInDocument(
+            pages,
+            submittedSearchTerm
+        );
+
         setResults(
-            findInDocument(
-                pages,
-                submittedSearchTerm
+            searchResults.filter(
+                (result) =>
+                    !isSelectedRangeAlreadyRedacted(
+                        result,
+                        selectedRange
+                    )
             )
         );
 
@@ -262,6 +310,18 @@ export default function FindAndPartiallyRedactModal({
         }
     }
 
+    function handleSearchAgain() {
+        setSubmittedSearchTerm(null);
+        setSelectedRange(null);
+        setResults([]);
+        setSelectedResultIds(new Set());
+        setHighlightedCount(null);
+        setIsShowingResults(false);
+        setError(null);
+        setSelectionError(null);
+        setResultsError(null);
+    }
+
     function handleClose() {
         resetState();
         onClose();
@@ -275,7 +335,7 @@ export default function FindAndPartiallyRedactModal({
             initialFocusRef={inputRef}
             renderTitle={false}
             variant={
-                isShowingResults
+                isShowingResults && !isShowingSuccess
                     ? "content-dense"
                     : "standard"
             }
@@ -517,14 +577,25 @@ export default function FindAndPartiallyRedactModal({
                     </div>
 
                     <div className="govuk-button-group govuk-!-margin-top-4">
-                        <button
-                            type="button"
-                            className="govuk-button"
-                            data-module="govuk-button"
-                            onClick={handleHighlightSelected}
-                        >
-                            Highlight selected
-                        </button>
+                        {results.length > 0 ? (
+                            <button
+                                type="button"
+                                className="govuk-button"
+                                data-module="govuk-button"
+                                onClick={handleHighlightSelected}
+                            >
+                                Highlight selected
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                className="govuk-button"
+                                data-module="govuk-button"
+                                onClick={handleSearchAgain}
+                            >
+                                Search again
+                            </button>
+                        )}
 
                         <button
                             type="button"
