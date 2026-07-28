@@ -33,7 +33,12 @@ import type {
 import FindAndRedactModal from "./components/FindAndRedactModal";
 import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModal";
 import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
-import type { FindInDocumentResult } from "./findInDocument";
+import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
+
+import {
+  buildPartialContentRanges,
+  type FindInDocumentResult,
+} from "./findInDocument";
 import { discloseManualRedactions } from "./discloseManualRedactions";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
 import {
@@ -41,7 +46,6 @@ import {
   getManualDecisionContentRanges,
 } from "./contentRangeUtils";
 import { mergeContentRanges } from "./mergeContentRanges";
-import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import { buildManualSelectionsFromContentRanges } from "./buildManualSelectionsFromContentRanges";
 
 const PAGES_PER_BATCH = 50;
@@ -600,8 +604,13 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return 0;
     }
 
-    const newRanges =
-      buildContentRangesFromFindResults(selectedResults);
+    const newRanges = selectedResults.flatMap((result) =>
+      buildPartialContentRanges(
+        data.pages,
+        result,
+        selectedRange
+      )
+    );
 
     const existingRanges =
       getManualDecisionContentRanges(manualSelections);

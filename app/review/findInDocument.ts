@@ -375,6 +375,28 @@ function buildPartialContentRangesFromFindResult(
     });
 }
 
+export function buildPartialContentRanges(
+    pages: ReviewPageData[],
+    result: FindInDocumentResult,
+    selectedRange: {
+        start: number;
+        end: number;
+    }
+): ContentRange[] {
+    const sortedPages = pages
+        .slice()
+        .sort((a, b) => a.pageNumber - b.pageNumber);
+
+    const searchableDocument =
+        buildSearchableDocument(sortedPages);
+
+    return buildPartialContentRangesFromFindResult(
+        result,
+        searchableDocument,
+        selectedRange
+    );
+}
+
 function buildDisplayMatch(
     sourceText: string,
     matchStart: number,
