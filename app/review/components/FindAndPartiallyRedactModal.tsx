@@ -12,7 +12,6 @@ import {
     buildFindInDocumentExcerpt,
     findInDocument,
     mapOriginalOffsetToNormalisedOffset,
-    normaliseWhitespaceForSearch,
     type FindInDocumentResult,
 } from "../findInDocument";
 import {
@@ -208,37 +207,9 @@ export default function FindAndPartiallyRedactModal({
         }
 
         setSelectionError(null);
-
-        const mappedStart = mapOriginalOffsetToNormalisedOffset(
-            submittedSearchTerm,
-            start
-        );
-
-        const mappedEnd = mapOriginalOffsetToNormalisedOffset(
-            submittedSearchTerm,
-            end
-        );
-
-        console.log("submittedSearchTerm:", JSON.stringify(submittedSearchTerm));
-        console.log("raw start/end:", start, end);
-        console.log(
-            "selected:",
-            JSON.stringify(submittedSearchTerm.slice(start, end))
-        );
-
-        console.log("mapped start/end:", mappedStart, mappedEnd);
-        console.log(
-            "mapped selected:",
-            JSON.stringify(
-                normaliseWhitespaceForSearch(submittedSearchTerm)
-                    .text
-                    .slice(mappedStart, mappedEnd)
-            )
-        );
-
         setSelectedRange({
-            start: mappedStart,
-            end: mappedEnd,
+            start,
+            end,
         });
     }
 
@@ -285,6 +256,17 @@ export default function FindAndPartiallyRedactModal({
 
         setSelectionError(null);
 
+        const normalisedSelectedRange = {
+            start: mapOriginalOffsetToNormalisedOffset(
+                submittedSearchTerm,
+                selectedRange.start
+            ),
+            end: mapOriginalOffsetToNormalisedOffset(
+                submittedSearchTerm,
+                selectedRange.end
+            ),
+        };
+
         const searchResults = findInDocument(
             pages,
             submittedSearchTerm
@@ -295,7 +277,7 @@ export default function FindAndPartiallyRedactModal({
                 (result) =>
                     !isSelectedRangeAlreadyRedacted(
                         result,
-                        selectedRange
+                        normalisedSelectedRange
                     )
             )
         );
@@ -325,17 +307,32 @@ export default function FindAndPartiallyRedactModal({
     }
 
     function handleHighlightSelected() {
-        if (selectedResultIds.size === 0) {
+        if (
+            selectedResultIds.size === 0 ||
+            !selectedRange ||
+            !submittedSearchTerm
+        ) {
             setResultsError("Select at least one result to highlight");
             return;
         }
 
         setResultsError(null);
 
+        const normalisedSelectedRange = {
+            start: mapOriginalOffsetToNormalisedOffset(
+                submittedSearchTerm,
+                selectedRange.start
+            ),
+            end: mapOriginalOffsetToNormalisedOffset(
+                submittedSearchTerm,
+                selectedRange.end
+            ),
+        };
+
         const highlighted = onHighlightSelected(
             results,
             selectedResultIds,
-            selectedRange!
+            normalisedSelectedRange
         );
 
         if (highlighted > 0) {
