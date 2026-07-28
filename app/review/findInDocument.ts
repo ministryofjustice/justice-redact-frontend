@@ -55,7 +55,7 @@ type NormalisedSearchText = {
 
 const DEFAULT_CONTEXT_LENGTH = 75;
 
-function normaliseWhitespaceForSearch(
+export function normaliseWhitespaceForSearch(
     sourceText: string
 ): NormalisedSearchText {
     const textParts: string[] = [];

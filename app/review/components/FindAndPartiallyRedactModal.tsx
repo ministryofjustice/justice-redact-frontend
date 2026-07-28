@@ -12,6 +12,7 @@ import {
     buildFindInDocumentExcerpt,
     findInDocument,
     mapOriginalOffsetToNormalisedOffset,
+    normaliseWhitespaceForSearch,
     type FindInDocumentResult,
 } from "../findInDocument";
 import {
@@ -207,15 +208,37 @@ export default function FindAndPartiallyRedactModal({
         }
 
         setSelectionError(null);
+
+        const mappedStart = mapOriginalOffsetToNormalisedOffset(
+            submittedSearchTerm,
+            start
+        );
+
+        const mappedEnd = mapOriginalOffsetToNormalisedOffset(
+            submittedSearchTerm,
+            end
+        );
+
+        console.log("submittedSearchTerm:", JSON.stringify(submittedSearchTerm));
+        console.log("raw start/end:", start, end);
+        console.log(
+            "selected:",
+            JSON.stringify(submittedSearchTerm.slice(start, end))
+        );
+
+        console.log("mapped start/end:", mappedStart, mappedEnd);
+        console.log(
+            "mapped selected:",
+            JSON.stringify(
+                normaliseWhitespaceForSearch(submittedSearchTerm)
+                    .text
+                    .slice(mappedStart, mappedEnd)
+            )
+        );
+
         setSelectedRange({
-            start: mapOriginalOffsetToNormalisedOffset(
-                submittedSearchTerm,
-                start
-            ),
-            end: mapOriginalOffsetToNormalisedOffset(
-                submittedSearchTerm,
-                end
-            ),
+            start: mappedStart,
+            end: mappedEnd,
         });
     }
 
