@@ -27,9 +27,8 @@ export type FindInDocumentExcerpt = {
 type SearchableTextChunk = {
     pageNumber: number;
     itemId: string;
-
     sourceText: string;
-
+    normalisedOffsets: number[];
     combinedStart: number;
     combinedEnd: number;
 };
@@ -39,7 +38,61 @@ type SearchableDocument = {
     chunks: SearchableTextChunk[];
 };
 
+type NormalisedSearchText = {
+    text: string;
+    originalOffsets: number[];
+};
+
 const DEFAULT_CONTEXT_LENGTH = 75;
+
+function normaliseWhitespaceForSearch(
+    sourceText: string
+): NormalisedSearchText {
+    const textParts: string[] = [];
+    const originalOffsets: number[] = [];
+
+    let index = 0;
+    let hasWrittenContent = false;
+
+    while (index < sourceText.length) {
+        if (/\s/.test(sourceText[index])) {
+            const whitespaceStart = index;
+
+            while (
+                index < sourceText.length &&
+                /\s/.test(sourceText[index])
+            ) {
+                index++;
+            }
+
+            // Ignore leading whitespace.
+            if (!hasWrittenContent) {
+                continue;
+            }
+
+            // Ignore trailing whitespace.
+            if (index >= sourceText.length) {
+                break;
+            }
+
+            textParts.push(" ");
+            originalOffsets.push(whitespaceStart);
+
+            continue;
+        }
+
+        textParts.push(sourceText[index]);
+        originalOffsets.push(index);
+
+        hasWrittenContent = true;
+        index++;
+    }
+
+    return {
+        text: textParts.join(""),
+        originalOffsets,
+    };
+}
 
 function findOccurrences(sourceText: string, searchTerm: string) {
     const occurrences: Array<{ start: number; end: number }> = [];
@@ -87,13 +140,19 @@ function buildSearchableDocument(
 
                 const combinedStart = currentOffset;
 
-                textParts.push(item.text);
-                currentOffset += item.text.length;
+                const normalised = normaliseWhitespaceForSearch(
+                    item.text
+                );
+
+                textParts.push(normalised.text);
+
+                currentOffset += normalised.text.length;
 
                 chunks.push({
                     pageNumber: page.pageNumber,
                     itemId: item.itemId,
                     sourceText: item.text,
+                    normalisedOffsets: normalised.originalOffsets,
                     combinedStart,
                     combinedEnd: currentOffset,
                 });
@@ -126,6 +185,18 @@ function buildTextMatchSegments(
             return [];
         }
 
+        const localStart =
+            overlapStart - chunk.combinedStart;
+
+        const localEnd =
+            overlapEnd - chunk.combinedStart;
+
+        const originalStart =
+            chunk.normalisedOffsets[localStart];
+
+        const originalEnd =
+            chunk.normalisedOffsets[localEnd - 1] + 1;
+
         return [
             {
                 kind: "text",
@@ -133,8 +204,8 @@ function buildTextMatchSegments(
                 itemId: chunk.itemId,
                 tableId: null,
                 cellId: null,
-                start: overlapStart - chunk.combinedStart,
-                end: overlapEnd - chunk.combinedStart,
+                start: originalStart,
+                end: originalEnd,
             },
         ];
     });
@@ -144,7 +215,9 @@ export function findInDocument(
     pages: ReviewPageData[],
     searchTerm: string
 ): FindInDocumentResult[] {
-    const trimmedSearchTerm = searchTerm.trim();
+    const trimmedSearchTerm = normaliseWhitespaceForSearch(
+        searchTerm
+    ).text;
 
     if (!trimmedSearchTerm) return [];
 
