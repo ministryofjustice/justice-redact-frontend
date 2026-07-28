@@ -11,6 +11,7 @@ import {
 import {
     buildFindInDocumentExcerpt,
     findInDocument,
+    mapOriginalOffsetToNormalisedOffset,
     type FindInDocumentResult,
 } from "../findInDocument";
 import {
@@ -207,8 +208,14 @@ export default function FindAndPartiallyRedactModal({
 
         setSelectionError(null);
         setSelectedRange({
-            start,
-            end,
+            start: mapOriginalOffsetToNormalisedOffset(
+                submittedSearchTerm,
+                start
+            ),
+            end: mapOriginalOffsetToNormalisedOffset(
+                submittedSearchTerm,
+                end
+            ),
         });
     }
 

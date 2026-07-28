@@ -102,6 +102,21 @@ function normaliseWhitespaceForSearch(
     };
 }
 
+export function mapOriginalOffsetToNormalisedOffset(
+    sourceText: string,
+    originalOffset: number
+): number {
+    const normalised = normaliseWhitespaceForSearch(sourceText);
+
+    const index = normalised.originalOffsets.findIndex(
+        (offset) => offset >= originalOffset
+    );
+
+    return index === -1
+        ? normalised.text.length
+        : index;
+}
+
 function findOccurrences(sourceText: string, searchTerm: string) {
     const occurrences: Array<{ start: number; end: number }> = [];
 
