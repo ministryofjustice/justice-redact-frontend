@@ -15,7 +15,7 @@ import {
 } from "../findInDocument";
 import {
     containsContentRange,
-    getFindResultContentRange,
+    getFindResultContentRanges,
     getManualDecisionContentRange,
 } from "../contentRangeUtils";
 import type {
@@ -100,24 +100,27 @@ export default function FindAndRedactModal({
     function isAlreadyManuallyRedacted(
         result: FindInDocumentResult
     ): boolean {
-        const resultRange = getFindResultContentRange(result);
+        const resultRanges =
+            getFindResultContentRanges(result);
 
-        if (!resultRange) {
+        if (resultRanges.length === 0) {
             return false;
         }
 
-        return manualSelections.some((selection) => {
-            const selectionRange =
-                getManualDecisionContentRange(selection);
+        return resultRanges.every((resultRange) =>
+            manualSelections.some((selection) => {
+                const selectionRange =
+                    getManualDecisionContentRange(selection);
 
-            return (
-                selectionRange !== null &&
-                containsContentRange(
-                    selectionRange,
-                    resultRange
-                )
-            );
-        });
+                return (
+                    selectionRange !== null &&
+                    containsContentRange(
+                        selectionRange,
+                        resultRange
+                    )
+                );
+            })
+        );
     }
 
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -185,6 +188,15 @@ export default function FindAndRedactModal({
         if (highlighted > 0) {
             setHighlightedCount(highlighted);
         }
+    }
+
+    function handleSearchAgain() {
+        setSubmittedSearchTerm(null);
+        setResults([]);
+        setSelectedResultIds(new Set());
+        setHighlightedCount(null);
+        setError(null);
+        setResultsError(null);
     }
 
     function handleClose() {
@@ -519,14 +531,25 @@ export default function FindAndRedactModal({
                     </div>
 
                     <div className="govuk-button-group govuk-!-margin-top-4">
-                        <button
-                            type="button"
-                            className="govuk-button"
-                            data-module="govuk-button"
-                            onClick={handleHighlightSelected}
-                        >
-                            Highlight selected
-                        </button>
+                        {results.length > 0 ? (
+                            <button
+                                type="button"
+                                className="govuk-button"
+                                data-module="govuk-button"
+                                onClick={handleHighlightSelected}
+                            >
+                                Highlight selected
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                className="govuk-button"
+                                data-module="govuk-button"
+                                onClick={handleSearchAgain}
+                            >
+                                Search again
+                            </button>
+                        )}
 
                         <button
                             type="button"

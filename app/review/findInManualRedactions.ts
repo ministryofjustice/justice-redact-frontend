@@ -1,6 +1,6 @@
 import {
     containsContentRange,
-    getFindResultContentRange,
+    getFindResultContentRanges,
     getManualDecisionContentRange,
 } from "./contentRangeUtils";
 import {
@@ -14,10 +14,7 @@ import type {
 } from "./types";
 
 export type FindInManualRedactionResult =
-    FindInDocumentResult & {
-        absoluteMatchStart: number;
-        absoluteMatchEnd: number;
-    };
+    FindInDocumentResult;
 
 export function findInManualRedactions(
     pages: ReviewPageData[],
@@ -55,48 +52,29 @@ export function findInManualRedactions(
 
     return documentResults.flatMap<FindInManualRedactionResult>(
         (result) => {
-            const resultRange =
-                getFindResultContentRange(result);
+            const resultRanges =
+                getFindResultContentRanges(result);
 
-            if (!resultRange) {
+            if (resultRanges.length === 0) {
                 return [];
             }
 
             const isCurrentlyRedacted =
-                mergedRedactionRanges.some(
-                    (redactionRange) =>
-                        containsContentRange(
-                            redactionRange,
-                            resultRange
-                        )
+                resultRanges.every((resultRange) =>
+                    mergedRedactionRanges.some(
+                        (redactionRange) =>
+                            containsContentRange(
+                                redactionRange,
+                                resultRange
+                            )
+                    )
                 );
 
             if (!isCurrentlyRedacted) {
                 return [];
             }
 
-            const containingSelection =
-                searchableManualSelections.find(
-                    ({ range }) =>
-                        containsContentRange(
-                            range,
-                            resultRange
-                        )
-                );
-
-            if (!containingSelection) {
-                return [];
-            }
-
-            return [
-                {
-                    ...result,
-                    absoluteMatchStart:
-                        result.matchStart,
-                    absoluteMatchEnd:
-                        result.matchEnd,
-                },
-            ];
+            return [result];
         }
     );
 }

@@ -159,6 +159,15 @@ export default function FindAndDiscloseModal({
         }
     }
 
+    function handleSearchAgain() {
+        setSubmittedSearchTerm(null);
+        setResults([]);
+        setSelectedResultIds(new Set());
+        setHighlightedCount(null);
+        setError(null);
+        setResultsError(null);
+    }
+
     function handleClose() {
         setSearchTerm("");
         setSubmittedSearchTerm(null);
@@ -491,14 +500,25 @@ export default function FindAndDiscloseModal({
                     </div>
 
                     <div className="govuk-button-group govuk-!-margin-top-4">
-                        <button
-                            type="button"
-                            className="govuk-button"
-                            data-module="govuk-button"
-                            onClick={handleUndoSelected}
-                        >
-                            Undo selected
-                        </button>
+                        {results.length > 0 ? (
+                            <button
+                                type="button"
+                                className="govuk-button"
+                                data-module="govuk-button"
+                                onClick={handleUndoSelected}
+                            >
+                                Undo selected
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                className="govuk-button"
+                                data-module="govuk-button"
+                                onClick={handleSearchAgain}
+                            >
+                                Search again
+                            </button>
+                        )}
 
                         <button
                             type="button"

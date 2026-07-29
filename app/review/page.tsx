@@ -31,8 +31,14 @@ import type {
   ReviewMode
 } from "./types";
 import FindAndRedactModal from "./components/FindAndRedactModal";
+import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModal";
 import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
-import type { FindInDocumentResult } from "./findInDocument";
+import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
+
+import {
+  buildPartialContentRanges,
+  type FindInDocumentResult,
+} from "./findInDocument";
 import { discloseManualRedactions } from "./discloseManualRedactions";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
 import {
@@ -40,7 +46,6 @@ import {
   getManualDecisionContentRanges,
 } from "./contentRangeUtils";
 import { mergeContentRanges } from "./mergeContentRanges";
-import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import { buildManualSelectionsFromContentRanges } from "./buildManualSelectionsFromContentRanges";
 
 const PAGES_PER_BATCH = 50;
@@ -71,6 +76,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isQuickHelpOpen, setIsQuickHelpOpen] = useState(false);
   const [isFindAndRedactOpen, setIsFindAndRedactOpen] = useState(false);
   const [isFindAndDiscloseOpen, setIsFindAndDiscloseOpen] = useState(false);
+  const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
 
   const { data, isLoading, error } = useReviewData(documentId);
 
@@ -578,6 +584,77 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     return genuinelyNewRanges.length;
   }
 
+  function handleFindAndPartiallyRedact(
+    results: FindInDocumentResult[],
+    selectedResultIds: Set<string>,
+    selectedRange: {
+      start: number;
+      end: number;
+    }
+  ): number {
+    if (!documentId || !data) {
+      return 0;
+    }
+
+    const selectedResults = results.filter((result) =>
+      selectedResultIds.has(result.id)
+    );
+
+    if (selectedResults.length === 0) {
+      return 0;
+    }
+
+    const newRanges = selectedResults.flatMap((result) =>
+      buildPartialContentRanges(
+        data.pages,
+        result,
+        selectedRange
+      )
+    );
+
+    const existingRanges =
+      getManualDecisionContentRanges(manualSelections);
+
+    const genuinelyNewRanges = newRanges.filter(
+      (candidateRange) =>
+        !existingRanges.some((existingRange) =>
+          containsContentRange(
+            existingRange,
+            candidateRange
+          )
+        )
+    );
+
+    if (genuinelyNewRanges.length === 0) {
+      return 0;
+    }
+
+    const mergedRanges = mergeContentRanges([
+      ...existingRanges,
+      ...genuinelyNewRanges,
+    ]);
+
+    const rebuiltSelections =
+      buildManualSelectionsFromContentRanges(
+        mergedRanges,
+        data.pages,
+        documentId,
+        () => crypto.randomUUID()
+      );
+
+    const existingImageSelections =
+      manualSelections.filter(
+        (selection) => selection.kind === "image"
+      );
+
+    setManualSelections([
+      ...existingImageSelections,
+      ...rebuiltSelections,
+    ]);
+
+    return genuinelyNewRanges.length;
+  }
+
   function handleUndoSelected(
     selectedResults: FindInManualRedactionResult[]
   ): number {
@@ -626,6 +703,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         onReviewModeChange={setReviewMode}
         onQuickHelp={() => setIsQuickHelpOpen(true)}
         onFindAndRedact={() => setIsFindAndRedactOpen(true)}
+        onFindAndPartiallyRedact={() => setIsFindAndPartiallyRedactOpen(true)}
         onFindAndDisclose={() => setIsFindAndDiscloseOpen(true)}
       />
       <FindAndRedactModal
@@ -634,6 +712,13 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         manualSelections={manualSelections}
         onClose={() => setIsFindAndRedactOpen(false)}
         onHighlightSelected={handleHighlightSelected}
+      />
+      <FindAndPartiallyRedactModal
+        isOpen={isFindAndPartiallyRedactOpen}
+        pages={data?.pages ?? []}
+        manualSelections={manualSelections}
+        onClose={() => setIsFindAndPartiallyRedactOpen(false)}
+        onHighlightSelected={handleFindAndPartiallyRedact}
       />
       <FindAndDiscloseModal
         isOpen={isFindAndDiscloseOpen}
