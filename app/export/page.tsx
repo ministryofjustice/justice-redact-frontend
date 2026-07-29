@@ -276,7 +276,7 @@ export default function ExportPage() {
             fallback={
                 <main className="govuk-main-wrapper" id="main-content">
                     <div className="govuk-grid-row">
-                        <div className="govuk-grid-column-two-thirds">
+                        <div className="govuk-grid-column-full">
                             <p className="govuk-body" role="status" aria-live="polite">
                                 Loading export page...
                             </p>
