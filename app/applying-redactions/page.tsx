@@ -185,7 +185,7 @@ export default function ApplyingRedactionsPage() {
             fallback={
                 <main className="govuk-main-wrapper" id="main-content">
                     <div className="govuk-grid-row">
-                        <div className="govuk-grid-column-two-thirds">
+                        <div className="govuk-grid-column-full">
                             <LinearLoadingBar label="Loading redaction progress" />
                         </div>
                     </div>
