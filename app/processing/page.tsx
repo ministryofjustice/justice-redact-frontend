@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
+import { loadReviewData } from "../review/reviewDataCache";
 import { ApiError, fetchJson } from "../lib/api";
 
 type DocumentStatusResponse = {
@@ -34,6 +34,7 @@ function ProcessingContent() {
 
   useEffect(() => {
     if (!documentId) return;
+    const currentDocumentId = documentId;
 
     let isActive = true;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -67,7 +68,34 @@ function ProcessingContent() {
         setError(null);
 
         if (data.status === "ready_for_review") {
-          router.push(`/review?documentId=${documentId}`);
+          try {
+            await loadReviewData(currentDocumentId);
+
+            if (!isActive) return;
+
+            router.replace(
+              `/review?documentId=${encodeURIComponent(currentDocumentId)}`
+            );
+          } catch (err) {
+            if (!isActive) return;
+
+            if (err instanceof ApiError && err.retryable) {
+              console.warn("Temporary review data loading failure", {
+                status: err.status,
+                message: err.message,
+              });
+
+              scheduleNextPoll();
+              return;
+            }
+
+            setError(
+              err instanceof Error
+                ? err.message
+                : "Unable to load the document for review."
+            );
+          }
+
           return;
         }
 
