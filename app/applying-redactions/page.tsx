@@ -123,8 +123,8 @@ function ApplyingRedactionsContent() {
     return (
         <main className="govuk-main-wrapper" id="main-content">
             <div className="govuk-grid-row">
-                <div className="govuk-grid-column-two-thirds">
-                    {displayedError ? (
+                {displayedError ? (
+                    <div className="govuk-grid-column-two-thirds">
                         <section aria-labelledby="apply-redactions-error-title">
                             <div
                                 className="govuk-error-summary"
@@ -145,8 +145,10 @@ function ApplyingRedactionsContent() {
                                 </div>
                             </div>
                         </section>
-                    ) : (
-                        <section aria-labelledby="applying-redactions-heading">
+                    </div>
+                ) : (
+                    <>
+                        <div className="govuk-grid-column-full">
                             <LinearLoadingBar
                                 label={
                                     status === "applying_redactions"
@@ -154,20 +156,24 @@ function ApplyingRedactionsContent() {
                                         : `Redaction status: ${status}`
                                 }
                             />
+                        </div>
 
-                            <h1
-                                className="govuk-heading-xl"
-                                id="applying-redactions-heading"
-                            >
-                                Applying redactions
-                            </h1>
+                        <div className="govuk-grid-column-two-thirds">
+                            <section aria-labelledby="applying-redactions-heading">
+                                <h1
+                                    className="govuk-heading-xl"
+                                    id="applying-redactions-heading"
+                                >
+                                    Applying redactions
+                                </h1>
 
-                            <p className="govuk-body">
-                                This might take around 2 minutes for this document.
-                            </p>
-                        </section>
-                    )}
-                </div>
+                                <p className="govuk-body">
+                                    This might take around 2 minutes for this document.
+                                </p>
+                            </section>
+                        </div>
+                    </>
+                )}
             </div>
         </main>
     );
