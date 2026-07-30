@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
+import { loadReviewData } from "../review/reviewDataCache";
 import { ApiError, fetchJson } from "../lib/api";
 
 type DocumentStatusResponse = {
@@ -34,6 +34,7 @@ function ProcessingContent() {
 
   useEffect(() => {
     if (!documentId) return;
+    const currentDocumentId = documentId;
 
     let isActive = true;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -67,7 +68,34 @@ function ProcessingContent() {
         setError(null);
 
         if (data.status === "ready_for_review") {
-          router.push(`/review?documentId=${documentId}`);
+          try {
+            await loadReviewData(currentDocumentId);
+
+            if (!isActive) return;
+
+            router.replace(
+              `/review?documentId=${encodeURIComponent(currentDocumentId)}`
+            );
+          } catch (err) {
+            if (!isActive) return;
+
+            if (err instanceof ApiError && err.retryable) {
+              console.warn("Temporary review data loading failure", {
+                status: err.status,
+                message: err.message,
+              });
+
+              scheduleNextPoll();
+              return;
+            }
+
+            setError(
+              err instanceof Error
+                ? err.message
+                : "Unable to load the document for review."
+            );
+          }
+
           return;
         }
 
@@ -118,8 +146,8 @@ function ProcessingContent() {
   return (
     <main className="govuk-main-wrapper" id="main-content">
       <div className="govuk-grid-row">
-        <div className="govuk-grid-column-two-thirds">
-          {displayedError ? (
+        {displayedError ? (
+          <div className="govuk-grid-column-two-thirds">
             <div
               className="govuk-error-summary"
               data-module="govuk-error-summary"
@@ -135,8 +163,10 @@ function ProcessingContent() {
                 <p className="govuk-body">{displayedError}</p>
               </div>
             </div>
-          ) : (
-            <section aria-labelledby="processing-heading">
+          </div>
+        ) : (
+          <>
+            <div className="govuk-grid-column-full">
               <LinearLoadingBar
                 label={
                   status === "processing"
@@ -144,36 +174,40 @@ function ProcessingContent() {
                     : `Document status: ${status}`
                 }
               />
+            </div>
 
-              <h1 className="govuk-heading-xl" id="processing-heading">
-                Document processing
-              </h1>
+            <div className="govuk-grid-column-two-thirds">
+              <section aria-labelledby="processing-heading">
+                <h1 className="govuk-heading-xl" id="processing-heading">
+                  Document processing
+                </h1>
 
-              <p className="govuk-body">
-                This will take around 2 minutes for this document.
-              </p>
+                <p className="govuk-body">
+                  This will take around 2 minutes for this document.
+                </p>
 
-              <h2 className="govuk-heading-m">What is being processed</h2>
+                <h2 className="govuk-heading-m">What is being processed</h2>
 
-              <p className="govuk-body">
-                Justice Redact uses AI to try to highlight people&apos;s personal
-                information and other phrases you might want to redact. It also tries
-                to identify blank pages.
-              </p>
+                <p className="govuk-body">
+                  Justice Redact uses AI to try to highlight people&apos;s personal
+                  information and other phrases you might want to redact. It also tries
+                  to identify blank pages.
+                </p>
 
-              <div className="govuk-warning-text">
-                <span className="govuk-warning-text__icon" aria-hidden="true">
-                  !
-                </span>
-                <strong className="govuk-warning-text__text">
-                  <span className="govuk-visually-hidden">Warning</span>
-                  Deciding what to redact is your responsibility. Justice Redact
-                  doesn&apos;t make any decisions for you.
-                </strong>
-              </div>
-            </section>
-          )}
-        </div>
+                <div className="govuk-warning-text">
+                  <span className="govuk-warning-text__icon" aria-hidden="true">
+                    !
+                  </span>
+                  <strong className="govuk-warning-text__text">
+                    <span className="govuk-visually-hidden">Warning</span>
+                    Deciding what to redact is your responsibility. Justice Redact
+                    doesn&apos;t make any decisions for you.
+                  </strong>
+                </div>
+              </section>
+            </div>
+          </>
+        )}
       </div>
     </main>
   );
@@ -185,7 +219,7 @@ export default function ProcessingPage() {
       fallback={
         <main className="govuk-main-wrapper" id="main-content">
           <div className="govuk-grid-row">
-            <div className="govuk-grid-column-two-thirds">
+            <div className="govuk-grid-column-full">
               <LinearLoadingBar label="Loading processing page" />
             </div>
           </div>

@@ -1,20 +1,35 @@
 import { useEffect, useState } from "react";
 
-import { ApiError, fetchJson } from "../lib/api";
 import type { ReviewResponse } from "./types";
+import {
+    getCachedReviewData,
+    loadReviewData,
+} from "./reviewDataCache";
 
 export function useReviewData(documentId: string | null) {
-    const [data, setData] = useState<ReviewResponse | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [data, setData] = useState<ReviewResponse | null>(() =>
+        documentId ? getCachedReviewData(documentId) ?? null : null
+    );
+    const [isLoading, setIsLoading] = useState(
+        () => !documentId || !getCachedReviewData(documentId)
+    );
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         let isActive = true;
-        const controller = new AbortController();
 
         async function loadReview() {
             if (!documentId) {
                 setError("Missing document ID.");
+                setIsLoading(false);
+                return;
+            }
+
+            const cached = getCachedReviewData(documentId);
+
+            if (cached) {
+                setData(cached);
+                setError(null);
                 setIsLoading(false);
                 return;
             }
@@ -24,28 +39,13 @@ export function useReviewData(documentId: string | null) {
                 setError(null);
                 setData(null);
 
-                const result = await fetchJson<ReviewResponse>(
-                    `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/review`,
-                    {
-                        cache: "no-store",
-                        signal: controller.signal,
-                    }
-                );
+                const result = await loadReviewData(documentId);
 
                 if (!isActive) return;
 
                 setData(result);
             } catch (err) {
                 if (!isActive) return;
-
-                if (err instanceof DOMException && err.name === "AbortError") {
-                    return;
-                }
-
-                if (err instanceof ApiError) {
-                    setError(err.message);
-                    return;
-                }
 
                 setError(
                     err instanceof Error
@@ -63,7 +63,6 @@ export function useReviewData(documentId: string | null) {
 
         return () => {
             isActive = false;
-            controller.abort();
         };
     }, [documentId]);
 
