@@ -130,78 +130,91 @@ export function buildRenderRanges(
     manualSelections: Array<{ id: string; start: number; end: number }>,
     isPreviewMode: boolean
 ) {
-    const clamp = (n: number) => clampRangeValue(n, text.length);
+    const clamp = (value: number) => clampRangeValue(value, text.length);
 
-    const manualRanges: RenderRange[] = manualSelections
+    const manualRanges = manualSelections
         .map((selection) => ({
+            id: selection.id,
             start: clamp(selection.start),
             end: clamp(selection.end),
-            className: isPreviewMode
-                ? "applied-redaction"
-                : "highlight highlight--redaction",
-            key: `manual-${selection.id}`,
-            manualId: selection.id,
         }))
-        .filter((range) => range.end > range.start)
-        .sort((a, b) => a.start - b.start || a.end - b.end);
+        .filter((range) => range.end > range.start);
 
-    if (isPreviewMode) return manualRanges;
+    if (isPreviewMode) {
+        return manualRanges
+            .map<RenderRange>((range) => ({
+                start: range.start,
+                end: range.end,
+                className: "applied-redaction",
+                key: `manual-${range.id}`,
+                manualId: range.id,
+            }))
+            .sort((a, b) => a.start - b.start || a.end - b.end);
+    }
 
-    const suggestionFragments: RenderRange[] = [];
-
-    suggestions.forEach((suggestion) => {
-        if (
-            typeof suggestion.entityStart !== "number" ||
-            typeof suggestion.entityEnd !== "number"
-        ) {
-            return;
-        }
-
-        let fragments = [
-            {
-                start: clamp(suggestion.entityStart),
-                end: clamp(suggestion.entityEnd),
-            },
-        ];
-
-        for (const manual of manualRanges) {
-            fragments = fragments.flatMap((fragment) => {
-                if (manual.end <= fragment.start || manual.start >= fragment.end) {
-                    return [fragment];
-                }
-
-                const next: Array<{ start: number; end: number }> = [];
-
-                if (fragment.start < manual.start) {
-                    next.push({ start: fragment.start, end: manual.start });
-                }
-
-                if (manual.end < fragment.end) {
-                    next.push({ start: manual.end, end: fragment.end });
-                }
-
-                return next;
-            });
-        }
-
-        fragments.forEach((fragment, index) => {
-            if (fragment.end > fragment.start) {
-                suggestionFragments.push({
-                    start: fragment.start,
-                    end: fragment.end,
-                    className: "highlight highlight--suggestion",
-                    key: `suggestion-${suggestion.id}-${index}`,
-                });
-            }
-        });
-    });
-
-    return [...suggestionFragments, ...manualRanges]
+    const suggestionRanges = suggestions
         .filter(
-            (range) =>
-                range.end > range.start && range.start >= 0 && range.end <= text.length
+            (suggestion) =>
+                typeof suggestion.entityStart === "number" &&
+                typeof suggestion.entityEnd === "number"
         )
-        .sort((a, b) => a.start - b.start || a.end - b.end);
+        .map((suggestion) => ({
+            id: suggestion.id,
+            start: clamp(suggestion.entityStart as number),
+            end: clamp(suggestion.entityEnd as number),
+        }))
+        .filter((range) => range.end > range.start);
+
+    const boundaries = Array.from(
+        new Set([
+            ...manualRanges.flatMap((range) => [range.start, range.end]),
+            ...suggestionRanges.flatMap((range) => [range.start, range.end]),
+        ])
+    ).sort((a, b) => a - b);
+
+    const ranges: RenderRange[] = [];
+
+    for (let index = 0; index < boundaries.length - 1; index += 1) {
+        const start = boundaries[index];
+        const end = boundaries[index + 1];
+
+        if (end <= start) continue;
+
+        const manualRange = manualRanges.find(
+            (range) => range.start < end && range.end > start
+        );
+
+        const hasSuggestion = suggestionRanges.some(
+            (range) => range.start < end && range.end > start
+        );
+
+        if (!manualRange && !hasSuggestion) continue;
+
+        const classNames = ["highlight"];
+
+        if (hasSuggestion) {
+            classNames.push("highlight--suggestion");
+        }
+
+        if (manualRange) {
+            classNames.push("highlight--redaction");
+        }
+
+        ranges.push({
+            start,
+            end,
+            className: classNames.join(" "),
+            key: [
+                manualRange ? `manual-${manualRange.id}` : "no-manual",
+                hasSuggestion ? "suggestion" : "no-suggestion",
+                start,
+                end,
+            ].join("-"),
+            manualId: manualRange?.id,
+        });
+    }
+
+    return ranges;
 }
 
 export function renderTextSegments(
