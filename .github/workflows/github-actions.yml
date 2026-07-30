@@ -159,6 +159,7 @@ jobs:
 
       # 10. Debug frontend service
       - name: Debug frontend service
+        if: failure()
         run: |
           echo "=== Pods ==="
           kubectl get pods -n ${KUBE_NAMESPACE} -o wide
@@ -174,6 +175,7 @@ jobs:
       
       # 11. Debug ingress
       - name: Debug ingress
+        if: failure()
         run: |
           echo "=== Ingress ==="
           kubectl get ingress -n ${KUBE_NAMESPACE}
