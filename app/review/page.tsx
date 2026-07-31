@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useMemo, useState, useEffect, useRef } from "react";
 import type { MouseEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchJson } from "../lib/api";
 
 import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
+import { buildReviewStateFromPersistedDecisions } from "./redactionDecisionPersistence";
 import EndOfDocumentActions from "./components/EndOfDocumentActions";
 import PageContent from "./components/PageContent";
 import ReviewControlsHeader from "./components/ReviewControlsHeader";
@@ -28,7 +29,8 @@ import type {
   PageStatus,
   ReviewPageData,
   ReviewTableCell,
-  ReviewMode
+  ReviewMode,
+  RedactionDecisionSet
 } from "./types";
 import FindAndRedactModal from "./components/FindAndRedactModal";
 import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModal";
@@ -77,8 +79,96 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isFindAndRedactOpen, setIsFindAndRedactOpen] = useState(false);
   const [isFindAndDiscloseOpen, setIsFindAndDiscloseOpen] = useState(false);
   const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
+  const [hasLoadedPersistedDecisions, setHasLoadedPersistedDecisions] =
+    useState(false);
+  const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, isLoading, error } = useReviewData(documentId);
+
+  useEffect(() => {
+    if (!documentId || !data) {
+      return;
+    }
+
+    const currentDocumentId = documentId;
+    let isActive = true;
+
+    async function loadPersistedDecisions() {
+      try {
+        const persisted = await fetchJson<RedactionDecisionSet>(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${currentDocumentId}/redaction-decisions`
+        );
+
+        if (!isActive) {
+          return;
+        }
+
+        const restored = buildReviewStateFromPersistedDecisions(
+          currentDocumentId,
+          persisted.decisions
+        );
+
+        setManualSelections(restored.manualSelections);
+        setPageStatuses(restored.pageStatuses);
+        setHasLoadedPersistedDecisions(true);
+      } catch (error) {
+        console.error(
+          "Failed to load persisted redaction decisions",
+          error
+        );
+      }
+    }
+
+    void loadPersistedDecisions();
+
+    return () => {
+      isActive = false;
+    };
+  }, [documentId, data]);
+
+  useEffect(() => {
+    if (!documentId || !hasLoadedPersistedDecisions) {
+      return;
+    }
+
+    if (autosaveTimeoutRef.current) {
+      clearTimeout(autosaveTimeoutRef.current);
+    }
+
+    autosaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        const request = buildApplyRedactionsRequest(
+          documentId,
+          manualSelections,
+          pageStatuses
+        );
+
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/redaction-decisions`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(request),
+          }
+        );
+      } catch (error) {
+        console.error("Failed to autosave redaction decisions", error);
+      }
+    }, 500);
+
+    return () => {
+      if (autosaveTimeoutRef.current) {
+        clearTimeout(autosaveTimeoutRef.current);
+      }
+    };
+  }, [
+    documentId,
+    manualSelections,
+    pageStatuses,
+    hasLoadedPersistedDecisions,
+  ]);
 
   const visiblePages = useMemo(() => {
     if (!data) return [];
