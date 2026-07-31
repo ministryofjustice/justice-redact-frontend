@@ -133,6 +133,55 @@ export type ManualImageDecision = {
     imageId: string;
 };
 
+export type PersistedTextRedactionDecision = {
+    kind: "text";
+    pageNumber: number;
+    itemId: string;
+    start: number;
+    end: number;
+    text: string;
+    action: "redact";
+    source: "manual";
+};
+
+export type PersistedTableRedactionDecision = {
+    kind: "table_cell";
+    pageNumber: number;
+    tableId: string;
+    cellId: string;
+    start: number;
+    end: number;
+    text: string;
+    action: "redact";
+    source: "manual";
+};
+
+export type PersistedImageRedactionDecision = {
+    kind: "image";
+    pageNumber: number;
+    imageId: string;
+    action: "redact";
+    source: "manual";
+};
+
+export type PersistedPageDecision = {
+    kind: "page";
+    pageNumber: number;
+    action: "exempt" | "delete";
+    source: "manual";
+};
+
+export type PersistedRedactionDecision =
+    | PersistedTextRedactionDecision
+    | PersistedTableRedactionDecision
+    | PersistedImageRedactionDecision
+    | PersistedPageDecision;
+
+export type RedactionDecisionSet = {
+    documentId: string;
+    decisions: PersistedRedactionDecision[];
+};
+
 export type ManualDecision =
     | ManualTextDecision
     | ManualTableCellDecision
