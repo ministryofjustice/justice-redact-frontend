@@ -26,11 +26,18 @@ type UploadDocumentResponse = {
 export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const isSubmittingRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
   function handleFileChange() {
     setError(null);
+  }
+
+  function resetSubmittingState() {
+    isSubmittingRef.current = false;
+    setIsSubmitting(false);
   }
 
   function isPdf(file: File) {
@@ -175,11 +182,20 @@ export default function UploadPage() {
   }
 
   async function handleUpload() {
+    if (isSubmittingRef.current) {
+      return;
+    }
+
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    setError(null);
+
     const files = inputRef.current?.files;
     const file = files?.[0];
 
     if (!file || files.length !== 1 || !isPdf(file)) {
       setError(FILE_ERROR);
+      resetSubmittingState();
       return;
     }
 
@@ -191,11 +207,13 @@ export default function UploadPage() {
     } catch (err) {
       console.error("PDF analysis failed", err);
       setError("The selected file could not be checked – try again");
+      resetSubmittingState();
       return;
     }
 
     if (!analysis.hasBodyText) {
       setError(BODY_TEXT_ERROR);
+      resetSubmittingState();
       return;
     }
 
@@ -214,7 +232,12 @@ export default function UploadPage() {
       );
     } catch (err) {
       console.error("Document upload failed", err);
-      setError(err instanceof Error ? err.message : "Failed to upload document.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to upload document."
+      );
+      resetSubmittingState();
       return;
     }
 
@@ -325,6 +348,7 @@ export default function UploadPage() {
                     name="fileUpload1"
                     type="file"
                     accept=".pdf,application/pdf"
+                    disabled={isSubmitting}
                     aria-describedby={
                       error
                         ? "file-upload-1-hint file-upload-1-error"
@@ -340,8 +364,10 @@ export default function UploadPage() {
               type="submit"
               className="govuk-button"
               data-module="govuk-button"
+              disabled={isSubmitting}
+              aria-disabled={isSubmitting}
             >
-              Continue
+              {isSubmitting ? "Checking document…" : "Continue"}
             </button>
           </form>
         </div>
