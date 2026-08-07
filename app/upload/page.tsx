@@ -12,10 +12,12 @@ const BODY_TEXT_ERROR = "Select a document that contains body text";
 
 const MINIMUM_BODY_CHARACTERS = 50;
 
+type DocumentType = "nomis" | "dps" | "unidentified";
+
 type PdfAnalysisResult = {
   hasBodyText: boolean;
   mightBeScannedDocument: boolean;
-  isSupportedDocumentType: boolean;
+  documentType: DocumentType;
 };
 
 type UploadDocumentResponse = {
@@ -174,10 +176,16 @@ export default function UploadPage() {
     const mightBeScannedDocument =
       imageCount >= pdf.numPages && bodyTextLength < 500;
 
+    const documentType: DocumentType = isNomisDocument
+      ? "nomis"
+      : isDpsDocument
+        ? "dps"
+        : "unidentified";
+
     return {
       hasBodyText,
       mightBeScannedDocument,
-      isSupportedDocumentType: isNomisDocument || isDpsDocument,
+      documentType,
     };
   }
 
@@ -219,6 +227,7 @@ export default function UploadPage() {
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("documentType", analysis.documentType);
 
     let uploadedDocument: UploadDocumentResponse;
 
@@ -250,7 +259,7 @@ export default function UploadPage() {
       return;
     }
 
-    if (!analysis.isSupportedDocumentType) {
+    if (analysis.documentType === "unidentified") {
       router.push(
         `/document-warning?reason=unsupported-document-type&documentId=${encodeURIComponent(
           uploadedDocument.documentId
