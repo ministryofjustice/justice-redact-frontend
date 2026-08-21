@@ -1,7 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { fetchJson } from "../lib/api";
+import type { WorkflowResponse } from "../lib/workflowNavigation";
 
 type WarningReason = "scanned" | "unsupported-document-type";
 
@@ -41,27 +43,75 @@ function DocumentWarningContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
+    const [isContinuing, setIsContinuing] = useState(false);
+    const [isAbandoning, setIsAbandoning] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
     const documentId = searchParams.get("documentId");
     const filename = searchParams.get("filename") || "Uploaded document";
     const reason = searchParams.get("reason");
 
     const warningContent = getWarningContent(reason);
 
-    function handleUploadDifferentFile() {
-        router.push("/upload");
+    async function handleUploadDifferentFile() {
+        if (!documentId || isAbandoning) {
+            return;
+        }
+
+        setIsAbandoning(true);
+        setErrorMessage(null);
+
+        try {
+            await fetchJson(
+                `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                    documentId
+                )}/abandon`,
+                {
+                    method: "POST",
+                }
+            );
+
+            router.push("/upload");
+        } catch (err) {
+            setErrorMessage(
+                err instanceof Error
+                    ? err.message
+                    : "Unable to return to upload. Try again."
+            );
+            setIsAbandoning(false);
+        }
     }
 
-    function handleContinueAnyway() {
+    async function handleContinueAnyway() {
         if (!documentId) {
             router.push("/upload");
             return;
         }
 
-        router.push(
-            `/subject-details?documentId=${encodeURIComponent(
-                documentId
-            )}&filename=${encodeURIComponent(filename)}`
-        );
+        setIsContinuing(true);
+        setErrorMessage(null);
+
+        try {
+            await fetchJson<WorkflowResponse>(
+                `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                    documentId
+                )}/warning/acknowledge`,
+                {
+                    method: "POST",
+                }
+            );
+
+            router.push(
+                `/subject-details?documentId=${encodeURIComponent(
+                    documentId
+                )}&filename=${encodeURIComponent(filename)}`
+            );
+        } catch {
+            setErrorMessage(
+                "We could not continue. Try again."
+            );
+            setIsContinuing(false);
+        }
     }
 
     return (
@@ -86,22 +136,36 @@ function DocumentWarningContent() {
                                 ))}
                             </div>
 
+                            {errorMessage && (
+                                <p
+                                    className="govuk-error-message"
+                                    role="alert"
+                                >
+                                    <span className="govuk-visually-hidden">
+                                        Error:
+                                    </span>
+                                    {errorMessage}
+                                </p>
+                            )}
+
                             <div className="govuk-button-group moj-interruption-card__actions">
                                 <button
                                     type="button"
                                     className="govuk-button govuk-button--inverse"
                                     data-module="govuk-button"
                                     onClick={handleUploadDifferentFile}
+                                    disabled={isAbandoning || isContinuing}
                                 >
-                                    Upload a different file
+                                    {isAbandoning ? "Returning to upload..." : "Upload a different file"}
                                 </button>
 
                                 <button
                                     type="button"
                                     className="govuk-link govuk-link--inverse button-as-link"
                                     onClick={handleContinueAnyway}
+                                    disabled={isContinuing || isAbandoning}
                                 >
-                                    Continue anyway
+                                    {isContinuing ? "Continuing..." : "Continue anyway"}
                                 </button>
                             </div>
                         </div>

@@ -229,6 +229,12 @@ export default function UploadPage() {
     formData.append("file", file);
     formData.append("documentType", analysis.documentType);
 
+    if (analysis.mightBeScannedDocument) {
+      formData.append("warningReason", "scanned");
+    } else if (analysis.documentType === "unidentified") {
+      formData.append("warningReason", "unsupported-document-type");
+    }
+
     let uploadedDocument: UploadDocumentResponse;
 
     try {

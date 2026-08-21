@@ -29,8 +29,38 @@ function ProcessingContent() {
 
   const [status, setStatus] = useState("processing");
   const [error, setError] = useState<string | null>(null);
+  const [isAbandoning, setIsAbandoning] = useState(false);
 
   const displayedError = !documentId ? "Missing document ID." : error;
+
+  async function handleBackToUpload() {
+    if (!documentId || isAbandoning) {
+      return;
+    }
+
+    setIsAbandoning(true);
+    setError(null);
+
+    try {
+      await fetchJson(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+          documentId,
+        )}/abandon`,
+        {
+          method: "POST",
+        },
+      );
+
+      router.push("/upload");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to stop processing. Try again.",
+      );
+      setIsAbandoning(false);
+    }
+  }
 
   useEffect(() => {
     if (!documentId) return;
@@ -166,6 +196,16 @@ function ProcessingContent() {
           </div>
         ) : (
           <>
+            <div className="govuk-grid-column-full">
+              <button
+                type="button"
+                className="govuk-back-link button-as-link"
+                onClick={handleBackToUpload}
+                disabled={isAbandoning}
+              >
+                {isAbandoning ? "Stopping processing..." : "Back"}
+              </button>
+            </div>
             <div className="govuk-grid-column-full">
               <LinearLoadingBar
                 label={
