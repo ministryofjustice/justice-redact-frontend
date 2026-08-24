@@ -359,13 +359,14 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(
-            buildApplyRedactionsRequest(
+          body: JSON.stringify({
+            ...buildApplyRedactionsRequest(
               data.documentId,
               currentDocumentSelections,
               pageStatuses
-            )
-          ),
+            ),
+            expectedRevision: decisionRevisionRef.current,
+          }),
         }
       );
 
