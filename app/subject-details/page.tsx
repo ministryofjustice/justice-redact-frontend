@@ -3,7 +3,6 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchJson } from "../lib/api";
-import Link from "next/link";
 
 type ProcessDocumentResponse = {
     documentId: string;
@@ -20,7 +19,37 @@ function SubjectDetailsContent() {
     const [subjectPrisonNumber, setSubjectPrisonNumber] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isAbandoning, setIsAbandoning] = useState(false);
     const otherPhrases = "";
+
+    async function handleBackToUpload() {
+        if (!documentId || isAbandoning) {
+            return;
+        }
+
+        try {
+            setIsAbandoning(true);
+            setError(null);
+
+            await fetchJson(
+                `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                    documentId
+                )}/abandon`,
+                {
+                    method: "POST",
+                }
+            );
+
+            router.push("/upload");
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Unable to return to upload. Try again."
+            );
+            setIsAbandoning(false);
+        }
+    }
 
     async function handleContinue() {
         if (!documentId) {
@@ -58,9 +87,14 @@ function SubjectDetailsContent() {
         <main className="govuk-main-wrapper" id="main-content">
             <div className="govuk-grid-row">
                 <div className="govuk-grid-column-two-thirds">
-                    <Link href="/upload" className="govuk-back-link">
-                        Back
-                    </Link>
+                    <button
+                        type="button"
+                        className="govuk-back-link button-as-link"
+                        onClick={handleBackToUpload}
+                        disabled={isAbandoning || isSubmitting}
+                    >
+                        {isAbandoning ? "Returning to upload..." : "Back"}
+                    </button>
 
                     {error && (
                         <div

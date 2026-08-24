@@ -1,9 +1,16 @@
 "use client";
 
-import { Suspense, useMemo, useState, useEffect, useRef } from "react";
+import {
+  Suspense,
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 import type { MouseEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { fetchJson } from "../lib/api";
+import { ApiError, fetchJson } from "../lib/api";
 
 import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
@@ -30,7 +37,7 @@ import type {
   ReviewPageData,
   ReviewTableCell,
   ReviewMode,
-  RedactionDecisionSet
+  RedactionDecisionSet,
 } from "./types";
 import FindAndRedactModal from "./components/FindAndRedactModal";
 import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModal";
@@ -57,6 +64,12 @@ type ApplyRedactionsResponse = {
   status: string;
 };
 
+type SaveRedactionDecisionsResponse = {
+  documentId: string;
+  status: string;
+  revision: number;
+};
+
 function ReviewContent() {
   const searchParams = useSearchParams();
   const documentId = searchParams.get("documentId");
@@ -81,7 +94,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
   const [hasLoadedPersistedDecisions, setHasLoadedPersistedDecisions] =
     useState(false);
+  const decisionRevisionRef = useRef(0);
+  const [decisionSaveError, setDecisionSaveError] = useState<string | null>(null);
+  const [hasDecisionConflict, setHasDecisionConflict] = useState(false);
   const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeDecisionSaveRef =
+    useRef<Promise<SaveRedactionDecisionsResponse> | null>(null);
 
   const { data, isLoading, error } = useReviewData(documentId);
 
@@ -110,6 +128,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
         setManualSelections(restored.manualSelections);
         setPageStatuses(restored.pageStatuses);
+        decisionRevisionRef.current = persisted.revision;
         setHasLoadedPersistedDecisions(true);
       } catch (error) {
         console.error(
@@ -126,8 +145,71 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     };
   }, [documentId, data]);
 
+  const saveCurrentDecisions = useCallback(
+    async (
+      selections: ManualDecision[],
+      statuses: Record<number, PageStatus>,
+    ): Promise<SaveRedactionDecisionsResponse> => {
+      if (!documentId) {
+        throw new Error("Missing document ID.");
+      }
+
+      const request = buildApplyRedactionsRequest(
+        documentId,
+        selections,
+        statuses,
+      );
+
+      try {
+        const response = await fetchJson<SaveRedactionDecisionsResponse>(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/redaction-decisions`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ...request,
+              expectedRevision: decisionRevisionRef.current,
+            }),
+          },
+        );
+
+        decisionRevisionRef.current = response.revision;
+        setDecisionSaveError(null);
+
+        return response;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          setHasDecisionConflict(true);
+          setDecisionSaveError(
+            "This document has been changed in another tab. Refresh the page to load the latest saved decisions.",
+          );
+
+          throw error;
+        }
+
+        console.error(
+          "Failed to save redaction decisions",
+          error,
+        );
+
+        setDecisionSaveError(
+          "Your latest redaction changes could not be saved. Try making the change again.",
+        );
+
+        throw error;
+      }
+    },
+    [documentId],
+  );
+
   useEffect(() => {
-    if (!documentId || !hasLoadedPersistedDecisions) {
+    if (
+      !documentId ||
+      !hasLoadedPersistedDecisions ||
+      hasDecisionConflict
+    ) {
       return;
     }
 
@@ -135,27 +217,40 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       clearTimeout(autosaveTimeoutRef.current);
     }
 
-    autosaveTimeoutRef.current = setTimeout(async () => {
-      try {
-        const request = buildApplyRedactionsRequest(
-          documentId,
-          manualSelections,
-          pageStatuses
-        );
+    autosaveTimeoutRef.current = setTimeout(() => {
+      const previousSave = activeDecisionSaveRef.current;
 
-        await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/redaction-decisions`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(request),
+      const savePromise = (async () => {
+        if (previousSave) {
+          try {
+            await previousSave;
+          } catch (error) {
+            if (error instanceof ApiError && error.status === 409) {
+              throw error;
+            }
+
+            // A transient failure in the previous save should not prevent
+            // the latest state from being retried.
           }
+        }
+
+        return saveCurrentDecisions(
+          manualSelections,
+          pageStatuses,
         );
-      } catch (error) {
-        console.error("Failed to autosave redaction decisions", error);
-      }
+      })();
+
+      activeDecisionSaveRef.current = savePromise;
+
+      void savePromise
+        .catch(() => {
+          // Error has already been handled by saveCurrentDecisions.
+        })
+        .finally(() => {
+          if (activeDecisionSaveRef.current === savePromise) {
+            activeDecisionSaveRef.current = null;
+          }
+        });
     }, 500);
 
     return () => {
@@ -168,6 +263,8 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     manualSelections,
     pageStatuses,
     hasLoadedPersistedDecisions,
+    hasDecisionConflict,
+    saveCurrentDecisions,
   ]);
 
   const visiblePages = useMemo(() => {
@@ -221,9 +318,39 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
     if (currentDocumentSelections.length === 0 && !hasPageDecisions) return;
 
+    if (hasDecisionConflict) {
+      setApplyRedactionsError(
+        "Refresh the page to load the latest saved decisions before applying redactions."
+      );
+      return;
+    }
+
     try {
       setIsApplyingRedactions(true);
       setApplyRedactionsError(null);
+
+      if (autosaveTimeoutRef.current) {
+        clearTimeout(autosaveTimeoutRef.current);
+        autosaveTimeoutRef.current = null;
+      }
+
+      if (activeDecisionSaveRef.current) {
+        try {
+          await activeDecisionSaveRef.current;
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 409) {
+            throw error;
+          }
+
+          // A transient autosave failure should not prevent Apply from
+          // making one final attempt to save the latest decisions.
+        }
+      }
+
+      await saveCurrentDecisions(
+        currentDocumentSelections,
+        pageStatuses,
+      );
 
       await fetchJson<ApplyRedactionsResponse>(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${data.documentId}/apply-redactions`,
@@ -232,13 +359,14 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(
-            buildApplyRedactionsRequest(
+          body: JSON.stringify({
+            ...buildApplyRedactionsRequest(
               data.documentId,
               currentDocumentSelections,
               pageStatuses
-            )
-          ),
+            ),
+            expectedRevision: decisionRevisionRef.current,
+          }),
         }
       );
 
@@ -827,7 +955,10 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         </h1>
       </div>
 
-      <ReviewStatusMessages isLoading={isLoading} error={error} />
+      <ReviewStatusMessages
+        isLoading={isLoading}
+        error={error ?? decisionSaveError}
+      />
 
       {data && visiblePages.length > 0 && (
         <>

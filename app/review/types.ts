@@ -179,7 +179,9 @@ export type PersistedRedactionDecision =
 
 export type RedactionDecisionSet = {
     documentId: string;
+    revision: number;
     decisions: PersistedRedactionDecision[];
+    updatedAt: string | null;
 };
 
 export type ManualDecision =
