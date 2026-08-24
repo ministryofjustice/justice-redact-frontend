@@ -1,7 +1,9 @@
-import "./globals.css";
+import "./globals.scss";
 import type { Metadata } from "next";
+import Link from "next/link";
 import MojCrest from "./components/MojCrest";
 import GovukInit from "./components/GovukInit";
+import GovukFooter from "./components/GovukFooter";
 
 export const metadata: Metadata = {
   title: "Justice Redact",
@@ -14,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="govuk-template">
+    <html lang="en" className="govuk-template js-enabled">
       <head>
         <link rel="stylesheet" href="/styles/govuk-frontend.min.css" />
         <link rel="stylesheet" href="/styles/moj-frontend.min.css" />
@@ -33,19 +35,13 @@ export default function RootLayout({
               <MojCrest />
 
               <div className="moj-header__content">
-                <a
-                  className="moj-header__link moj-header__link--organisation-name"
-                  href="/"
-                >
+                <Link className="moj-header__link moj-header__link--organisation-name" href="/">
                   Ministry of Justice
-                </a>
+                </Link>
 
-                <a
-                  className="moj-header__link moj-header__link--service-name"
-                  href="/"
-                >
+                <Link className="moj-header__link moj-header__link--service-name" href="/">
                   Justice Redact
-                </a>
+                </Link>
               </div>
             </div>
           </div>
@@ -57,24 +53,7 @@ export default function RootLayout({
           </main>
         </div>
 
-        <footer className="govuk-footer" role="contentinfo">
-          <div className="govuk-width-container">
-            <div className="govuk-footer__meta">
-              <div className="govuk-footer__meta-item govuk-footer__meta-item--grow">
-                <h2 className="govuk-visually-hidden">Support links</h2>
-              </div>
-
-              <div className="govuk-footer__meta-item">
-                <a
-                  className="govuk-footer__link govuk-footer__copyright-logo"
-                  href="https://www.nationalarchives.gov.uk/information-management/re-using-public-sector-information/uk-government-licensing-framework/crown-copyright/"
-                >
-                  © Crown copyright
-                </a>
-              </div>
-            </div>
-          </div>
-        </footer>
+        <GovukFooter />
       </body>
     </html>
   );

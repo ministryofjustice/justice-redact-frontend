@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: justice-redact-frontend
+
+spec:
+  selector:
+    matchLabels:
+      app: justice-redact-frontend
+  template:
+    metadata:
+      labels:
+        app: justice-redact-frontend
+    spec:
+      serviceAccountName: ${SERVICE_ACCOUNT}
+      containers:
+        - name: app
+          image: ${IMAGE}
+          # Fix 6: Ensure the latest image tag is explicitly pulled down to prevent tag reuse
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          # Restart the container if the frontend health endpoint becomes unresponsive.
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Fix 4 & 5: Establish resource bounds to protect cluster nodes from resource exhaustion
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"  # Fix 5: Memory limit
+              cpu: "1000m"     # Fix 4: CPU limit
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            # Fix 2: Set runAsUser to a high UID (>= 10000) to ensure isolation from host-level UIDs
+            runAsUser: 10001
+            # Fix 3: Make the root filesystem read-only to eliminate persistent malicious writes
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

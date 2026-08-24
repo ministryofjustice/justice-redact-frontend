@@ -2,20 +2,54 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { fetchJson } from "../lib/api";
+
+type ProcessDocumentResponse = {
+    documentId: string;
+    status: string;
+};
 
 function SubjectDetailsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
     const documentId = searchParams.get("documentId");
-    const filename = searchParams.get("filename") || "Uploaded document";
 
     const [subjectName, setSubjectName] = useState("");
     const [subjectPrisonNumber, setSubjectPrisonNumber] = useState("");
-    const [otherPhrases, setOtherPhrases] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isAbandoning, setIsAbandoning] = useState(false);
+    const otherPhrases = "";
+
+    async function handleBackToUpload() {
+        if (!documentId || isAbandoning) {
+            return;
+        }
+
+        try {
+            setIsAbandoning(true);
+            setError(null);
+
+            await fetchJson(
+                `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                    documentId
+                )}/abandon`,
+                {
+                    method: "POST",
+                }
+            );
+
+            router.push("/upload");
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Unable to return to upload. Try again."
+            );
+            setIsAbandoning(false);
+        }
+    }
 
     async function handleContinue() {
         if (!documentId) {
@@ -27,7 +61,7 @@ function SubjectDetailsContent() {
             setIsSubmitting(true);
             setError(null);
 
-            const response = await fetch(
+            await fetchJson<ProcessDocumentResponse>(
                 `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/process`,
                 {
                     method: "POST",
@@ -42,12 +76,6 @@ function SubjectDetailsContent() {
                 }
             );
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.detail || "Failed to start processing.");
-            }
-
             router.push(`/processing?documentId=${documentId}`);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -57,32 +85,16 @@ function SubjectDetailsContent() {
 
     return (
         <main className="govuk-main-wrapper" id="main-content">
-            <section aria-labelledby="upload-success-heading">
-                <div className="govuk-grid-row">
-                    <div className="govuk-grid-column-full">
-                        <div
-                            className="moj-alert moj-alert--success subject-details-alert"
-                            role="status"
-                            aria-live="polite"
-                        >
-                            <div className="moj-alert__content">
-                                <h2 className="moj-alert__heading" id="upload-success-heading">
-                                    Upload successful
-                                </h2>
-                                <p className="govuk-body">
-                                    <span className="subject-details__filename">{filename}</span>
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
             <div className="govuk-grid-row">
                 <div className="govuk-grid-column-two-thirds">
-                    <Link href="/upload" className="govuk-back-link">
-                        Back
-                    </Link>
+                    <button
+                        type="button"
+                        className="govuk-back-link button-as-link"
+                        onClick={handleBackToUpload}
+                        disabled={isAbandoning || isSubmitting}
+                    >
+                        {isAbandoning ? "Returning to upload..." : "Back"}
+                    </button>
 
                     {error && (
                         <div

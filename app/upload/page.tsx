@@ -1,7 +1,9 @@
 "use client";
 
-import { ChangeEvent, useRef, useState } from "react";
+import Link from "next/link";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { fetchJson } from "../lib/api";
 
 const FILE_ERROR =
   "The selected file must be a NOMIS or DPS file in PDF format";
@@ -10,9 +12,12 @@ const BODY_TEXT_ERROR = "Select a document that contains body text";
 
 const MINIMUM_BODY_CHARACTERS = 50;
 
+type DocumentType = "nomis" | "dps" | "unidentified";
+
 type PdfAnalysisResult = {
   hasBodyText: boolean;
   mightBeScannedDocument: boolean;
+  documentType: DocumentType;
 };
 
 type UploadDocumentResponse = {
@@ -23,11 +28,18 @@ type UploadDocumentResponse = {
 export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const isSubmittingRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
-  function handleFileChange(_: ChangeEvent<HTMLInputElement>) {
+  function handleFileChange() {
     setError(null);
+  }
+
+  function resetSubmittingState() {
+    isSubmittingRef.current = false;
+    setIsSubmitting(false);
   }
 
   function isPdf(file: File) {
@@ -37,6 +49,10 @@ export default function UploadPage() {
     );
   }
 
+  function normaliseText(text: string) {
+    return text.replace(/\s+/g, " ").trim();
+  }
+
   async function analysePdf(file: File): Promise<PdfAnalysisResult> {
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
@@ -44,8 +60,20 @@ export default function UploadPage() {
 
     const buffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const metadata = await pdf.getMetadata().catch(() => null);
+
+    const metadataTitle =
+      "info" in (metadata ?? {}) &&
+        metadata?.info &&
+        "Title" in metadata.info &&
+        typeof metadata.info.Title === "string"
+        ? metadata.info.Title
+        : "";
 
     const allBodyLines: string[] = [];
+    const allDocumentLines: string[] = [];
+    const firstPageLines: string[] = [];
+
     let imageCount = 0;
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
@@ -63,9 +91,15 @@ export default function UploadPage() {
       ).length;
 
       const pageLines = textContent.items
-        .map((item: any) => {
-          const text = item.str?.trim();
-          const y = item.transform?.[5];
+        .map((item) => {
+          if (!("str" in item) || typeof item.str !== "string") {
+            return null;
+          }
+
+          const text = item.str.trim();
+          const y = Array.isArray(item.transform)
+            ? item.transform[5]
+            : undefined;
 
           if (!text || typeof y !== "number") {
             return null;
@@ -74,6 +108,13 @@ export default function UploadPage() {
           return { text, y };
         })
         .filter(Boolean) as Array<{ text: string; y: number }>;
+
+      const pageTextLines = pageLines.map(({ text }) => text);
+      allDocumentLines.push(...pageTextLines);
+
+      if (pageNumber === 1) {
+        firstPageLines.push(...pageTextLines);
+      }
 
       const bodyLines = pageLines
         .filter(({ y }) => {
@@ -87,9 +128,7 @@ export default function UploadPage() {
       allBodyLines.push(...bodyLines);
     }
 
-    const normalisedLines = allBodyLines.map((line) =>
-      line.replace(/\s+/g, " ").trim()
-    );
+    const normalisedLines = allBodyLines.map(normaliseText);
 
     const lineCounts = normalisedLines.reduce<Record<string, number>>(
       (acc, line) => {
@@ -113,28 +152,62 @@ export default function UploadPage() {
       );
     });
 
+    const firstPageText = normaliseText(firstPageLines.join(" ")).toLowerCase();
+    const repeatedText = normaliseText(allDocumentLines.join(" ")).toLowerCase();
+    const title = metadataTitle.toLowerCase();
+
+    const isNomisDocument =
+      firstPageText.includes("nomis") ||
+      firstPageText.includes("noms") ||
+      repeatedText.includes("module: sar_");
+
+    const isDpsDocument =
+      (firstPageText.includes("location") &&
+        firstPageText.includes("category") &&
+        firstPageText.includes("csra") &&
+        firstPageText.includes("incentive level")) ||
+      title.includes("dps") ||
+      (repeatedText.includes("created by:") &&
+        repeatedText.includes("happened:"));
+
     const bodyTextLength = meaningfulLines.join(" ").length;
     const hasBodyText = bodyTextLength >= MINIMUM_BODY_CHARACTERS;
 
     const mightBeScannedDocument =
       imageCount >= pdf.numPages && bodyTextLength < 500;
 
+    const documentType: DocumentType = isNomisDocument
+      ? "nomis"
+      : isDpsDocument
+        ? "dps"
+        : "unidentified";
+
     return {
       hasBodyText,
       mightBeScannedDocument,
+      documentType,
     };
   }
 
   async function handleUpload() {
+    if (isSubmittingRef.current) {
+      return;
+    }
+
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    setError(null);
+
     const files = inputRef.current?.files;
     const file = files?.[0];
 
     if (!file || files.length !== 1 || !isPdf(file)) {
       setError(FILE_ERROR);
+      resetSubmittingState();
       return;
     }
 
-    let analysis;
+    let analysis: PdfAnalysisResult;
 
     try {
       analysis = await analysePdf(file);
@@ -142,44 +215,59 @@ export default function UploadPage() {
     } catch (err) {
       console.error("PDF analysis failed", err);
       setError("The selected file could not be checked – try again");
+      resetSubmittingState();
       return;
     }
 
     if (!analysis.hasBodyText) {
       setError(BODY_TEXT_ERROR);
+      resetSubmittingState();
       return;
     }
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("documentType", analysis.documentType);
+
+    if (analysis.mightBeScannedDocument) {
+      formData.append("warningReason", "scanned");
+    } else if (analysis.documentType === "unidentified") {
+      formData.append("warningReason", "unsupported-document-type");
+    }
 
     let uploadedDocument: UploadDocumentResponse;
 
     try {
-      const response = await fetch(
+      uploadedDocument = await fetchJson<UploadDocumentResponse>(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/upload`,
         {
           method: "POST",
           body: formData,
         }
       );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Failed to upload document.");
-      }
-
-      uploadedDocument = data;
     } catch (err) {
       console.error("Document upload failed", err);
-      setError(err instanceof Error ? err.message : "Failed to upload document.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to upload document."
+      );
+      resetSubmittingState();
       return;
     }
 
     if (analysis.mightBeScannedDocument) {
       router.push(
-        `/scanned-document?documentId=${encodeURIComponent(
+        `/document-warning?reason=scanned&documentId=${encodeURIComponent(
+          uploadedDocument.documentId
+        )}&filename=${encodeURIComponent(file.name)}`
+      );
+      return;
+    }
+
+    if (analysis.documentType === "unidentified") {
+      router.push(
+        `/document-warning?reason=unsupported-document-type&documentId=${encodeURIComponent(
           uploadedDocument.documentId
         )}&filename=${encodeURIComponent(file.name)}`
       );
@@ -197,9 +285,9 @@ export default function UploadPage() {
     <main className="govuk-main-wrapper" id="main-content">
       <div className="govuk-grid-row">
         <div className="govuk-grid-column-two-thirds">
-          <a href="/" className="govuk-back-link">
+          <Link href="/" className="govuk-back-link">
             Back
-          </a>
+          </Link>
 
           {error && (
             <div
@@ -225,7 +313,10 @@ export default function UploadPage() {
 
           <h1 className="govuk-heading-xl">Upload a document</h1>
 
-          <aside className="govuk-inset-text guidance-panel" aria-label="Upload guidance">
+          <aside
+            className="govuk-inset-text guidance-panel"
+            aria-label="Upload guidance"
+          >
             <p className="govuk-body">
               Only NOMIS and DPS documents can be processed at the moment.
             </p>
@@ -239,7 +330,10 @@ export default function UploadPage() {
             }}
           >
             <section aria-labelledby="upload-file-heading">
-              <div className={`govuk-form-group${error ? " govuk-form-group--error" : ""}`}>
+              <div
+                className={`govuk-form-group${error ? " govuk-form-group--error" : ""
+                  }`}
+              >
                 <h2 className="govuk-label-wrapper">
                   <label
                     className="govuk-label govuk-label--m"
@@ -263,11 +357,13 @@ export default function UploadPage() {
                 <div className="govuk-drop-zone" data-module="govuk-file-upload">
                   <input
                     ref={inputRef}
-                    className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""}`}
+                    className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""
+                      }`}
                     id="file-upload-1"
                     name="fileUpload1"
                     type="file"
                     accept=".pdf,application/pdf"
+                    disabled={isSubmitting}
                     aria-describedby={
                       error
                         ? "file-upload-1-hint file-upload-1-error"
@@ -283,8 +379,10 @@ export default function UploadPage() {
               type="submit"
               className="govuk-button"
               data-module="govuk-button"
+              disabled={isSubmitting}
+              aria-disabled={isSubmitting}
             >
-              Continue
+              {isSubmitting ? "Checking document…" : "Continue"}
             </button>
           </form>
         </div>

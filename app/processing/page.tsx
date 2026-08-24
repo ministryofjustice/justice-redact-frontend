@@ -2,12 +2,25 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { loadReviewData } from "../review/reviewDataCache";
+import { ApiError, fetchJson } from "../lib/api";
 
 type DocumentStatusResponse = {
   documentId: string;
   filename: string;
   status: string;
 };
+
+function LinearLoadingBar({ label = "Loading" }: { label?: string }) {
+  return (
+    <div className="jr-linear-loading" role="status" aria-live="polite" aria-label={label}>
+      <div className="jr-linear-loading__track" aria-hidden="true">
+        <span className="jr-linear-loading__bar jr-linear-loading__bar--primary" />
+      </div>
+      <span className="govuk-visually-hidden">{label}</span>
+    </div>
+  );
+}
 
 function ProcessingContent() {
   const router = useRouter();
@@ -16,51 +29,155 @@ function ProcessingContent() {
 
   const [status, setStatus] = useState("processing");
   const [error, setError] = useState<string | null>(null);
+  const [isAbandoning, setIsAbandoning] = useState(false);
 
-  useEffect(() => {
-    if (!documentId) {
-      setError("Missing document ID.");
+  const displayedError = !documentId ? "Missing document ID." : error;
+
+  async function handleBackToUpload() {
+    if (!documentId || isAbandoning) {
       return;
     }
 
-    let intervalId: ReturnType<typeof setInterval>;
+    setIsAbandoning(true);
+    setError(null);
+
+    try {
+      await fetchJson(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+          documentId,
+        )}/abandon`,
+        {
+          method: "POST",
+        },
+      );
+
+      router.push("/upload");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to stop processing. Try again.",
+      );
+      setIsAbandoning(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!documentId) return;
+    const currentDocumentId = documentId;
+
+    let isActive = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let controller: AbortController | null = null;
+
+    const scheduleNextPoll = () => {
+      if (!isActive) return;
+
+      timeoutId = setTimeout(() => {
+        void pollStatus();
+      }, 2000);
+    };
 
     async function pollStatus() {
+      if (!isActive) return;
+
+      controller = new AbortController();
+
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/status`
+        const data = await fetchJson<DocumentStatusResponse>(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/status`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          },
         );
 
-        const data: DocumentStatusResponse = await response.json();
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch document status.");
-        }
+        if (!isActive) return;
 
         setStatus(data.status);
+        setError(null);
 
         if (data.status === "ready_for_review") {
-          clearInterval(intervalId);
-          router.push(`/review?documentId=${documentId}`);
+          try {
+            await loadReviewData(currentDocumentId);
+
+            if (!isActive) return;
+
+            router.replace(
+              `/review?documentId=${encodeURIComponent(currentDocumentId)}`
+            );
+          } catch (err) {
+            if (!isActive) return;
+
+            if (err instanceof ApiError && err.retryable) {
+              console.warn("Temporary review data loading failure", {
+                status: err.status,
+                message: err.message,
+              });
+
+              scheduleNextPoll();
+              return;
+            }
+
+            setError(
+              err instanceof Error
+                ? err.message
+                : "Unable to load the document for review."
+            );
+          }
+
+          return;
         }
+
+        if (data.status === "failed") {
+          setError("The document could not be processed.");
+          return;
+        }
+
+        scheduleNextPoll();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong.");
+        if (!isActive) return;
+
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+
+        if (err instanceof ApiError && err.retryable) {
+          console.warn("Temporary status polling failure", {
+            status: err.status,
+            message: err.message,
+          });
+
+          scheduleNextPoll();
+          return;
+        }
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to check the document status.",
+        );
       }
     }
 
-    pollStatus();
-    intervalId = setInterval(pollStatus, 2000);
+    void pollStatus();
 
-    return () => clearInterval(intervalId);
+    return () => {
+      isActive = false;
+
+      controller?.abort();
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [documentId, router]);
 
   return (
     <main className="govuk-main-wrapper" id="main-content">
       <div className="govuk-grid-row">
-        <div className="govuk-grid-column-two-thirds">
-          <h1 className="govuk-heading-l">Processing document</h1>
-
-          {error ? (
+        {displayedError ? (
+          <div className="govuk-grid-column-two-thirds">
             <div
               className="govuk-error-summary"
               data-module="govuk-error-summary"
@@ -73,39 +190,64 @@ function ProcessingContent() {
               </h2>
 
               <div className="govuk-error-summary__body">
-                <p className="govuk-body">{error}</p>
+                <p className="govuk-body">{displayedError}</p>
               </div>
             </div>
-          ) : (
-            <section aria-labelledby="processing-status-heading">
-              <h2
-                className="govuk-heading-m govuk-visually-hidden"
-                id="processing-status-heading"
+          </div>
+        ) : (
+          <>
+            <div className="govuk-grid-column-full">
+              <button
+                type="button"
+                className="govuk-back-link button-as-link"
+                onClick={handleBackToUpload}
+                disabled={isAbandoning}
               >
-                Processing status
-              </h2>
+                {isAbandoning ? "Stopping processing..." : "Back"}
+              </button>
+            </div>
+            <div className="govuk-grid-column-full">
+              <LinearLoadingBar
+                label={
+                  status === "processing"
+                    ? "Document processing"
+                    : `Document status: ${status}`
+                }
+              />
+            </div>
 
-              <p className="govuk-body">
-                The system is analysing the uploaded document and identifying possible sensitive
-                information.
-              </p>
+            <div className="govuk-grid-column-two-thirds">
+              <section aria-labelledby="processing-heading">
+                <h1 className="govuk-heading-xl" id="processing-heading">
+                  Document processing
+                </h1>
 
-              <div className="hods-loading-spinner" role="status" aria-live="polite">
-                <span className="govuk-visually-hidden">
-                  {status === "processing" ? "Processing document" : `Status: ${status}`}
-                </span>
-                <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
-              </div>
-
-              <div className="govuk-inset-text" aria-live="polite">
                 <p className="govuk-body">
-                  <strong>Status:</strong>{" "}
-                  {status === "processing" ? "Processing document..." : status}
+                  This will take around 2 minutes for this document.
                 </p>
-              </div>
-            </section>
-          )}
-        </div>
+
+                <h2 className="govuk-heading-m">What is being processed</h2>
+
+                <p className="govuk-body">
+                  Justice Redact uses AI to try to highlight people&apos;s personal
+                  information and other phrases you might want to redact. It also tries
+                  to identify blank pages.
+                </p>
+
+                <div className="govuk-warning-text">
+                  <span className="govuk-warning-text__icon" aria-hidden="true">
+                    !
+                  </span>
+                  <strong className="govuk-warning-text__text">
+                    <span className="govuk-visually-hidden">Warning</span>
+                    Deciding what to redact is your responsibility. Justice Redact
+                    doesn&apos;t make any decisions for you.
+                  </strong>
+                </div>
+              </section>
+            </div>
+          </>
+        )}
       </div>
     </main>
   );
@@ -117,11 +259,8 @@ export default function ProcessingPage() {
       fallback={
         <main className="govuk-main-wrapper" id="main-content">
           <div className="govuk-grid-row">
-            <div className="govuk-grid-column-two-thirds">
-              <div className="hods-loading-spinner" role="status" aria-live="polite">
-                <span className="govuk-visually-hidden">Loading processing page</span>
-                <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
-              </div>
+            <div className="govuk-grid-column-full">
+              <LinearLoadingBar label="Loading processing page" />
             </div>
           </div>
         </main>
