@@ -61,6 +61,7 @@ const PAGES_PER_BATCH = 50;
 
 type ApplyRedactionsResponse = {
   documentId: string;
+  runId: string;
   status: string;
 };
 
@@ -352,7 +353,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         pageStatuses,
       );
 
-      await fetchJson<ApplyRedactionsResponse>(
+      const applyResponse = await fetchJson<ApplyRedactionsResponse>(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${data.documentId}/apply-redactions`,
         {
           method: "POST",
@@ -370,7 +371,9 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         }
       );
 
-      router.push(`/applying-redactions?documentId=${data.documentId}`);
+      router.push(
+        `/applying-redactions?documentId=${data.documentId}&runId=${applyResponse.runId}`
+      );
     } catch (err) {
       setApplyRedactionsError(
         err instanceof Error

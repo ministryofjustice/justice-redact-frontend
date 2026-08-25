@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { ApiError, fetchJson } from "../lib/api";
@@ -31,21 +31,64 @@ function ApplyingRedactionsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const documentId = searchParams.get("documentId");
+    const runId = searchParams.get("runId");
 
     const [status, setStatus] = useState("applying_redactions");
     const [error, setError] = useState<string | null>(null);
 
-    const displayedError = !documentId ? "Missing document ID." : error;
+    const [isCancelling, setIsCancelling] = useState(false);
+    const cancellationRequestedRef = useRef(false);
+
+    const displayedError = !documentId
+        ? "Missing document ID."
+        : !runId
+            ? "Missing redaction run ID."
+            : error;
+
+    async function handleBackToReview() {
+        if (!documentId || !runId || isCancelling) {
+            return;
+        }
+
+        cancellationRequestedRef.current = true;
+        setIsCancelling(true);
+        setError(null);
+
+        try {
+            await fetchJson(
+                `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                    documentId
+                )}/redaction-runs/${encodeURIComponent(runId)}/cancel`,
+                {
+                    method: "POST",
+                }
+            );
+
+            router.replace(
+                `/review?documentId=${encodeURIComponent(documentId)}`
+            );
+        } catch (err) {
+            cancellationRequestedRef.current = false;
+
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Unable to return to review. Try again."
+            );
+
+            setIsCancelling(false);
+        }
+    }
 
     useEffect(() => {
-        if (!documentId) return;
+        if (!documentId || !runId) return;
 
         let isActive = true;
         let timeoutId: ReturnType<typeof setTimeout> | null = null;
         let controller: AbortController | null = null;
 
         const scheduleNextPoll = () => {
-            if (!isActive) return;
+            if (!isActive || cancellationRequestedRef.current) return;
 
             timeoutId = setTimeout(() => {
                 void pollStatus();
@@ -67,6 +110,7 @@ function ApplyingRedactionsContent() {
                 );
 
                 if (!isActive) return;
+                if (cancellationRequestedRef.current) return;
 
                 setStatus(data.status);
                 setError(null);
@@ -118,7 +162,7 @@ function ApplyingRedactionsContent() {
                 clearTimeout(timeoutId);
             }
         };
-    }, [documentId, router]);
+    }, [documentId, runId, router]);
 
     return (
         <main className="govuk-main-wrapper" id="main-content">
@@ -148,6 +192,16 @@ function ApplyingRedactionsContent() {
                     </div>
                 ) : (
                     <>
+                        <div className="govuk-grid-column-full">
+                            <button
+                                type="button"
+                                className="govuk-back-link button-as-link"
+                                onClick={handleBackToReview}
+                                disabled={isCancelling}
+                            >
+                                {isCancelling ? "Returning to review..." : "Back"}
+                            </button>
+                        </div>
                         <div className="govuk-grid-column-full">
                             <LinearLoadingBar
                                 label={
