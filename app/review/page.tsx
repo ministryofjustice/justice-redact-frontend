@@ -43,6 +43,8 @@ import FindAndRedactModal from "./components/FindAndRedactModal";
 import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModal";
 import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
+import ServiceErrorPage from "../components/ServiceErrorPage";
+import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 
 import {
   buildPartialContentRanges,
@@ -75,7 +77,30 @@ function ReviewContent() {
   const searchParams = useSearchParams();
   const documentId = searchParams.get("documentId");
 
-  return <ReviewDocument key={documentId ?? "missing-document-id"} documentId={documentId} />;
+  const {
+    isChecking: isCheckingWorkflow,
+    errorVariant: workflowErrorVariant,
+  } = useWorkflowGuard("review", documentId);
+
+  if (isCheckingWorkflow) {
+    return null;
+  }
+
+  if (workflowErrorVariant) {
+    return (
+      <ServiceErrorPage
+        variant={workflowErrorVariant}
+        documentId={documentId}
+      />
+    );
+  }
+
+  return (
+    <ReviewDocument
+      key={documentId ?? "missing-document-id"}
+      documentId={documentId}
+    />
+  );
 }
 
 function ReviewDocument({ documentId }: { documentId: string | null }) {
@@ -952,6 +977,17 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         isOpen={isQuickHelpOpen}
         onClose={() => setIsQuickHelpOpen(false)}
       />
+      {selectedRangeStart === 0 && (
+        <div className="govuk-grid-column-full-width">
+          <button
+            type="button"
+            className="govuk-back-link button-as-link"
+            onClick={() => router.push("/upload")}
+          >
+            Back
+          </button>
+        </div>
+      )}
       <div className="govuk-grid-column-full-width">
         <h1 className="govuk-heading-xl jr-mark-for-redaction__header">
           Mark for redaction

@@ -9,6 +9,38 @@ test("Back cancels the exact redaction run and returns to Review", async ({
     let cancelledRunId: string | null = null;
 
     await page.route(
+        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
+        async (route) => {
+            const isCancelled = cancelledRunId === runId;
+
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                headers: {
+                    "Access-Control-Allow-Origin": "http://localhost:3000",
+                },
+                body: JSON.stringify(
+                    isCancelled
+                        ? {
+                            documentId,
+                            status: "ready_for_review",
+                            currentRedactionRunId: null,
+                            preferredPage: "review",
+                            allowedPages: ["review"],
+                        }
+                        : {
+                            documentId,
+                            status: "applying_redactions",
+                            currentRedactionRunId: runId,
+                            preferredPage: "applying-redactions",
+                            allowedPages: ["applying-redactions"],
+                        },
+                ),
+            });
+        },
+    );
+
+    await page.route(
         `http://127.0.0.1:8000/documents/${documentId}/status`,
         async (route) => {
             await route.fulfill({

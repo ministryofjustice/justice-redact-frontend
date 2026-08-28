@@ -6,16 +6,27 @@ import {
     loadReviewData,
 } from "./reviewDataCache";
 
-export function useReviewData(documentId: string | null) {
+export function useReviewData(
+    documentId: string | null,
+    enabled = true,
+) {
     const [data, setData] = useState<ReviewResponse | null>(() =>
-        documentId ? getCachedReviewData(documentId) ?? null : null
+        enabled && documentId
+            ? getCachedReviewData(documentId) ?? null
+            : null
     );
     const [isLoading, setIsLoading] = useState(
-        () => !documentId || !getCachedReviewData(documentId)
+        () =>
+            enabled &&
+            (!documentId || !getCachedReviewData(documentId))
     );
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        if (!enabled) {
+            return;
+        }
+
         let isActive = true;
 
         async function loadReview() {
@@ -64,7 +75,7 @@ export function useReviewData(documentId: string | null) {
         return () => {
             isActive = false;
         };
-    }, [documentId]);
+    }, [documentId, enabled]);
 
     return {
         data,

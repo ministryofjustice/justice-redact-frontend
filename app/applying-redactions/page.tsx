@@ -2,6 +2,8 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import ServiceErrorPage from "../components/ServiceErrorPage";
+import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 
 import { ApiError, fetchJson } from "../lib/api";
 
@@ -32,6 +34,15 @@ function ApplyingRedactionsContent() {
     const searchParams = useSearchParams();
     const documentId = searchParams.get("documentId");
     const runId = searchParams.get("runId");
+
+    const {
+        isChecking: isCheckingWorkflow,
+        errorVariant: workflowErrorVariant,
+    } = useWorkflowGuard(
+        "applying-redactions",
+        documentId,
+        runId,
+    );
 
     const [status, setStatus] = useState("applying_redactions");
     const [error, setError] = useState<string | null>(null);
@@ -81,7 +92,17 @@ function ApplyingRedactionsContent() {
     }
 
     useEffect(() => {
-        if (!documentId || !runId) return;
+        if (
+            !documentId ||
+            !runId ||
+            isCheckingWorkflow ||
+            workflowErrorVariant
+        ) {
+            return;
+        }
+
+        const currentDocumentId = documentId;
+        const currentRunId = runId;
 
         let isActive = true;
         let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -116,7 +137,11 @@ function ApplyingRedactionsContent() {
                 setError(null);
 
                 if (data.status === "redaction_complete") {
-                    router.push(`/export?documentId=${documentId}`);
+                    router.push(
+                        `/export?documentId=${encodeURIComponent(
+                            currentDocumentId,
+                        )}&runId=${encodeURIComponent(currentRunId)}`,
+                    );
                     return;
                 }
 
@@ -162,7 +187,26 @@ function ApplyingRedactionsContent() {
                 clearTimeout(timeoutId);
             }
         };
-    }, [documentId, runId, router]);
+    }, [
+        documentId,
+        runId,
+        isCheckingWorkflow,
+        workflowErrorVariant,
+        router,
+    ]);
+
+    if (isCheckingWorkflow) {
+        return null;
+    }
+
+    if (workflowErrorVariant) {
+        return (
+            <ServiceErrorPage
+                variant={workflowErrorVariant}
+                documentId={documentId}
+            />
+        );
+    }
 
     return (
         <main className="govuk-main-wrapper" id="main-content">

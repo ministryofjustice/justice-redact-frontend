@@ -3,6 +3,8 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchJson } from "../lib/api";
+import ServiceErrorPage from "../components/ServiceErrorPage";
+import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 
 type ProcessDocumentResponse = {
     documentId: string;
@@ -15,12 +17,30 @@ function SubjectDetailsContent() {
 
     const documentId = searchParams.get("documentId");
 
+    const {
+        isChecking: isCheckingWorkflow,
+        errorVariant: workflowErrorVariant,
+    } = useWorkflowGuard("subject-details", documentId);
+
     const [subjectName, setSubjectName] = useState("");
     const [subjectPrisonNumber, setSubjectPrisonNumber] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isAbandoning, setIsAbandoning] = useState(false);
     const otherPhrases = "";
+
+    if (isCheckingWorkflow) {
+        return null;
+    }
+
+    if (workflowErrorVariant) {
+        return (
+            <ServiceErrorPage
+                variant={workflowErrorVariant}
+                documentId={documentId}
+            />
+        );
+    }
 
     async function handleBackToUpload() {
         if (!documentId || isAbandoning) {

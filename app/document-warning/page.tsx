@@ -3,6 +3,8 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchJson } from "../lib/api";
+import ServiceErrorPage from "../components/ServiceErrorPage";
+import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 import type { WorkflowResponse } from "../lib/workflowNavigation";
 
 type WarningReason = "scanned" | "unsupported-document-type";
@@ -50,6 +52,24 @@ function DocumentWarningContent() {
     const documentId = searchParams.get("documentId");
     const filename = searchParams.get("filename") || "Uploaded document";
     const reason = searchParams.get("reason");
+
+    const {
+        isChecking: isCheckingWorkflow,
+        errorVariant: workflowErrorVariant,
+    } = useWorkflowGuard("document-warning", documentId);
+
+    if (isCheckingWorkflow) {
+        return null;
+    }
+
+    if (workflowErrorVariant) {
+        return (
+            <ServiceErrorPage
+                variant={workflowErrorVariant}
+                documentId={documentId}
+            />
+        );
+    }
 
     const warningContent = getWarningContent(reason);
 
