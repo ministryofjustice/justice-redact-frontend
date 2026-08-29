@@ -198,7 +198,7 @@ function DocumentWarningContent() {
 
 export default function DocumentWarningPage() {
     return (
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={null}>
             <DocumentWarningContent />
         </Suspense>
     );

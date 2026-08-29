@@ -74,9 +74,11 @@ export function useWorkflowGuard(
         const controller = new AbortController();
         let isActive = true;
 
-        async function checkWorkflow() {
+        async function checkWorkflow(showCheckingState = true) {
             try {
-                setIsChecking(true);
+                if (showCheckingState) {
+                    setIsChecking(true);
+                }
                 setErrorVariant(null);
                 setIsStaleRevision(false);
 
@@ -170,7 +172,7 @@ export function useWorkflowGuard(
                 currentPage === "export" &&
                 document.visibilityState === "visible"
             ) {
-                void checkWorkflow();
+                void checkWorkflow(false);
             }
         }
 

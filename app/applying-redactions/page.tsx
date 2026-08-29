@@ -239,7 +239,7 @@ function ApplyingRedactionsContent() {
                         <div className="govuk-grid-column-full">
                             <button
                                 type="button"
-                                className="govuk-back-link button-as-link"
+                                className="govuk-back-link govuk-back-link-button"
                                 onClick={handleBackToReview}
                                 disabled={isCancelling}
                             >
@@ -279,17 +279,7 @@ function ApplyingRedactionsContent() {
 
 export default function ApplyingRedactionsPage() {
     return (
-        <Suspense
-            fallback={
-                <main className="govuk-main-wrapper" id="main-content">
-                    <div className="govuk-grid-row">
-                        <div className="govuk-grid-column-full">
-                            <LinearLoadingBar label="Loading redaction progress" />
-                        </div>
-                    </div>
-                </main>
-            }
-        >
+        <Suspense fallback={null}>
             <ApplyingRedactionsContent />
         </Suspense>
     );

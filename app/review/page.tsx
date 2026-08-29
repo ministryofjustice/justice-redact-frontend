@@ -981,7 +981,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         <div className="govuk-grid-column-full-width">
           <button
             type="button"
-            className="govuk-back-link button-as-link"
+            className="govuk-back-link govuk-back-link-button"
             onClick={() => router.push("/upload")}
           >
             Back
@@ -1093,16 +1093,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
 export default function ReviewPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="govuk-main-wrapper" id="main-content">
-          <div className="hods-loading-spinner" role="status" aria-live="polite">
-            <span className="govuk-visually-hidden">Loading review page</span>
-            <div className="hods-loading-spinner__spinner" aria-hidden="true" />
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={null}>
       <ReviewContent />
     </Suspense>
   );

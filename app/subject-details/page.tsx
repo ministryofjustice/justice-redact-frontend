@@ -109,7 +109,7 @@ function SubjectDetailsContent() {
                 <div className="govuk-grid-column-two-thirds">
                     <button
                         type="button"
-                        className="govuk-back-link button-as-link"
+                        className="govuk-back-link govuk-back-link-button"
                         onClick={handleBackToUpload}
                         disabled={isAbandoning || isSubmitting}
                     >
@@ -197,16 +197,7 @@ function SubjectDetailsContent() {
 
 export default function SubjectDetailsPage() {
     return (
-        <Suspense
-            fallback={
-                <main className="govuk-main-wrapper" id="main-content">
-                    <div className="hods-loading-spinner" role="status" aria-live="polite">
-                        <span className="govuk-visually-hidden">Loading subject details</span>
-                        <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
-                    </div>
-                </main>
-            }
-        >
+        <Suspense fallback={null}>
             <SubjectDetailsContent />
         </Suspense>
     );

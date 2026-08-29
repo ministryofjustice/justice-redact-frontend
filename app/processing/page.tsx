@@ -227,7 +227,7 @@ function ProcessingContent() {
             <div className="govuk-grid-column-full">
               <button
                 type="button"
-                className="govuk-back-link button-as-link"
+                className="govuk-back-link govuk-back-link-button"
                 onClick={handleBackToUpload}
                 disabled={isAbandoning}
               >
@@ -283,17 +283,7 @@ function ProcessingContent() {
 
 export default function ProcessingPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="govuk-main-wrapper" id="main-content">
-          <div className="govuk-grid-row">
-            <div className="govuk-grid-column-full">
-              <LinearLoadingBar label="Loading processing page" />
-            </div>
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={null}>
       <ProcessingContent />
     </Suspense>
   );

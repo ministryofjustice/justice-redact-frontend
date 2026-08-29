@@ -383,19 +383,7 @@ function ExportDocumentRow({
 
 export default function ExportPage() {
     return (
-        <Suspense
-            fallback={
-                <main className="govuk-main-wrapper" id="main-content">
-                    <div className="govuk-grid-row">
-                        <div className="govuk-grid-column-full">
-                            <p className="govuk-body" role="status" aria-live="polite">
-                                Loading export page...
-                            </p>
-                        </div>
-                    </div>
-                </main>
-            }
-        >
+        <Suspense fallback={null}>
             <ExportContent />
         </Suspense>
     );
