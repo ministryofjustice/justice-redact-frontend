@@ -151,6 +151,8 @@ main {
 
 /* Mode dropdown and current-mode status */
 .jr-mode-status-group {
+  --jr-button-underline-height: 2px;
+
   flex-shrink: 0;
   gap: govuk.govuk-spacing(3);
 }
@@ -163,8 +165,6 @@ main {
 }
 
 .jr-mode-menu {
-  --jr-button-underline-height: 2px;
-
   position: relative;
   margin-right: 0;
 }
@@ -186,13 +186,14 @@ main {
   flex-shrink: 0;
 
   box-sizing: border-box;
-  height: 40px;
+  height: calc(40px - (var(--jr-button-underline-height) * 2));
   margin: 0;
-  padding: 0 10px;
+  padding: 5px 10px 6px;
 
   font-family: "GDS Transport", arial, sans-serif;
   font-size: 19px;
-  line-height: 1;
+  line-height: 1.3157894737;
+  font-weight: 400;
   white-space: nowrap;
 }
 
