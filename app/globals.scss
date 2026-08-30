@@ -155,19 +155,24 @@ main {
   gap: govuk.govuk-spacing(3);
 }
 
+/*
+ * Keep the standard Find in document menu directly beneath its button.
+ */
+.actions-bar .moj-button-menu__wrapper {
+  margin-top: 0;
+}
+
 .jr-mode-menu {
+  --jr-button-underline-height: 2px;
+
   position: relative;
   margin-right: 0;
 }
 
-/*
- * Unlike Find in document, the Mode menu is anchored to its right edge.
- * This means the menu expands towards the left.
- */
-.jr-mode-menu .moj-button-menu__wrapper {
+.actions-bar .jr-mode-menu .moj-button-menu__wrapper {
   right: 0;
   left: auto;
-  margin-top: 0;
+  margin-top: calc(var(--jr-button-underline-height) * 2);
 }
 
 .jr-mode-menu__item--active {
@@ -181,18 +186,14 @@ main {
   flex-shrink: 0;
 
   box-sizing: border-box;
-  min-height: 40px;
+  height: 40px;
   margin: 0;
-  padding: 8px 10px 7px;
+  padding: 0 10px;
 
   font-family: "GDS Transport", arial, sans-serif;
   font-size: 19px;
   line-height: 1;
   white-space: nowrap;
-}
-
-.actions-bar .moj-button-menu__wrapper {
-  margin-top: 0;
 }
 
 /* Shared review modal */
