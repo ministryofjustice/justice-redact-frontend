@@ -188,12 +188,13 @@ main {
   box-sizing: border-box;
   height: calc(40px - (var(--jr-button-underline-height) * 2));
   margin: 0;
-  padding: 5px 10px 6px;
+  padding: 0 10px;
 
   font-family: "GDS Transport", arial, sans-serif;
   font-size: 19px;
   line-height: 1.3157894737;
   font-weight: 400;
+  text-align: center;
   white-space: nowrap;
 }
 
