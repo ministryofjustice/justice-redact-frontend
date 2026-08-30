@@ -19,6 +19,16 @@ main {
   padding-top: 0;
 }
 
+.jr-app-body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.jr-app-content {
+  flex: 1 0 auto;
+}
+
 .govuk-width-container {
   margin-top: 0;
 }
