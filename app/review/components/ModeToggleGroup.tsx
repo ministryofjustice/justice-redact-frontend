@@ -182,7 +182,9 @@ export default function ModeToggleGroup({
             <strong
                 className={`govuk-tag jr-mode-status-tag ${selectedMode.statusClass}`}
             >
-                {selectedMode.statusLabel}
+                <span className="jr-mode-status-tag__text">
+                    {selectedMode.statusLabel}
+                </span>
             </strong>
         </div>
     );
