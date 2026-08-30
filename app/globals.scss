@@ -134,8 +134,7 @@ main {
 }
 
 .actions-bar__left,
-.jr-mode-toggle,
-.jr-mode-toggle__buttons {
+.jr-mode-status-group {
   display: flex;
   align-items: center;
 }
@@ -145,61 +144,40 @@ main {
 }
 
 .actions-bar .actions-bar__left .govuk-button,
-.actions-bar .jr-mode-toggle__buttons .govuk-button {
+.actions-bar .jr-mode-menu>.govuk-button {
   width: auto;
   margin: 0;
 }
 
-.actions-bar .jr-mode-toggle__buttons {
-  margin: 0;
-}
-
-.jr-mode-toggle {
+/* Mode dropdown and current-mode status */
+.jr-mode-status-group {
   flex-shrink: 0;
   gap: govuk.govuk-spacing(3);
 }
 
-.jr-mode-toggle__label {
-  display: inline-flex;
-  align-items: center;
+.jr-mode-menu {
+  position: relative;
+  margin-right: 0;
+}
+
+/*
+ * Unlike Find in document, the Mode menu is anchored to its right edge.
+ * This means the menu expands towards the left.
+ */
+.jr-mode-menu .moj-button-menu__wrapper {
+  right: 0;
+  left: auto;
+  margin-top: 0;
+}
+
+.jr-mode-menu__item--active {
+  font-weight: 700;
+}
+
+.jr-mode-status-tag {
+  flex-shrink: 0;
   margin: 0;
   white-space: nowrap;
-  font-family: "GDS Transport", arial, sans-serif;
-  font-size: 19px;
-  line-height: 1;
-}
-
-.jr-mode-toggle__buttons {
-  gap: govuk.govuk-spacing(3);
-  margin: 0;
-}
-
-.govuk-button--secondary.jr-mode-toggle__button--active {
-  background-color: var(--govuk-link-colour, #1a65a6);
-  color: govuk.govuk-colour("white");
-  border-color: var(--govuk-link-colour, #1a65a6);
-  border-bottom: 4px solid var(--govuk-link-colour, #1a65a6);
-  box-shadow: 0 -2px var(--govuk-link-hover-colour, #0f385c);
-}
-
-.govuk-button--secondary.jr-mode-toggle__button--active:hover {
-  background-color: var(--govuk-link-hover-colour, #0f385c);
-  color: govuk.govuk-colour("white");
-  border-color: var(--govuk-link-hover-colour, #0f385c);
-}
-
-.govuk-button--secondary.jr-mode-toggle__button--active:focus:hover {
-  background-color: govuk.govuk-functional-colour("link-hover");
-  color: govuk.govuk-colour("white");
-  border-color: govuk.govuk-functional-colour("link-hover");
-  box-shadow: 0 -2px govuk.govuk-functional-colour("link-hover");
-  outline: none;
-}
-
-.govuk-button--secondary.jr-mode-toggle__button--active:active {
-  background-color: var(--govuk-link-hover-colour, #0f385c);
-  color: govuk.govuk-colour("white");
-  border-color: var(--govuk-link-hover-colour, #0f385c);
 }
 
 .actions-bar .moj-button-menu__wrapper {
