@@ -113,4 +113,42 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
     await expect(page).toHaveURL(
         `/export?documentId=${documentId}&runId=${oldRunId}`,
     );
+
+    // Simulate the stale tab being refreshed or restored after the browser
+    // has discarded its in-memory React state.
+    await page.reload();
+
+    await expect(
+        page.getByRole("heading", {
+            name: "A newer version of this document exists",
+        }),
+    ).toBeVisible();
+
+    await expect(
+        page.getByText(
+            "You can no longer download files from this version.",
+        ),
+    ).toBeVisible();
+
+    await expect(
+        page.getByRole("table", {
+            name: "Exported documents",
+        }),
+    ).toBeVisible();
+
+    await expect(
+        page.getByRole("link", { name: "Download" }),
+    ).toHaveCount(0);
+
+    await expect(
+        page.getByText("Not available"),
+    ).toHaveCount(2);
+
+    await expect(
+        page.getByText("Loading export details..."),
+    ).toHaveCount(0);
+
+    await expect(page).toHaveURL(
+        `/export?documentId=${documentId}&runId=${oldRunId}`,
+    );
 });

@@ -74,8 +74,7 @@ function ExportContent() {
             !documentId ||
             !runId ||
             isCheckingWorkflow ||
-            workflowErrorVariant ||
-            showStaleRevision
+            workflowErrorVariant
         ) {
             return;
         }
@@ -149,7 +148,6 @@ function ExportContent() {
         runId,
         isCheckingWorkflow,
         workflowErrorVariant,
-        showStaleRevision,
     ]);
 
     if (isCheckingWorkflow) {
@@ -291,7 +289,7 @@ function ExportContent() {
                                             downloadUrl={redactedDownloadUrl}
                                         />
 
-                                        {exemptDownloadUrl && (
+                                        {data?.exemptExportUrl && (
                                             <ExportDocumentRow
                                                 name="Exempted"
                                                 description="A document containing every page you marked as exempt, with all highlights removed."
