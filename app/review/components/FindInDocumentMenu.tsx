@@ -86,7 +86,7 @@ export default function FindInDocumentMenu({
                 onClick={() => setIsOpen((open) => !open)}
             >
                 <span>
-                    Find in document
+                    Find
                     <svg
                         width="11"
                         height="5"

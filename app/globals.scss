@@ -175,8 +175,19 @@ main {
 }
 
 .jr-mode-status-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+
+  box-sizing: border-box;
+  min-height: 40px;
   margin: 0;
+  padding: 8px 10px 7px;
+
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 19px;
+  line-height: 1;
   white-space: nowrap;
 }
 
