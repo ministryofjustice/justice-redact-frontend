@@ -47,10 +47,12 @@ export default function RootLayout({
           </div>
         </header>
 
-        <div className="govuk-width-container jr-app-content">
-          <main className="govuk-main-wrapper" id="main-content">
-            {children}
-          </main>
+        <div className="jr-app-content">
+          <div className="govuk-width-container">
+            <main className="govuk-main-wrapper" id="main-content">
+              {children}
+            </main>
+          </div>
         </div>
 
         <GovukFooter />
