@@ -52,6 +52,7 @@ function ExportContent() {
 
     const {
         isChecking: isCheckingWorkflow,
+        workflow,
         errorVariant: workflowErrorVariant,
         isStaleRevision,
     } = useWorkflowGuard(
@@ -175,6 +176,17 @@ function ExportContent() {
         ? null
         : buildDownloadUrl(data?.exemptExportUrl);
 
+    const latestExportUrl =
+        showStaleRevision &&
+            workflow?.currentRedactionRunId &&
+            workflow.allowedPages.includes("export")
+            ? `/export?documentId=${encodeURIComponent(
+                workflow.documentId,
+            )}&runId=${encodeURIComponent(
+                workflow.currentRedactionRunId,
+            )}`
+            : null;
+
     return (
         <main className="govuk-main-wrapper" id="main-content">
             <div className="govuk-grid-row">
@@ -218,7 +230,21 @@ function ExportContent() {
                                 <h2 className="moj-alert__heading">
                                     A newer version of this document exists
                                 </h2>
-                                You can no longer download files from this version.
+
+                                <p className="govuk-body">
+                                    You can no longer download files from this version.
+                                </p>
+
+                                {latestExportUrl && (
+                                    <p className="govuk-body">
+                                        <Link
+                                            href={latestExportUrl}
+                                            className="govuk-link govuk-link--no-visited-state"
+                                        >
+                                            Go to the latest version
+                                        </Link>
+                                    </p>
+                                )}
                             </div>
                         </div>
                     )}
