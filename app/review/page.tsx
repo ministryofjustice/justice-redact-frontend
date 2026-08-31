@@ -1131,7 +1131,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         <button
           ref={redactionRemoveMenuRef}
           type="button"
-          className="jr-redaction-remove-button jr-redaction-remove-menu"
+          className="jr-redaction-remove-menu"
           aria-label="Remove redaction"
           title="Remove redaction"
           style={{
