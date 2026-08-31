@@ -46,7 +46,6 @@ export default function HighlightKey() {
 
             <details
                 className="govuk-details govuk-!-width-one-half jr-highlight-key__details"
-                open
             >
                 <summary className="govuk-details__summary">
                     <span className="govuk-details__summary-text">
