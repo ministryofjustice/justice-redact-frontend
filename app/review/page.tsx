@@ -23,6 +23,7 @@ import ReviewPagination from "./components/ReviewPagination";
 import ReviewStatusMessages from "./components/ReviewStatusMessages";
 import QuickHelpModal from "./components/QuickHelpModal";
 import { clampRangeValue } from "./textRendering";
+import HighlightKey from "./components/HighlightKey";
 import {
   getClosestElementWithAttribute,
   getTextOffsetWithinItem,
@@ -1206,6 +1207,8 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           Mark for redaction
         </h1>
       </div>
+
+      <HighlightKey />
 
       <ReviewStatusMessages
         isLoading={isLoading}

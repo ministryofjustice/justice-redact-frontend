@@ -684,6 +684,32 @@ main {
   }
 }
 
+/* Highlight key */
+.jr-highlight-key {
+  box-sizing: border-box;
+  padding: 20px 0 0;
+}
+
+.jr-highlight-key__table {
+  margin-bottom: 20px;
+}
+
+.jr-highlight-key__details {
+  margin-bottom: 50px;
+}
+
+/*
+ * The redaction shown in the key is an example only.
+ * It must not look interactive.
+ */
+.jr-highlight-key__redaction,
+.jr-highlight-key__redaction:hover,
+.jr-highlight-key__redaction.highlight--redaction-hover {
+  cursor: text;
+  border-top-width: 2px;
+  border-bottom-width: 2px;
+}
+
 /* Loading spinner */
 .hods-loading-spinner {
   align-items: left;
