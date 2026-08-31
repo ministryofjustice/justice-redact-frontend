@@ -712,6 +712,69 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     setManualSelections((prev) => prev.filter((selection) => selection.id !== id));
   }
 
+  function getManualRedactionId(target: EventTarget | null) {
+    if (!(target instanceof Element)) {
+      return null;
+    }
+
+    const element = target.closest<HTMLElement>("[data-manual-id]");
+
+    return element?.dataset.manualId ?? null;
+  }
+
+  function setManualRedactionHover(manualId: string, isHovered: boolean) {
+    document
+      .querySelectorAll<HTMLElement>("[data-manual-id]")
+      .forEach((element) => {
+        if (element.dataset.manualId === manualId) {
+          element.classList.toggle(
+            "highlight--redaction-hover",
+            isHovered
+          );
+        }
+      });
+  }
+
+  function handleRedactionMouseOver(event: MouseEvent<HTMLElement>) {
+    if (!isRedactMode) {
+      return;
+    }
+
+    const manualId = getManualRedactionId(event.target);
+
+    if (!manualId) {
+      return;
+    }
+
+    const relatedManualId = getManualRedactionId(event.relatedTarget);
+
+    if (relatedManualId === manualId) {
+      return;
+    }
+
+    setManualRedactionHover(manualId, true);
+  }
+
+  function handleRedactionMouseOut(event: MouseEvent<HTMLElement>) {
+    if (!isRedactMode) {
+      return;
+    }
+
+    const manualId = getManualRedactionId(event.target);
+
+    if (!manualId) {
+      return;
+    }
+
+    const relatedManualId = getManualRedactionId(event.relatedTarget);
+
+    if (relatedManualId === manualId) {
+      return;
+    }
+
+    setManualRedactionHover(manualId, false);
+  }
+
   function handleRedactionClick(event: MouseEvent<HTMLElement>) {
     if (!isRedactMode) return;
 
@@ -1006,6 +1069,8 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
               const handledTable = handleTableCellSelection();
               if (!handledTable) handleTextSelection();
             }}
+            onMouseOver={handleRedactionMouseOver}
+            onMouseOut={handleRedactionMouseOut}
             onClick={handleRedactionClick}
           >
             {visiblePages.map((page) => {
