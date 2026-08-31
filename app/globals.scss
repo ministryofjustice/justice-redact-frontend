@@ -564,6 +564,35 @@ main {
   -webkit-box-decoration-break: clone;
 }
 
+.jr-redaction-remove-menu {
+  display: inline-block;
+  width: max-content;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid #b1b4b6;
+  background: #ffffff;
+  color: #0b0c0c;
+  box-shadow: 0 6px 12px rgba(11, 12, 12, 0.18);
+  text-align: left;
+  cursor: pointer;
+}
+
+.jr-redaction-remove-menu:hover {
+  background: #767676;
+  color: #ffffff;
+}
+
+.jr-redaction-remove-menu__item {
+  display: block;
+  padding: 11px;
+  color: inherit;
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 19px;
+  line-height: 1.3157894737;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
 /* Manual redactions panel */
 .jr-manual-redactions-panel {
   width: 960px;

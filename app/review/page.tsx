@@ -123,6 +123,11 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const decisionRevisionRef = useRef(0);
   const [decisionSaveError, setDecisionSaveError] = useState<string | null>(null);
   const [hasDecisionConflict, setHasDecisionConflict] = useState(false);
+  const [redactionRemoveMenu, setRedactionRemoveMenu] = useState<{
+    manualId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeDecisionSaveRef =
     useRef<Promise<SaveRedactionDecisionsResponse> | null>(null);
@@ -775,16 +780,24 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     setManualRedactionHover(manualId, false);
   }
 
-  function handleRedactionClick(event: MouseEvent<HTMLElement>) {
-    if (!isRedactMode) return;
-
-    const target = event.target as HTMLElement | null;
-    const element = target?.closest?.("[data-manual-id]") as HTMLElement | null;
-    const manualId = element?.dataset?.manualId;
-
-    if (manualId) {
-      removeManualSelection(manualId);
+  function handleRedactionContextMenu(event: MouseEvent<HTMLElement>) {
+    if (!isRedactMode) {
+      return;
     }
+
+    const manualId = getManualRedactionId(event.target);
+
+    if (!manualId) {
+      return;
+    }
+
+    event.preventDefault();
+
+    setRedactionRemoveMenu({
+      manualId,
+      x: event.clientX,
+      y: event.clientY,
+    });
   }
 
   function toggleImageRedaction(pageNumber: number, imageId: string) {
@@ -1006,6 +1019,34 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   return (
     <div className="jr-review-root">
+      {redactionRemoveMenu && (
+        <button
+          type="button"
+          className="jr-redaction-remove-button jr-redaction-remove-menu"
+          aria-label="Remove redaction"
+          title="Remove redaction"
+          style={{
+            position: "fixed",
+            left: redactionRemoveMenu.x,
+            top: redactionRemoveMenu.y,
+            zIndex: 20,
+          }}
+          onMouseEnter={() => {
+            setManualRedactionHover(redactionRemoveMenu.manualId, true);
+          }}
+          onMouseLeave={() => {
+            setManualRedactionHover(redactionRemoveMenu.manualId, false);
+          }}
+          onClick={() => {
+            removeManualSelection(redactionRemoveMenu.manualId);
+            setRedactionRemoveMenu(null);
+          }}
+        >
+          <span className="jr-redaction-remove-menu__item">
+            Remove redaction
+          </span>
+        </button>
+      )}
       <ReviewControlsHeader
         filename={data?.filename || "Document"}
         reviewMode={reviewMode}
@@ -1071,7 +1112,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
             }}
             onMouseOver={handleRedactionMouseOver}
             onMouseOut={handleRedactionMouseOut}
-            onClick={handleRedactionClick}
+            onContextMenu={handleRedactionContextMenu}
           >
             {visiblePages.map((page) => {
               const findingsForPage = data.findings.filter(
