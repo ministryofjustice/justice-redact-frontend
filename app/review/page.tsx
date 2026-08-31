@@ -104,13 +104,12 @@ function ReviewContent() {
 }
 
 function ReviewDocument({ documentId }: { documentId: string | null }) {
+
   const router = useRouter();
 
   const [selectedRangeStart, setSelectedRangeStart] = useState(0);
   const [manualSelections, setManualSelections] = useState<ManualDecision[]>([]);
   const [reviewMode, setReviewMode] = useState<ReviewMode>("redact");
-  const isPreviewMode = reviewMode === "preview";
-  const isRedactMode = reviewMode === "redact";
   const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
   const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
   const [pageStatuses, setPageStatuses] = useState<Record<number, PageStatus>>({});
@@ -120,7 +119,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
   const [hasLoadedPersistedDecisions, setHasLoadedPersistedDecisions] =
     useState(false);
-  const decisionRevisionRef = useRef(0);
   const [decisionSaveError, setDecisionSaveError] = useState<string | null>(null);
   const [hasDecisionConflict, setHasDecisionConflict] = useState(false);
   const [redactionRemoveMenu, setRedactionRemoveMenu] = useState<{
@@ -128,11 +126,98 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     x: number;
     y: number;
   } | null>(null);
+
+  const decisionRevisionRef = useRef(0);
+  const redactionRemoveTriggerRef = useRef<HTMLElement | null>(null);
+  const redactionRemoveMenuRef = useRef<HTMLButtonElement | null>(null);
   const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeDecisionSaveRef =
     useRef<Promise<SaveRedactionDecisionsResponse> | null>(null);
 
   const { data, isLoading, error } = useReviewData(documentId);
+
+  const isPreviewMode = reviewMode === "preview";
+  const isRedactMode = reviewMode === "redact";
+
+  useEffect(() => {
+    if (!isRedactMode && redactionRemoveMenu) {
+      setManualRedactionHover(
+        redactionRemoveMenu.manualId,
+        false
+      );
+
+      setRedactionRemoveMenu(null);
+      redactionRemoveTriggerRef.current = null;
+    }
+  }, [isRedactMode, redactionRemoveMenu]);
+
+  useEffect(() => {
+    if (!redactionRemoveMenu) {
+      return;
+    }
+
+    const { manualId } = redactionRemoveMenu;
+
+    function clearRedactionHover() {
+      document
+        .querySelectorAll<HTMLElement>("[data-manual-id]")
+        .forEach((element) => {
+          if (element.dataset.manualId === manualId) {
+            element.classList.remove("highlight--redaction-hover");
+          }
+        });
+    }
+
+    function dismissMenu(restoreFocus = false) {
+      clearRedactionHover();
+      setRedactionRemoveMenu(null);
+
+      if (restoreFocus) {
+        requestAnimationFrame(() => {
+          redactionRemoveTriggerRef.current?.focus();
+        });
+      }
+    }
+
+    function handleMouseDown(event: globalThis.MouseEvent) {
+      if (!(event.target instanceof Node)) {
+        return;
+      }
+
+      if (redactionRemoveMenuRef.current?.contains(event.target)) {
+        return;
+      }
+
+      dismissMenu();
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      dismissMenu(true);
+    }
+
+    function handleViewportChange() {
+      dismissMenu();
+    }
+
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    window.addEventListener("scroll", handleViewportChange, true);
+    window.addEventListener("resize", handleViewportChange);
+
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleKeyDown);
+
+      window.removeEventListener("scroll", handleViewportChange, true);
+      window.removeEventListener("resize", handleViewportChange);
+    };
+  }, [redactionRemoveMenu]);
 
   useEffect(() => {
     if (!documentId || !data) {
@@ -740,6 +825,20 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       });
   }
 
+  function closeRedactionRemoveMenu(restoreFocus = false) {
+    if (redactionRemoveMenu) {
+      setManualRedactionHover(redactionRemoveMenu.manualId, false);
+    }
+
+    setRedactionRemoveMenu(null);
+
+    if (restoreFocus) {
+      requestAnimationFrame(() => {
+        redactionRemoveTriggerRef.current?.focus();
+      });
+    }
+  }
+
   function handleRedactionMouseOver(event: MouseEvent<HTMLElement>) {
     if (!isRedactMode) {
       return;
@@ -785,13 +884,22 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return;
     }
 
-    const manualId = getManualRedactionId(event.target);
+    const target = event.target;
 
-    if (!manualId) {
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const element = target.closest<HTMLElement>("[data-manual-id]");
+    const manualId = element?.dataset.manualId;
+
+    if (!element || !manualId) {
       return;
     }
 
     event.preventDefault();
+
+    redactionRemoveTriggerRef.current = element;
 
     setRedactionRemoveMenu({
       manualId,
@@ -1021,6 +1129,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     <div className="jr-review-root">
       {redactionRemoveMenu && (
         <button
+          ref={redactionRemoveMenuRef}
           type="button"
           className="jr-redaction-remove-button jr-redaction-remove-menu"
           aria-label="Remove redaction"
@@ -1039,7 +1148,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           }}
           onClick={() => {
             removeManualSelection(redactionRemoveMenu.manualId);
-            setRedactionRemoveMenu(null);
+            closeRedactionRemoveMenu();
           }}
         >
           <span className="jr-redaction-remove-menu__item">
