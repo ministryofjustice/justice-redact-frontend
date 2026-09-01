@@ -23,6 +23,7 @@ import ReviewPagination from "./components/ReviewPagination";
 import ReviewStatusMessages from "./components/ReviewStatusMessages";
 import QuickHelpModal from "./components/QuickHelpModal";
 import { clampRangeValue } from "./textRendering";
+import HighlightKey from "./components/HighlightKey";
 import {
   getClosestElementWithAttribute,
   getTextOffsetWithinItem,
@@ -43,6 +44,8 @@ import FindAndRedactModal from "./components/FindAndRedactModal";
 import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModal";
 import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
+import ServiceErrorPage from "../components/ServiceErrorPage";
+import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 
 import {
   buildPartialContentRanges,
@@ -61,6 +64,7 @@ const PAGES_PER_BATCH = 50;
 
 type ApplyRedactionsResponse = {
   documentId: string;
+  runId: string;
   status: string;
 };
 
@@ -74,17 +78,39 @@ function ReviewContent() {
   const searchParams = useSearchParams();
   const documentId = searchParams.get("documentId");
 
-  return <ReviewDocument key={documentId ?? "missing-document-id"} documentId={documentId} />;
+  const {
+    isChecking: isCheckingWorkflow,
+    errorVariant: workflowErrorVariant,
+  } = useWorkflowGuard("review", documentId);
+
+  if (isCheckingWorkflow) {
+    return null;
+  }
+
+  if (workflowErrorVariant) {
+    return (
+      <ServiceErrorPage
+        variant={workflowErrorVariant}
+        documentId={documentId}
+      />
+    );
+  }
+
+  return (
+    <ReviewDocument
+      key={documentId ?? "missing-document-id"}
+      documentId={documentId}
+    />
+  );
 }
 
 function ReviewDocument({ documentId }: { documentId: string | null }) {
+
   const router = useRouter();
 
   const [selectedRangeStart, setSelectedRangeStart] = useState(0);
   const [manualSelections, setManualSelections] = useState<ManualDecision[]>([]);
   const [reviewMode, setReviewMode] = useState<ReviewMode>("redact");
-  const isPreviewMode = reviewMode === "preview";
-  const isRedactMode = reviewMode === "redact";
   const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
   const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
   const [pageStatuses, setPageStatuses] = useState<Record<number, PageStatus>>({});
@@ -94,14 +120,105 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
   const [hasLoadedPersistedDecisions, setHasLoadedPersistedDecisions] =
     useState(false);
-  const decisionRevisionRef = useRef(0);
   const [decisionSaveError, setDecisionSaveError] = useState<string | null>(null);
   const [hasDecisionConflict, setHasDecisionConflict] = useState(false);
+  const [redactionRemoveMenu, setRedactionRemoveMenu] = useState<{
+    manualId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const decisionRevisionRef = useRef(0);
+  const redactionRemoveTriggerRef = useRef<HTMLElement | null>(null);
+  const redactionRemoveMenuRef = useRef<HTMLButtonElement | null>(null);
   const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeDecisionSaveRef =
     useRef<Promise<SaveRedactionDecisionsResponse> | null>(null);
 
   const { data, isLoading, error } = useReviewData(documentId);
+
+  const isPreviewMode = reviewMode === "preview";
+  const isRedactMode = reviewMode === "redact";
+
+  useEffect(() => {
+    if (!isRedactMode && redactionRemoveMenu) {
+      setManualRedactionHover(
+        redactionRemoveMenu.manualId,
+        false
+      );
+
+      setRedactionRemoveMenu(null);
+      redactionRemoveTriggerRef.current = null;
+    }
+  }, [isRedactMode, redactionRemoveMenu]);
+
+  useEffect(() => {
+    if (!redactionRemoveMenu) {
+      return;
+    }
+
+    const { manualId } = redactionRemoveMenu;
+
+    function clearRedactionHover() {
+      document
+        .querySelectorAll<HTMLElement>("[data-manual-id]")
+        .forEach((element) => {
+          if (element.dataset.manualId === manualId) {
+            element.classList.remove("highlight--redaction-hover");
+          }
+        });
+    }
+
+    function dismissMenu(restoreFocus = false) {
+      clearRedactionHover();
+      setRedactionRemoveMenu(null);
+
+      if (restoreFocus) {
+        requestAnimationFrame(() => {
+          redactionRemoveTriggerRef.current?.focus();
+        });
+      }
+    }
+
+    function handleMouseDown(event: globalThis.MouseEvent) {
+      if (!(event.target instanceof Node)) {
+        return;
+      }
+
+      if (redactionRemoveMenuRef.current?.contains(event.target)) {
+        return;
+      }
+
+      dismissMenu();
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      dismissMenu(true);
+    }
+
+    function handleViewportChange() {
+      dismissMenu();
+    }
+
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    window.addEventListener("scroll", handleViewportChange, true);
+    window.addEventListener("resize", handleViewportChange);
+
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleKeyDown);
+
+      window.removeEventListener("scroll", handleViewportChange, true);
+      window.removeEventListener("resize", handleViewportChange);
+    };
+  }, [redactionRemoveMenu]);
 
   useEffect(() => {
     if (!documentId || !data) {
@@ -352,7 +469,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         pageStatuses,
       );
 
-      await fetchJson<ApplyRedactionsResponse>(
+      const applyResponse = await fetchJson<ApplyRedactionsResponse>(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${data.documentId}/apply-redactions`,
         {
           method: "POST",
@@ -370,7 +487,9 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         }
       );
 
-      router.push(`/applying-redactions?documentId=${data.documentId}`);
+      router.push(
+        `/applying-redactions?documentId=${data.documentId}&runId=${applyResponse.runId}`
+      );
     } catch (err) {
       setApplyRedactionsError(
         err instanceof Error
@@ -684,16 +803,110 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     setManualSelections((prev) => prev.filter((selection) => selection.id !== id));
   }
 
-  function handleRedactionClick(event: MouseEvent<HTMLElement>) {
-    if (!isRedactMode) return;
-
-    const target = event.target as HTMLElement | null;
-    const element = target?.closest?.("[data-manual-id]") as HTMLElement | null;
-    const manualId = element?.dataset?.manualId;
-
-    if (manualId) {
-      removeManualSelection(manualId);
+  function getManualRedactionId(target: EventTarget | null) {
+    if (!(target instanceof Element)) {
+      return null;
     }
+
+    const element = target.closest<HTMLElement>("[data-manual-id]");
+
+    return element?.dataset.manualId ?? null;
+  }
+
+  function setManualRedactionHover(manualId: string, isHovered: boolean) {
+    document
+      .querySelectorAll<HTMLElement>("[data-manual-id]")
+      .forEach((element) => {
+        if (element.dataset.manualId === manualId) {
+          element.classList.toggle(
+            "highlight--redaction-hover",
+            isHovered
+          );
+        }
+      });
+  }
+
+  function closeRedactionRemoveMenu(restoreFocus = false) {
+    if (redactionRemoveMenu) {
+      setManualRedactionHover(redactionRemoveMenu.manualId, false);
+    }
+
+    setRedactionRemoveMenu(null);
+
+    if (restoreFocus) {
+      requestAnimationFrame(() => {
+        redactionRemoveTriggerRef.current?.focus();
+      });
+    }
+  }
+
+  function handleRedactionMouseOver(event: MouseEvent<HTMLElement>) {
+    if (!isRedactMode) {
+      return;
+    }
+
+    const manualId = getManualRedactionId(event.target);
+
+    if (!manualId) {
+      return;
+    }
+
+    const relatedManualId = getManualRedactionId(event.relatedTarget);
+
+    if (relatedManualId === manualId) {
+      return;
+    }
+
+    setManualRedactionHover(manualId, true);
+  }
+
+  function handleRedactionMouseOut(event: MouseEvent<HTMLElement>) {
+    if (!isRedactMode) {
+      return;
+    }
+
+    const manualId = getManualRedactionId(event.target);
+
+    if (!manualId) {
+      return;
+    }
+
+    const relatedManualId = getManualRedactionId(event.relatedTarget);
+
+    if (relatedManualId === manualId) {
+      return;
+    }
+
+    setManualRedactionHover(manualId, false);
+  }
+
+  function handleRedactionContextMenu(event: MouseEvent<HTMLElement>) {
+    if (!isRedactMode) {
+      return;
+    }
+
+    const target = event.target;
+
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const element = target.closest<HTMLElement>("[data-manual-id]");
+    const manualId = element?.dataset.manualId;
+
+    if (!element || !manualId) {
+      return;
+    }
+
+    event.preventDefault();
+
+    redactionRemoveTriggerRef.current = element;
+
+    setRedactionRemoveMenu({
+      manualId,
+      x: event.clientX,
+      y: event.clientY,
+    });
   }
 
   function toggleImageRedaction(pageNumber: number, imageId: string) {
@@ -915,6 +1128,35 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   return (
     <div className="jr-review-root">
+      {redactionRemoveMenu && (
+        <button
+          ref={redactionRemoveMenuRef}
+          type="button"
+          className="jr-redaction-remove-menu"
+          aria-label="Remove redaction"
+          title="Remove redaction"
+          style={{
+            position: "fixed",
+            left: redactionRemoveMenu.x,
+            top: redactionRemoveMenu.y,
+            zIndex: 20,
+          }}
+          onMouseEnter={() => {
+            setManualRedactionHover(redactionRemoveMenu.manualId, true);
+          }}
+          onMouseLeave={() => {
+            setManualRedactionHover(redactionRemoveMenu.manualId, false);
+          }}
+          onClick={() => {
+            removeManualSelection(redactionRemoveMenu.manualId);
+            closeRedactionRemoveMenu();
+          }}
+        >
+          <span className="jr-redaction-remove-menu__item">
+            Remove redaction
+          </span>
+        </button>
+      )}
       <ReviewControlsHeader
         filename={data?.filename || "Document"}
         reviewMode={reviewMode}
@@ -949,11 +1191,24 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         isOpen={isQuickHelpOpen}
         onClose={() => setIsQuickHelpOpen(false)}
       />
+      {selectedRangeStart === 0 && (
+        <div className="govuk-grid-column-full-width">
+          <button
+            type="button"
+            className="govuk-back-link govuk-back-link-button"
+            onClick={() => router.push("/upload")}
+          >
+            Back
+          </button>
+        </div>
+      )}
       <div className="govuk-grid-column-full-width">
         <h1 className="govuk-heading-xl jr-mark-for-redaction__header">
           Mark for redaction
         </h1>
       </div>
+
+      <HighlightKey />
 
       <ReviewStatusMessages
         isLoading={isLoading}
@@ -967,7 +1222,9 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
               const handledTable = handleTableCellSelection();
               if (!handledTable) handleTextSelection();
             }}
-            onClick={handleRedactionClick}
+            onMouseOver={handleRedactionMouseOver}
+            onMouseOut={handleRedactionMouseOut}
+            onContextMenu={handleRedactionContextMenu}
           >
             {visiblePages.map((page) => {
               const findingsForPage = data.findings.filter(
@@ -1054,16 +1311,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
 export default function ReviewPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="govuk-main-wrapper" id="main-content">
-          <div className="hods-loading-spinner" role="status" aria-live="polite">
-            <span className="govuk-visually-hidden">Loading review page</span>
-            <div className="hods-loading-spinner__spinner" aria-hidden="true" />
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={null}>
       <ReviewContent />
     </Suspense>
   );

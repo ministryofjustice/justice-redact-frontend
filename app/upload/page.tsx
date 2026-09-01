@@ -29,8 +29,8 @@ export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const isSubmittingRef = useRef(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function handleFileChange() {
@@ -59,134 +59,162 @@ export default function UploadPage() {
     pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
     const buffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-    const metadata = await pdf.getMetadata().catch(() => null);
+    const loadingTask = pdfjsLib.getDocument({ data: buffer });
 
-    const metadataTitle =
-      "info" in (metadata ?? {}) &&
-        metadata?.info &&
-        "Title" in metadata.info &&
-        typeof metadata.info.Title === "string"
-        ? metadata.info.Title
-        : "";
+    try {
+      const pdf = await loadingTask.promise;
+      const metadata = await pdf.getMetadata().catch(() => null);
 
-    const allBodyLines: string[] = [];
-    const allDocumentLines: string[] = [];
-    const firstPageLines: string[] = [];
+      const metadataTitle =
+        "info" in (metadata ?? {}) &&
+          metadata?.info &&
+          "Title" in metadata.info &&
+          typeof metadata.info.Title === "string"
+          ? metadata.info.Title
+          : "";
 
-    let imageCount = 0;
+      const allBodyLines: string[] = [];
+      const allDocumentLines: string[] = [];
+      const firstPageLines: string[] = [];
 
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-      const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 1 });
+      let imageCount = 0;
 
-      const textContent = await page.getTextContent();
-      const operatorList = await page.getOperatorList();
+      for (
+        let pageNumber = 1;
+        pageNumber <= pdf.numPages;
+        pageNumber += 1
+      ) {
+        const page = await pdf.getPage(pageNumber);
 
-      imageCount += operatorList.fnArray.filter(
-        (fn) =>
-          fn === pdfjsLib.OPS.paintImageXObject ||
-          fn === pdfjsLib.OPS.paintInlineImageXObject ||
-          fn === pdfjsLib.OPS.paintImageXObjectRepeat
-      ).length;
+        try {
+          const viewport = page.getViewport({ scale: 1 });
 
-      const pageLines = textContent.items
-        .map((item) => {
-          if (!("str" in item) || typeof item.str !== "string") {
-            return null;
+          const textContent = await page.getTextContent();
+          const operatorList = await page.getOperatorList();
+
+          imageCount += operatorList.fnArray.filter(
+            (fn) =>
+              fn === pdfjsLib.OPS.paintImageXObject ||
+              fn === pdfjsLib.OPS.paintInlineImageXObject ||
+              fn === pdfjsLib.OPS.paintImageXObjectRepeat
+          ).length;
+
+          const pageLines = textContent.items
+            .map((item) => {
+              if (!("str" in item) || typeof item.str !== "string") {
+                return null;
+              }
+
+              const text = item.str.trim();
+              const y = Array.isArray(item.transform)
+                ? item.transform[5]
+                : undefined;
+
+              if (!text || typeof y !== "number") {
+                return null;
+              }
+
+              return { text, y };
+            })
+            .filter(Boolean) as Array<{ text: string; y: number }>;
+
+          const pageTextLines = pageLines.map(({ text }) => text);
+
+          allDocumentLines.push(...pageTextLines);
+
+          if (pageNumber === 1) {
+            firstPageLines.push(...pageTextLines);
           }
 
-          const text = item.str.trim();
-          const y = Array.isArray(item.transform)
-            ? item.transform[5]
-            : undefined;
+          const bodyLines = pageLines
+            .filter(({ y }) => {
+              const topBoundary = viewport.height * 0.85;
+              const bottomBoundary = viewport.height * 0.15;
 
-          if (!text || typeof y !== "number") {
-            return null;
-          }
+              return y < topBoundary && y > bottomBoundary;
+            })
+            .map(({ text }) => text);
 
-          return { text, y };
-        })
-        .filter(Boolean) as Array<{ text: string; y: number }>;
-
-      const pageTextLines = pageLines.map(({ text }) => text);
-      allDocumentLines.push(...pageTextLines);
-
-      if (pageNumber === 1) {
-        firstPageLines.push(...pageTextLines);
+          allBodyLines.push(...bodyLines);
+        } finally {
+          page.cleanup();
+        }
       }
 
-      const bodyLines = pageLines
-        .filter(({ y }) => {
-          const topBoundary = viewport.height * 0.85;
-          const bottomBoundary = viewport.height * 0.15;
+      const normalisedLines = allBodyLines.map(normaliseText);
 
-          return y < topBoundary && y > bottomBoundary;
-        })
-        .map(({ text }) => text);
-
-      allBodyLines.push(...bodyLines);
-    }
-
-    const normalisedLines = allBodyLines.map(normaliseText);
-
-    const lineCounts = normalisedLines.reduce<Record<string, number>>(
-      (acc, line) => {
-        acc[line] = (acc[line] ?? 0) + 1;
-        return acc;
-      },
-      {}
-    );
-
-    const meaningfulLines = normalisedLines.filter((line) => {
-      const isRepeatedHeaderOrFooter = lineCounts[line] > 1;
-      const isTooShort = line.length < 3;
-      const isPageNumber = /^\d+$/.test(line);
-      const hasWords = /[a-zA-Z]{2,}/.test(line);
-
-      return (
-        !isRepeatedHeaderOrFooter &&
-        !isTooShort &&
-        !isPageNumber &&
-        hasWords
+      const lineCounts = normalisedLines.reduce<Record<string, number>>(
+        (acc, line) => {
+          acc[line] = (acc[line] ?? 0) + 1;
+          return acc;
+        },
+        {}
       );
-    });
 
-    const firstPageText = normaliseText(firstPageLines.join(" ")).toLowerCase();
-    const repeatedText = normaliseText(allDocumentLines.join(" ")).toLowerCase();
-    const title = metadataTitle.toLowerCase();
+      const meaningfulLines = normalisedLines.filter((line) => {
+        const isRepeatedHeaderOrFooter = lineCounts[line] > 1;
+        const isTooShort = line.length < 3;
+        const isPageNumber = /^\d+$/.test(line);
+        const hasWords = /[a-zA-Z]{2,}/.test(line);
 
-    const isNomisDocument =
-      firstPageText.includes("nomis") ||
-      firstPageText.includes("noms") ||
-      repeatedText.includes("module: sar_");
+        return (
+          !isRepeatedHeaderOrFooter &&
+          !isTooShort &&
+          !isPageNumber &&
+          hasWords
+        );
+      });
 
-    const isDpsDocument =
-      (firstPageText.includes("location") &&
-        firstPageText.includes("category") &&
-        firstPageText.includes("csra") &&
-        firstPageText.includes("incentive level")) ||
-      title.includes("dps") ||
-      (repeatedText.includes("created by:") &&
-        repeatedText.includes("happened:"));
+      const firstPageText = normaliseText(
+        firstPageLines.join(" ")
+      ).toLowerCase();
 
-    const bodyTextLength = meaningfulLines.join(" ").length;
-    const hasBodyText = bodyTextLength >= MINIMUM_BODY_CHARACTERS;
+      const repeatedText = normaliseText(
+        allDocumentLines.join(" ")
+      ).toLowerCase();
 
-    const mightBeScannedDocument =
-      imageCount >= pdf.numPages && bodyTextLength < 500;
+      const title = metadataTitle.toLowerCase();
 
-    const documentType: DocumentType = isNomisDocument
-      ? "nomis"
-      : isDpsDocument
-        ? "dps"
-        : "unidentified";
+      const isNomisDocument =
+        firstPageText.includes("nomis") ||
+        firstPageText.includes("noms") ||
+        repeatedText.includes("module: sar_");
 
-    return {
-      hasBodyText,
-      mightBeScannedDocument,
-      documentType,
-    };
+      const isDpsDocument =
+        (firstPageText.includes("location") &&
+          firstPageText.includes("category") &&
+          firstPageText.includes("csra") &&
+          firstPageText.includes("incentive level")) ||
+        title.includes("dps") ||
+        (repeatedText.includes("created by:") &&
+          repeatedText.includes("happened:"));
+
+      const bodyTextLength = meaningfulLines.join(" ").length;
+
+      const hasBodyText =
+        bodyTextLength >= MINIMUM_BODY_CHARACTERS;
+
+      const mightBeScannedDocument =
+        imageCount >= pdf.numPages && bodyTextLength < 500;
+
+      const documentType: DocumentType = isNomisDocument
+        ? "nomis"
+        : isDpsDocument
+          ? "dps"
+          : "unidentified";
+
+      return {
+        hasBodyText,
+        mightBeScannedDocument,
+        documentType,
+      };
+    } finally {
+      try {
+        await loadingTask.destroy();
+      } catch (cleanupError) {
+        console.warn("Failed to clean up PDF.js loading task", cleanupError);
+      }
+    }
   }
 
   async function handleUpload() {
@@ -226,13 +254,17 @@ export default function UploadPage() {
     }
 
     const formData = new FormData();
+
     formData.append("file", file);
     formData.append("documentType", analysis.documentType);
 
     if (analysis.mightBeScannedDocument) {
       formData.append("warningReason", "scanned");
     } else if (analysis.documentType === "unidentified") {
-      formData.append("warningReason", "unsupported-document-type");
+      formData.append(
+        "warningReason",
+        "unsupported-document-type"
+      );
     }
 
     let uploadedDocument: UploadDocumentResponse;
@@ -247,11 +279,13 @@ export default function UploadPage() {
       );
     } catch (err) {
       console.error("Document upload failed", err);
+
       setError(
         err instanceof Error
           ? err.message
           : "Failed to upload document."
       );
+
       resetSubmittingState();
       return;
     }
@@ -297,7 +331,10 @@ export default function UploadPage() {
               role="alert"
               tabIndex={-1}
             >
-              <h2 className="govuk-error-summary__title" id="error-summary-title">
+              <h2
+                className="govuk-error-summary__title"
+                id="error-summary-title"
+              >
                 There is a problem
               </h2>
 
@@ -311,7 +348,9 @@ export default function UploadPage() {
             </div>
           )}
 
-          <h1 className="govuk-heading-xl">Upload a document</h1>
+          <h1 className="govuk-heading-xl">
+            Upload a document
+          </h1>
 
           <aside
             className="govuk-inset-text guidance-panel"
@@ -326,7 +365,7 @@ export default function UploadPage() {
             noValidate
             onSubmit={(event) => {
               event.preventDefault();
-              handleUpload();
+              void handleUpload();
             }}
           >
             <section aria-labelledby="upload-file-heading">
@@ -344,17 +383,30 @@ export default function UploadPage() {
                   </label>
                 </h2>
 
-                <div id="file-upload-1-hint" className="govuk-hint">
-                  Only NOMIS and DPS documents can be processed at the moment
+                <div
+                  id="file-upload-1-hint"
+                  className="govuk-hint"
+                >
+                  Only NOMIS and DPS documents can be processed at the
+                  moment
                 </div>
 
                 {error && (
-                  <p id="file-upload-1-error" className="govuk-error-message">
-                    <span className="govuk-visually-hidden">Error:</span> {error}
+                  <p
+                    id="file-upload-1-error"
+                    className="govuk-error-message"
+                  >
+                    <span className="govuk-visually-hidden">
+                      Error:
+                    </span>{" "}
+                    {error}
                   </p>
                 )}
 
-                <div className="govuk-drop-zone" data-module="govuk-file-upload">
+                <div
+                  className="govuk-drop-zone"
+                  data-module="govuk-file-upload"
+                >
                   <input
                     ref={inputRef}
                     className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""

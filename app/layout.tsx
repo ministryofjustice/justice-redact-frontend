@@ -22,7 +22,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="/styles/moj-frontend.min.css" />
       </head>
 
-      <body className="govuk-template__body govuk-frontend-supported">
+      <body className="govuk-template__body govuk-frontend-supported jr-app-body">
         <GovukInit />
 
         <a href="#main-content" className="govuk-skip-link">
@@ -47,10 +47,12 @@ export default function RootLayout({
           </div>
         </header>
 
-        <div className="govuk-width-container">
-          <main className="govuk-main-wrapper" id="main-content">
-            {children}
-          </main>
+        <div className="jr-app-content">
+          <div className="govuk-width-container">
+            <main className="govuk-main-wrapper" id="main-content">
+              {children}
+            </main>
+          </div>
         </div>
 
         <GovukFooter />

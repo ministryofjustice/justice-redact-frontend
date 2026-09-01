@@ -4,6 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { loadReviewData } from "../review/reviewDataCache";
 import { ApiError, fetchJson } from "../lib/api";
+import ServiceErrorPage from "../components/ServiceErrorPage";
+import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 
 type DocumentStatusResponse = {
   documentId: string;
@@ -26,6 +28,11 @@ function ProcessingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const documentId = searchParams.get("documentId");
+
+  const {
+    isChecking: isCheckingWorkflow,
+    errorVariant: workflowErrorVariant,
+  } = useWorkflowGuard("processing", documentId);
 
   const [status, setStatus] = useState("processing");
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +70,10 @@ function ProcessingContent() {
   }
 
   useEffect(() => {
-    if (!documentId) return;
+    if (!documentId || isCheckingWorkflow || workflowErrorVariant) {
+      return;
+    }
+
     const currentDocumentId = documentId;
 
     let isActive = true;
@@ -171,7 +181,25 @@ function ProcessingContent() {
         clearTimeout(timeoutId);
       }
     };
-  }, [documentId, router]);
+  }, [
+    documentId,
+    isCheckingWorkflow,
+    workflowErrorVariant,
+    router,
+  ]);
+
+  if (isCheckingWorkflow) {
+    return null;
+  }
+
+  if (workflowErrorVariant) {
+    return (
+      <ServiceErrorPage
+        variant={workflowErrorVariant}
+        documentId={documentId}
+      />
+    );
+  }
 
   return (
     <main className="govuk-main-wrapper" id="main-content">
@@ -199,7 +227,7 @@ function ProcessingContent() {
             <div className="govuk-grid-column-full">
               <button
                 type="button"
-                className="govuk-back-link button-as-link"
+                className="govuk-back-link govuk-back-link-button"
                 onClick={handleBackToUpload}
                 disabled={isAbandoning}
               >
@@ -255,17 +283,7 @@ function ProcessingContent() {
 
 export default function ProcessingPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="govuk-main-wrapper" id="main-content">
-          <div className="govuk-grid-row">
-            <div className="govuk-grid-column-full">
-              <LinearLoadingBar label="Loading processing page" />
-            </div>
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={null}>
       <ProcessingContent />
     </Suspense>
   );
