@@ -7,11 +7,32 @@
 
 /* Base layout */
 html {
+  min-height: 100%;
   background: #f3f2f1;
 }
 
 body {
   margin: 0;
+}
+
+.jr-app-body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.jr-app-content {
+  width: 100%;
+  flex: 1 0 auto;
+}
+
+/*
+ * Keep the footer at the bottom of the viewport while route guards,
+ * Suspense boundaries or page-specific API requests are resolving.
+ */
+.jr-app-body>.govuk-footer {
+  margin-top: auto;
 }
 
 main {
@@ -113,8 +134,7 @@ main {
 }
 
 .actions-bar__left,
-.jr-mode-toggle,
-.jr-mode-toggle__buttons {
+.jr-mode-status-group {
   display: flex;
   align-items: center;
 }
@@ -124,65 +144,62 @@ main {
 }
 
 .actions-bar .actions-bar__left .govuk-button,
-.actions-bar .jr-mode-toggle__buttons .govuk-button {
+.actions-bar .jr-mode-menu>.govuk-button {
   width: auto;
   margin: 0;
 }
 
-.actions-bar .jr-mode-toggle__buttons {
-  margin: 0;
-}
+/* Mode dropdown and current-mode status */
+.jr-mode-status-group {
+  --jr-button-underline-height: 2px;
 
-.jr-mode-toggle {
   flex-shrink: 0;
   gap: govuk.govuk-spacing(3);
 }
 
-.jr-mode-toggle__label {
+/*
+ * Keep the standard Find in document menu directly beneath its button.
+ */
+.actions-bar .moj-button-menu__wrapper {
+  margin-top: 4px;
+}
+
+.jr-mode-menu {
+  position: relative;
+  margin-right: 0;
+}
+
+.actions-bar .jr-mode-menu .moj-button-menu__wrapper {
+  right: 0;
+  left: auto;
+}
+
+.jr-mode-menu__item--active {
+  font-weight: 700;
+}
+
+.jr-mode-status-tag {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  box-sizing: border-box;
+  height: calc(40px - (var(--jr-button-underline-height) * 2));
   margin: 0;
-  white-space: nowrap;
+  padding: 0 10px;
+
   font-family: "GDS Transport", arial, sans-serif;
   font-size: 19px;
-  line-height: 1;
+  line-height: 1.3157894737;
+  font-weight: 400;
+  text-align: center;
+  white-space: nowrap;
 }
 
-.jr-mode-toggle__buttons {
-  gap: govuk.govuk-spacing(3);
-  margin: 0;
-}
-
-.govuk-button--secondary.jr-mode-toggle__button--active {
-  background-color: var(--govuk-link-colour, #1a65a6);
-  color: govuk.govuk-colour("white");
-  border-color: var(--govuk-link-colour, #1a65a6);
-  border-bottom: 4px solid var(--govuk-link-colour, #1a65a6);
-  box-shadow: 0 -2px var(--govuk-link-hover-colour, #0f385c);
-}
-
-.govuk-button--secondary.jr-mode-toggle__button--active:hover {
-  background-color: var(--govuk-link-hover-colour, #0f385c);
-  color: govuk.govuk-colour("white");
-  border-color: var(--govuk-link-hover-colour, #0f385c);
-}
-
-.govuk-button--secondary.jr-mode-toggle__button--active:focus:hover {
-  background-color: govuk.govuk-functional-colour("link-hover");
-  color: govuk.govuk-colour("white");
-  border-color: govuk.govuk-functional-colour("link-hover");
-  box-shadow: 0 -2px govuk.govuk-functional-colour("link-hover");
-  outline: none;
-}
-
-.govuk-button--secondary.jr-mode-toggle__button--active:active {
-  background-color: var(--govuk-link-hover-colour, #0f385c);
-  color: govuk.govuk-colour("white");
-  border-color: var(--govuk-link-hover-colour, #0f385c);
-}
-
-.actions-bar .moj-button-menu__wrapper {
-  margin-top: 0;
+.jr-mode-status-tag__text {
+  position: relative;
+  top: 2px;
 }
 
 /* Shared review modal */
@@ -466,7 +483,7 @@ main {
 }
 
 .redactable>p {
-  line-height: 26px;
+  line-height: 28px;
   user-select: text;
   white-space: pre-line;
 }
@@ -545,6 +562,35 @@ main {
   line-height: inherit;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+}
+
+.jr-redaction-remove-menu {
+  display: inline-block;
+  width: max-content;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid #b1b4b6;
+  background: #ffffff;
+  color: #0b0c0c;
+  box-shadow: 0 6px 12px rgba(11, 12, 12, 0.18);
+  text-align: left;
+  cursor: pointer;
+}
+
+.jr-redaction-remove-menu:hover {
+  background: #767676;
+  color: #ffffff;
+}
+
+.jr-redaction-remove-menu__item {
+  display: block;
+  padding: 11px;
+  color: inherit;
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 19px;
+  line-height: 1.3157894737;
+  text-decoration: underline;
+  white-space: nowrap;
 }
 
 /* Manual redactions panel */
@@ -636,6 +682,32 @@ main {
   & :last-child {
     margin-bottom: 0;
   }
+}
+
+/* Highlight key */
+.jr-highlight-key {
+  box-sizing: border-box;
+  padding: 20px 0 0;
+}
+
+.jr-highlight-key__table {
+  margin-bottom: 20px;
+}
+
+.jr-highlight-key__details {
+  margin-bottom: 50px;
+}
+
+/*
+ * The redaction shown in the key is an example only.
+ * It must not look interactive.
+ */
+.jr-highlight-key__redaction,
+.jr-highlight-key__redaction:hover,
+.jr-highlight-key__redaction.highlight--redaction-hover {
+  cursor: text;
+  border-top-width: 2px;
+  border-bottom-width: 2px;
 }
 
 /* Loading spinner */
@@ -778,6 +850,29 @@ main {
 
 .button-as-link:focus {
   color: #0b0c0c !important;
+}
+
+/* Button actions that must visually match the GOV.UK Back link. */
+.govuk-back-link-button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  color: #0b0c0c;
+}
+
+.govuk-back-link-button:visited {
+  color: #0b0c0c;
+}
+
+.govuk-back-link-button:hover {
+  color: rgba(11, 12, 12, 0.99);
+}
+
+.govuk-back-link-button:focus {
+  color: #0b0c0c;
 }
 
 /* Export page count summary */

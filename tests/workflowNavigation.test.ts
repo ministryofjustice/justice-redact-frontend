@@ -34,16 +34,44 @@ describe("buildWorkflowUrl", () => {
     ).toBe("/review?documentId=document-123");
   });
 
-  it("builds the applying redactions route for a document", () => {
+  it("builds the applying redactions route with the current run ID", () => {
     expect(
-      buildWorkflowUrl("applying-redactions", "document-123")
-    ).toBe("/applying-redactions?documentId=document-123");
+      buildWorkflowUrl(
+        "applying-redactions",
+        "document-123",
+        "run-456",
+      )
+    ).toBe(
+      "/applying-redactions?documentId=document-123&runId=run-456"
+    );
   });
 
-  it("builds the export route for a document", () => {
+  it("throws when building the applying redactions route without a run ID", () => {
+    expect(() =>
+      buildWorkflowUrl("applying-redactions", "document-123")
+    ).toThrow(
+      "Cannot build applying-redactions URL without a redaction run ID"
+    );
+  });
+
+  it("builds the export route with the current run ID", () => {
     expect(
+      buildWorkflowUrl(
+        "export",
+        "document-123",
+        "run-456",
+      )
+    ).toBe(
+      "/export?documentId=document-123&runId=run-456"
+    );
+  });
+
+  it("throws when building the export route without a run ID", () => {
+    expect(() =>
       buildWorkflowUrl("export", "document-123")
-    ).toBe("/export?documentId=document-123");
+    ).toThrow(
+      "Cannot build export URL without a redaction run ID"
+    );
   });
 
   it("URL encodes the document ID", () => {

@@ -2,7 +2,7 @@ import FilenameBar from "@/app/components/FilenameBar";
 import type { ReviewMode } from "../types";
 import ModeToggleGroup from "./ModeToggleGroup";
 import FindInDocumentMenu from "./FindInDocumentMenu";
-import QuickHelpButton from "./QuickHelpButton";
+// import QuickHelpButton from "./QuickHelpButton";
 
 type ReviewControlsHeaderProps = {
     filename: string;
@@ -18,7 +18,6 @@ export default function ReviewControlsHeader({
     filename,
     reviewMode,
     onReviewModeChange,
-    onQuickHelp,
     onFindAndRedact,
     onFindAndPartiallyRedact,
     onFindAndDisclose,
@@ -35,12 +34,11 @@ export default function ReviewControlsHeader({
                         onFindAndDisclose={onFindAndDisclose}
                     />
 
-                    <QuickHelpButton onClick={onQuickHelp} />
+                    <ModeToggleGroup
+                        value={reviewMode}
+                        onChange={onReviewModeChange}
+                    />
                 </div>
-                <ModeToggleGroup
-                    value={reviewMode}
-                    onChange={onReviewModeChange}
-                />
             </div>
         </header>
     );
