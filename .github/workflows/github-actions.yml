@@ -44,23 +44,21 @@ jobs:
 
     steps:
       # 1. Checkout GitHub repository
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
 
       # 2. Configure AWS credentials using OIDC
-      # 💡 Fix: If target environment is staging, assume the Dev IAM role instead
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@0d04879d366c9959065c153479c620d35e5c4097 # v3
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          role-to-assume: ${{ needs.set-environment.outputs.target_env == 'staging' && secrets.ECR_ROLE_TO_ASSUME_DEV || secrets.ECR_ROLE_TO_ASSUME }}
-          aws-region: ${{ needs.set-environment.outputs.target_env == 'staging' && 'eu-west-2' || vars.ECR_REGION }}
+          role-to-assume: ${{ secrets.ECR_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.ECR_REGION || 'eu-west-2' }}
 
       # 3. Login to container repository
       - name: Log into ECR
-        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
         id: login-ecr
 
-      # 4. Build and push a Docker image to the shared dev registry
-      # 💡 Fix: If target environment is staging, push directly to the dev ECR path
+      # 4. Build and push a Docker image to the registry
       - name: Build & Push to ECR
         id: build
         run: |
@@ -71,12 +69,11 @@ jobs:
           echo "image_uri=$REGISTRY/$REPOSITORY:node-$IMAGE_TAG" >> "$GITHUB_OUTPUT"
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
           NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
 
       # 5. Generate Kubernetes manifests dynamically with environment folder mapping
-      # 💡 Fix: Match staging images back to the shared dev ECR naming convention
       - name: Generate Kubernetes manifests
         run: |
           sudo apt-get update && sudo apt-get install -y gettext
@@ -126,7 +123,7 @@ jobs:
           cat k8s/ingress.yml
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
 
@@ -165,7 +162,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Safely extract package version or default to 0.0.0
           VERSION=$(node -p "try { require('./package.json').version } catch(e) { '0.0.0' }")
           TARGET_ENV="${{ needs.set-environment.outputs.target_env }}"
           RUN_NUM="${{ github.run_number }}"
@@ -184,7 +180,6 @@ jobs:
 
           echo "Creating tag: $TAG"
 
-          # Handle tag pushing safely (force-overwrite if prod re-deploying, otherwise push unique tag)
           if [ "$TARGET_ENV" = "prod" ]; then
             git tag -f -a "$TAG" -m "Deployed v$VERSION to $TARGET_ENV [skip ci]"
             git push origin "$TAG" --force
@@ -235,5 +230,4 @@ jobs:
     secrets:
       SNYK_CLIENT_ID: ${{ secrets.SNYK_CLIENT_ID }}
       SNYK_CLIENT_SECRET: ${{ secrets.SNYK_CLIENT_SECRET }}
-      # Mirrors the same staging-uses-dev-role quirk as the build job above
-      ECR_ROLE_TO_ASSUME: ${{ needs.set-environment.outputs.target_env == 'staging' && secrets.ECR_ROLE_TO_ASSUME_DEV || secrets.ECR_ROLE_TO_ASSUME }}
+      ECR_ROLE_TO_ASSUME: ${{ secrets.ECR_ROLE_TO_ASSUME }}
