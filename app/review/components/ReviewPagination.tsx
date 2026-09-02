@@ -94,12 +94,28 @@ export default function ReviewPagination({
         onSelectRangeStart(start);
 
         window.requestAnimationFrame(() => {
-            document
-                .querySelector(".jr-review-page")
-                ?.scrollIntoView({
-                    block: "start",
-                    behavior: "instant",
-                });
+            const firstVisiblePage =
+                document.querySelector<HTMLElement>(".jr-review-page");
+
+            const stickyContainer =
+                document.querySelector<HTMLElement>(".sticky-container");
+
+            if (!firstVisiblePage) {
+                return;
+            }
+
+            const stickyHeight =
+                stickyContainer?.getBoundingClientRect().height ?? 0;
+
+            const targetTop =
+                firstVisiblePage.getBoundingClientRect().top +
+                window.scrollY -
+                stickyHeight;
+
+            window.scrollTo({
+                top: targetTop,
+                behavior: "instant",
+            });
         });
     }
 
