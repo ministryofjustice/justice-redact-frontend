@@ -713,7 +713,15 @@ export default function FindAndPartiallyRedactModal({
                         <div
                             ref={selectablePhraseRef}
                             id={selectionContainerId}
-                            className="jr-partial-redaction-selection"
+                            className={[
+                                "govuk-input",
+                                "jr-partial-redaction-selection",
+                                selectionError
+                                    ? "govuk-input--error"
+                                    : "",
+                            ]
+                                .filter(Boolean)
+                                .join(" ")}
                             aria-invalid={
                                 selectionError
                                     ? true
