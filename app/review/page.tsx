@@ -577,90 +577,139 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     ]);
   }
 
-  function addOrMergeManualTableSelection(
-    tableId: string,
-    cell: ReviewTableCell,
+  function addManualTableSelectionGroup(
     pageNumber: number,
-    start: number,
-    end: number
+    tableId: string,
+    cellRanges: Array<{
+      cell: ReviewTableCell;
+      start: number;
+      end: number;
+    }>,
+    redactionGroupId: string
   ) {
-    if (!documentId) return;
+    if (!documentId || !data || cellRanges.length === 0) {
+      return;
+    }
 
-    const sourceText = cell.renderText ?? cell.text;
-    const normalisedStart = clampRangeValue(start, sourceText.length);
-    const normalisedEnd = clampRangeValue(end, sourceText.length);
+    const existingRanges =
+      getManualDecisionContentRanges(manualSelections);
 
-    if (normalisedEnd <= normalisedStart) return;
-    if (!sourceText.slice(normalisedStart, normalisedEnd).trim()) return;
+    const newSelections = cellRanges.flatMap(
+      ({ cell, start, end }) => {
+        const sourceText = cell.renderText ?? cell.text;
 
-    setManualSelections((prev) => {
-      const remaining = prev.filter(
-        (selection) =>
-          !(
-            selection.kind === "table_cell" &&
-            selection.pageNumber === pageNumber &&
-            selection.tableId === tableId &&
-            selection.cellId === cell.cellId
-          )
-      );
+        const normalisedStart = clampRangeValue(
+          start,
+          sourceText.length
+        );
 
-      const existing = prev.filter(
-        (selection): selection is ManualTableCellDecision =>
-          selection.kind === "table_cell" &&
-          selection.pageNumber === pageNumber &&
-          selection.tableId === tableId &&
-          selection.cellId === cell.cellId
-      );
+        const normalisedEnd = clampRangeValue(
+          end,
+          sourceText.length
+        );
 
-      const merged = mergeSpans([
-        ...existing.map((selection) => ({
+        if (normalisedEnd <= normalisedStart) {
+          return [];
+        }
+
+        if (
+          !sourceText
+            .slice(normalisedStart, normalisedEnd)
+            .trim()
+        ) {
+          return [];
+        }
+
+        const selectedRange = {
+          kind: "table_cell" as const,
           pageNumber,
-          itemId: cell.cellId,
-          start: selection.start,
-          end: selection.end,
-        })),
-        {
-          pageNumber,
-          itemId: cell.cellId,
+          itemId: null,
+          tableId,
+          cellId: cell.cellId,
           start: normalisedStart,
           end: normalisedEnd,
-        },
-      ]);
+        };
 
-      const replacements: ManualTableCellDecision[] = merged.map((span) => ({
-        id: crypto.randomUUID(),
-        documentId,
-        kind: "table_cell",
-        pageNumber,
-        tableId,
-        cellId: cell.cellId,
-        start: span.start,
-        end: span.end,
-        text: sourceText.slice(span.start, span.end),
-      }));
+        /*
+         * Do not duplicate portions of cells which are
+         * already manually redacted.
+         */
+        const uncoveredRanges =
+          subtractContentRanges(
+            selectedRange,
+            existingRanges
+          );
 
-      return [...remaining, ...replacements];
-    });
+        return buildManualSelectionsFromContentRanges(
+          uncoveredRanges,
+          data.pages,
+          documentId,
+          () => crypto.randomUUID()
+        ).map((selection) => ({
+          ...selection,
+          redactionGroupId,
+        }));
+      }
+    );
+
+    if (newSelections.length === 0) {
+      return;
+    }
+
+    setManualSelections((previous) => [
+      ...previous,
+      ...newSelections,
+    ]);
   }
 
   function handleTableCellSelection() {
-    if (!isRedactMode || !data) return false;
+    if (!isRedactMode || !data) {
+      return false;
+    }
 
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false;
+
+    if (
+      !selection ||
+      selection.rangeCount === 0 ||
+      selection.isCollapsed
+    ) {
+      return false;
+    }
 
     const range = selection.getRangeAt(0);
-    const startElement = getClosestElementWithAttribute(range.startContainer, "data-cell-id");
-    const endElement = getClosestElementWithAttribute(range.endContainer, "data-cell-id");
 
-    if (!startElement || !endElement) return false;
+    const startElement =
+      getClosestElementWithAttribute(
+        range.startContainer,
+        "data-cell-id"
+      );
+
+    const endElement =
+      getClosestElementWithAttribute(
+        range.endContainer,
+        "data-cell-id"
+      );
+
+    /*
+     * This was not a table selection, so allow the normal
+     * text-selection handler to try instead.
+     */
+    if (!startElement || !endElement) {
+      return false;
+    }
 
     const startCellId = startElement.dataset.cellId;
     const endCellId = endElement.dataset.cellId;
+
     const startTableId = startElement.dataset.tableId;
     const endTableId = endElement.dataset.tableId;
-    const startPageNumber = startElement.dataset.pageNumber;
-    const endPageNumber = endElement.dataset.pageNumber;
+
+    const startPageNumber =
+      startElement.dataset.pageNumber;
+
+    const endPageNumber =
+      endElement.dataset.pageNumber;
 
     if (
       !startCellId ||
@@ -670,11 +719,15 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       !startPageNumber ||
       !endPageNumber
     ) {
-      return false;
+      selection.removeAllRanges();
+      return true;
     }
 
+    /*
+     * A single table redaction selection must remain
+     * inside one table on one page.
+     */
     if (
-      startCellId !== endCellId ||
       startTableId !== endTableId ||
       startPageNumber !== endPageNumber
     ) {
@@ -683,38 +736,148 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     }
 
     const pageNumber = Number(startPageNumber);
-    const page = data.pages.find((candidate) => candidate.pageNumber === pageNumber);
-    const table = page?.tables.find((candidate) => candidate.tableId === startTableId);
-    const cell = table?.rows
-      .flatMap((row) => row.cells)
-      .find((candidate) => candidate.cellId === startCellId);
 
-    if (!page || !table || !cell) {
+    const page = data.pages.find(
+      (candidate) =>
+        candidate.pageNumber === pageNumber
+    );
+
+    const table = page?.tables.find(
+      (candidate) =>
+        candidate.tableId === startTableId
+    );
+
+    if (!page || !table) {
       selection.removeAllRanges();
       return true;
     }
 
-    const start = getTextOffsetWithinItem(
-      startElement,
-      range.startContainer,
-      range.startOffset
+    const cells = table.rows
+      .flatMap((row) => row.cells)
+      .sort(
+        (left, right) =>
+          left.rowIndex - right.rowIndex ||
+          left.colIndex - right.colIndex
+      );
+
+    const startCellIndex = cells.findIndex(
+      (cell) => cell.cellId === startCellId
     );
 
-    const end = getTextOffsetWithinItem(
-      endElement,
-      range.endContainer,
-      range.endOffset
+    const endCellIndex = cells.findIndex(
+      (cell) => cell.cellId === endCellId
     );
 
-    addOrMergeManualTableSelection(
-      startTableId,
-      cell,
-      pageNumber,
-      Math.min(start, end),
-      Math.max(start, end)
+    if (
+      startCellIndex < 0 ||
+      endCellIndex < 0
+    ) {
+      selection.removeAllRanges();
+      return true;
+    }
+
+    const firstCellIndex = Math.min(
+      startCellIndex,
+      endCellIndex
     );
+
+    const lastCellIndex = Math.max(
+      startCellIndex,
+      endCellIndex
+    );
+
+    const selectedCells = cells.slice(
+      firstCellIndex,
+      lastCellIndex + 1
+    );
+
+    const cellRanges = selectedCells.flatMap(
+      (cell, index) => {
+        const sourceText =
+          cell.renderText ?? cell.text;
+
+        if (!sourceText.trim()) {
+          return [];
+        }
+
+        const isFirstCell = index === 0;
+        const isLastCell =
+          index === selectedCells.length - 1;
+
+        let start = 0;
+        let end = sourceText.length;
+
+        if (isFirstCell) {
+          start = getTextOffsetWithinItem(
+            startElement,
+            range.startContainer,
+            range.startOffset
+          );
+        }
+
+        if (isLastCell) {
+          end = getTextOffsetWithinItem(
+            endElement,
+            range.endContainer,
+            range.endOffset
+          );
+        }
+
+        /*
+         * A selection entirely inside one cell needs both
+         * offsets from that same cell.
+         */
+        if (isFirstCell && isLastCell) {
+          start = getTextOffsetWithinItem(
+            startElement,
+            range.startContainer,
+            range.startOffset
+          );
+
+          end = getTextOffsetWithinItem(
+            endElement,
+            range.endContainer,
+            range.endOffset
+          );
+        }
+
+        const normalisedStart =
+          clampRangeValue(
+            Math.min(start, end),
+            sourceText.length
+          );
+
+        const normalisedEnd =
+          clampRangeValue(
+            Math.max(start, end),
+            sourceText.length
+          );
+
+        if (normalisedEnd <= normalisedStart) {
+          return [];
+        }
+
+        return [
+          {
+            cell,
+            start: normalisedStart,
+            end: normalisedEnd,
+          },
+        ];
+      }
+    );
+
+    if (cellRanges.length > 0) {
+      addManualTableSelectionGroup(
+        pageNumber,
+        startTableId,
+        cellRanges,
+        crypto.randomUUID()
+      );
+    }
 
     selection.removeAllRanges();
+
     return true;
   }
 
