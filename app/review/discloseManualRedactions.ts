@@ -1,69 +1,24 @@
 import {
     containsContentRange,
     getContentRangeKey,
+    getManualDecisionContentRange,
     getManualDecisionContentRanges,
-    isSameContentLocation,
-    type ContentRange,
 } from "./contentRangeUtils";
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
 import { mergeContentRanges } from "./mergeContentRanges";
+import { subtractContentRanges } from "./subtractContentRanges";
 import type { ManualDecision } from "./types";
 
 type DiscloseManualRedactionsResult = {
-    remainingRanges: ContentRange[];
+    remainingSelections: ManualDecision[];
     disclosedCount: number;
 };
 
-function subtractRangesFromRange(
-    sourceRange: ContentRange,
-    rangesToRemove: ContentRange[]
-): ContentRange[] {
-    const relevantRanges = mergeContentRanges(
-        rangesToRemove.filter(
-            (range) =>
-                isSameContentLocation(sourceRange, range) &&
-                containsContentRange(sourceRange, range)
-        )
-    ).sort(
-        (left, right) =>
-            left.start - right.start ||
-            left.end - right.end
-    );
-
-    if (relevantRanges.length === 0) {
-        return [sourceRange];
-    }
-
-    const remainingRanges: ContentRange[] = [];
-    let cursor = sourceRange.start;
-
-    relevantRanges.forEach((range) => {
-        if (cursor < range.start) {
-            remainingRanges.push({
-                ...sourceRange,
-                start: cursor,
-                end: range.start,
-            });
-        }
-
-        cursor = Math.max(cursor, range.end);
-    });
-
-    if (cursor < sourceRange.end) {
-        remainingRanges.push({
-            ...sourceRange,
-            start: cursor,
-            end: sourceRange.end,
-        });
-    }
-
-    return remainingRanges;
-}
-
 export function discloseManualRedactions(
     manualSelections: ManualDecision[],
-    selectedResults: FindInManualRedactionResult[]
+    selectedResults: FindInManualRedactionResult[],
+    createId: () => string
 ): DiscloseManualRedactionsResult {
     const existingRanges = mergeContentRanges(
         getManualDecisionContentRanges(manualSelections)
@@ -74,8 +29,6 @@ export function discloseManualRedactions(
 
     /*
      * Deduplicate selected results by their exact document position.
-     * This prevents duplicate UI results or stale state from inflating
-     * the disclosed count.
      */
     const uniqueSelectedRanges = Array.from(
         new Map(
@@ -87,9 +40,7 @@ export function discloseManualRedactions(
     );
 
     /*
-     * Only remove a selected range when it is still fully covered by a
-     * current manual redaction. Results that became stale while the modal
-     * was open are ignored safely.
+     * Ignore stale results which are no longer completely redacted.
      */
     const validRangesToRemove = uniqueSelectedRanges.filter(
         (selectedRange) =>
@@ -103,21 +54,86 @@ export function discloseManualRedactions(
 
     if (validRangesToRemove.length === 0) {
         return {
-            remainingRanges: existingRanges,
+            remainingSelections: manualSelections,
             disclosedCount: 0,
         };
     }
 
-    const remainingRanges = existingRanges.flatMap(
-        (existingRange) =>
-            subtractRangesFromRange(
-                existingRange,
-                validRangesToRemove
-            )
-    );
+    const remainingSelections =
+        manualSelections.flatMap<ManualDecision>(
+            (selection) => {
+                /*
+                 * Find and disclose only operates on text/table content.
+                 * Images remain completely untouched.
+                 */
+                if (selection.kind === "image") {
+                    return [selection];
+                }
+
+                const sourceRange =
+                    getManualDecisionContentRange(selection);
+
+                if (!sourceRange) {
+                    return [selection];
+                }
+
+                const remainingRanges =
+                    subtractContentRanges(
+                        sourceRange,
+                        validRangesToRemove
+                    );
+
+                /*
+                 * This decision was not affected at all.
+                 * Preserve the exact existing decision, including its
+                 * id and redactionGroupId.
+                 */
+                if (
+                    remainingRanges.length === 1 &&
+                    remainingRanges[0].start === sourceRange.start &&
+                    remainingRanges[0].end === sourceRange.end
+                ) {
+                    return [selection];
+                }
+
+                /*
+                 * The searched phrase removed part of this decision.
+                 * Any remaining fragments retain the original
+                 * redactionGroupId.
+                 */
+                return remainingRanges.flatMap<ManualDecision>(
+                    (range) => {
+                        const localStart =
+                            range.start - sourceRange.start;
+
+                        const localEnd =
+                            range.end - sourceRange.start;
+
+                        const text = selection.text.slice(
+                            localStart,
+                            localEnd
+                        );
+
+                        if (!text.trim()) {
+                            return [];
+                        }
+
+                        return [
+                            {
+                                ...selection,
+                                id: createId(),
+                                start: range.start,
+                                end: range.end,
+                                text,
+                            },
+                        ];
+                    }
+                );
+            }
+        );
 
     return {
-        remainingRanges: mergeContentRanges(remainingRanges),
+        remainingSelections,
         disclosedCount: validRangesToRemove.length,
     };
 }

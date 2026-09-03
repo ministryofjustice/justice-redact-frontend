@@ -127,7 +127,12 @@ function renderSliceWithBoldRanges(
 export function buildRenderRanges(
     text: string,
     suggestions: ReviewFinding[],
-    manualSelections: Array<{ id: string; start: number; end: number }>,
+    manualSelections: Array<{
+        id: string;
+        start: number;
+        end: number;
+        redactionGroupId?: string;
+    }>,
     isPreviewMode: boolean
 ) {
     const clamp = (value: number) => clampRangeValue(value, text.length);
@@ -137,6 +142,7 @@ export function buildRenderRanges(
             id: selection.id,
             start: clamp(selection.start),
             end: clamp(selection.end),
+            redactionGroupId: selection.redactionGroupId,
         }))
         .filter((range) => range.end > range.start);
 
@@ -148,6 +154,7 @@ export function buildRenderRanges(
                 className: "applied-redaction",
                 key: `manual-${range.id}`,
                 manualId: range.id,
+                redactionGroupId: range.redactionGroupId,
             }))
             .sort((a, b) => a.start - b.start || a.end - b.end);
     }
@@ -211,6 +218,7 @@ export function buildRenderRanges(
                 end,
             ].join("-"),
             manualId: manualRange?.id,
+            redactionGroupId: manualRange?.redactionGroupId,
         });
     }
 
@@ -220,7 +228,12 @@ export function buildRenderRanges(
 export function renderTextSegments(
     text: string,
     suggestions: ReviewFinding[],
-    manualSelections: Array<{ id: string; start: number; end: number }>,
+    manualSelections: Array<{
+        id: string;
+        start: number;
+        end: number;
+        redactionGroupId?: string;
+    }>,
     isPreviewMode: boolean,
     boldRanges: Array<{ start: number; end: number }> = []
 ) {
@@ -256,6 +269,7 @@ export function renderTextSegments(
                 key={range.key}
                 className={range.className}
                 data-manual-id={range.manualId}
+                data-redaction-group-id={range.redactionGroupId}
             >
                 {renderSliceWithBoldRanges(
                     text,
@@ -290,7 +304,12 @@ export function renderTextSegments(
 export function renderStyledTextSegments(
     textSpans: ReviewTextSpan[],
     suggestions: ReviewFinding[],
-    manualSelections: Array<{ id: string; start: number; end: number }>,
+    manualSelections: Array<{
+        id: string;
+        start: number;
+        end: number;
+        redactionGroupId?: string;
+    }>,
     isPreviewMode: boolean
 ) {
     const sourceText = textSpans.map((span) => span.text).join("");
@@ -355,6 +374,7 @@ export function renderStyledTextSegments(
                 key={range.key}
                 className={range.className}
                 data-manual-id={range.manualId}
+                data-redaction-group-id={range.redactionGroupId}
             >
                 {renderStyledSlice(
                     range.start,

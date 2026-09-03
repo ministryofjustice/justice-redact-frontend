@@ -28,6 +28,9 @@ export function buildApplyRedactionsRequest(
                         text: selection.text,
                         action: "redact",
                         source: "manual",
+                        ...(selection.redactionGroupId
+                            ? { redactionGroupId: selection.redactionGroupId }
+                            : {}),
                     };
                 }
 
@@ -42,6 +45,9 @@ export function buildApplyRedactionsRequest(
                         text: selection.text,
                         action: "redact",
                         source: "manual",
+                        ...(selection.redactionGroupId
+                            ? { redactionGroupId: selection.redactionGroupId }
+                            : {}),
                     };
                 }
 

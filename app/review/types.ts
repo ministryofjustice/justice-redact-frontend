@@ -111,6 +111,7 @@ export type ManualTextDecision = {
     start: number;
     end: number;
     text: string;
+    redactionGroupId?: string;
 };
 
 export type ManualTableCellDecision = {
@@ -123,6 +124,7 @@ export type ManualTableCellDecision = {
     start: number;
     end: number;
     text: string;
+    redactionGroupId?: string;
 };
 
 export type ManualImageDecision = {
@@ -142,6 +144,7 @@ export type PersistedTextRedactionDecision = {
     text: string;
     action: "redact";
     source: "manual";
+    redactionGroupId?: string;
 };
 
 export type PersistedTableRedactionDecision = {
@@ -154,6 +157,7 @@ export type PersistedTableRedactionDecision = {
     text: string;
     action: "redact";
     source: "manual";
+    redactionGroupId?: string;
 };
 
 export type PersistedImageRedactionDecision = {
@@ -195,6 +199,7 @@ export type RenderRange = {
     className: string;
     key: string;
     manualId?: string;
+    redactionGroupId?: string;
 };
 
 export type ManualSpan = {
