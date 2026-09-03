@@ -140,11 +140,8 @@ export default function FindAndRedactModal({
             trimmedSearchTerm
         );
 
-        setResults(
-            searchResults.filter(
-                (result) => !isAlreadyManuallyRedacted(result)
-            )
-        );
+        setResults(searchResults);
+
         setSelectedResultIds(new Set());
     }
 
@@ -464,6 +461,9 @@ export default function FindAndRedactModal({
                                                 const excerpt =
                                                     buildFindInDocumentExcerpt(result);
 
+                                                const isAlreadyRedacted =
+                                                    isAlreadyManuallyRedacted(result);
+
                                                 return (
                                                     <div
                                                         key={result.id}
@@ -477,9 +477,11 @@ export default function FindAndRedactModal({
                                                                 type="checkbox"
                                                                 className="govuk-checkboxes__input"
                                                                 value={result.id}
-                                                                checked={selectedResultIds.has(
-                                                                    result.id
-                                                                )}
+                                                                checked={
+                                                                    isAlreadyRedacted ||
+                                                                    selectedResultIds.has(result.id)
+                                                                }
+                                                                disabled={isAlreadyRedacted}
                                                                 onChange={(event) => {
                                                                     handleResultSelection(
                                                                         result.id,
