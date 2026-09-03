@@ -407,12 +407,12 @@ main {
   color: govuk.govuk-colour("black");
 }
 
-.jr-find-and-redact-result .govuk-checkboxes__input:disabled+.govuk-checkboxes__label::before {
-  border-color: govuk.govuk-colour("mid-grey");
-  background-color: govuk.govuk-colour("mid-grey");
+.jr-find-and-redact-result .govuk-checkboxes__input:disabled:checked+.govuk-checkboxes__label::before {
+  border-color: #858686;
+  background-color: #858686;
 }
 
-.jr-find-and-redact-result .govuk-checkboxes__input:disabled+.govuk-checkboxes__label::after {
+.jr-find-and-redact-result .govuk-checkboxes__input:disabled:checked+.govuk-checkboxes__label::after {
   border-color: govuk.govuk-colour("white");
 }
 

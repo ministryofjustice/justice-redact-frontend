@@ -444,7 +444,6 @@ export default function FindAndRedactModal({
                                     ? `${resultsHeadingId}-selection-error`
                                     : undefined
                             }
-                            tabIndex={0}
                         >
                             <div className="jr-find-and-redact-results__inner">
                                 {results.length > 0 ? (
