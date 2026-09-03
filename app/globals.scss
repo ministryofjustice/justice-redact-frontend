@@ -398,6 +398,35 @@ main {
   white-space: pre-line;
 }
 
+/*
+ * Already-redacted Find results remain visible in full.
+ * Only the checkbox itself should appear disabled.
+ */
+.jr-find-and-redact-result .govuk-checkboxes__input:disabled+.govuk-checkboxes__label {
+  opacity: 1;
+  color: govuk.govuk-colour("black");
+}
+
+.jr-find-and-redact-result .govuk-checkboxes__input:disabled:checked+.govuk-checkboxes__label::before {
+  border-color: #858686;
+  background-color: #858686;
+}
+
+.jr-find-and-redact-result .govuk-checkboxes__input:disabled:checked+.govuk-checkboxes__label::after {
+  border-color: govuk.govuk-colour("white");
+}
+
+/*
+ * Search matches use the same visual treatment as a redaction,
+ * but are examples within the results list rather than interactive redactions.
+ */
+.jr-find-and-redact-result__match,
+.jr-find-and-redact-result__match:hover {
+  cursor: text;
+  border-top-width: 2px;
+  border-bottom-width: 2px;
+}
+
 @media (max-width: 40.0525em) {
   .jr-modal--content-dense {
     max-width: 100%;
@@ -409,22 +438,8 @@ main {
 }
 
 .jr-partial-redaction-selection {
-  box-sizing: border-box;
-  min-height: 70px;
-  padding: govuk.govuk-spacing(3);
-  border: 2px solid govuk.govuk-colour("black");
-  background-color: govuk.govuk-colour("white");
-  font-family: "GDS Transport", arial, sans-serif;
-  font-size: 19px;
-  line-height: 1.45;
   user-select: text;
   cursor: text;
-}
-
-.jr-partial-redaction-selection:focus {
-  outline: 3px solid govuk.govuk-colour("yellow");
-  outline-offset: 0;
-  box-shadow: inset 0 0 0 2px govuk.govuk-colour("black");
 }
 
 /* Review page */

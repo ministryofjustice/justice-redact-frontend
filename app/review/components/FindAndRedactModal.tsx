@@ -140,11 +140,8 @@ export default function FindAndRedactModal({
             trimmedSearchTerm
         );
 
-        setResults(
-            searchResults.filter(
-                (result) => !isAlreadyManuallyRedacted(result)
-            )
-        );
+        setResults(searchResults);
+
         setSelectedResultIds(new Set());
     }
 
@@ -447,7 +444,6 @@ export default function FindAndRedactModal({
                                     ? `${resultsHeadingId}-selection-error`
                                     : undefined
                             }
-                            tabIndex={0}
                         >
                             <div className="jr-find-and-redact-results__inner">
                                 {results.length > 0 ? (
@@ -464,6 +460,9 @@ export default function FindAndRedactModal({
                                                 const excerpt =
                                                     buildFindInDocumentExcerpt(result);
 
+                                                const isAlreadyRedacted =
+                                                    isAlreadyManuallyRedacted(result);
+
                                                 return (
                                                     <div
                                                         key={result.id}
@@ -477,9 +476,11 @@ export default function FindAndRedactModal({
                                                                 type="checkbox"
                                                                 className="govuk-checkboxes__input"
                                                                 value={result.id}
-                                                                checked={selectedResultIds.has(
-                                                                    result.id
-                                                                )}
+                                                                checked={
+                                                                    isAlreadyRedacted ||
+                                                                    selectedResultIds.has(result.id)
+                                                                }
+                                                                disabled={isAlreadyRedacted}
                                                                 onChange={(event) => {
                                                                     handleResultSelection(
                                                                         result.id,
@@ -499,7 +500,7 @@ export default function FindAndRedactModal({
                                                                     excerpt.match &&
                                                                     " "}
 
-                                                                <strong>
+                                                                <strong className="highlight highlight--redaction jr-find-and-redact-result__match">
                                                                     {excerpt.match}
                                                                 </strong>
 
