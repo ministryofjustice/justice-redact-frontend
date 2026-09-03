@@ -398,6 +398,24 @@ main {
   white-space: pre-line;
 }
 
+/*
+ * Already-redacted Find results remain visible in full.
+ * Only the checkbox itself should appear disabled.
+ */
+.jr-find-and-redact-result .govuk-checkboxes__input:disabled+.govuk-checkboxes__label {
+  opacity: 1;
+  color: govuk.govuk-colour("black");
+}
+
+.jr-find-and-redact-result .govuk-checkboxes__input:disabled+.govuk-checkboxes__label::before {
+  border-color: govuk.govuk-colour("mid-grey");
+  background-color: govuk.govuk-colour("mid-grey");
+}
+
+.jr-find-and-redact-result .govuk-checkboxes__input:disabled+.govuk-checkboxes__label::after {
+  border-color: govuk.govuk-colour("white");
+}
+
 @media (max-width: 40.0525em) {
   .jr-modal--content-dense {
     max-width: 100%;
