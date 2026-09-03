@@ -25,6 +25,9 @@ export function buildReviewStateFromPersistedDecisions(
                 start: decision.start,
                 end: decision.end,
                 text: decision.text,
+                ...(decision.redactionGroupId
+                    ? { redactionGroupId: decision.redactionGroupId }
+                    : {}),
             });
 
             continue;
@@ -41,6 +44,9 @@ export function buildReviewStateFromPersistedDecisions(
                 start: decision.start,
                 end: decision.end,
                 text: decision.text,
+                ...(decision.redactionGroupId
+                    ? { redactionGroupId: decision.redactionGroupId }
+                    : {}),
             });
 
             continue;

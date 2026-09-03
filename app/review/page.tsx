@@ -54,11 +54,10 @@ import {
 import { discloseManualRedactions } from "./discloseManualRedactions";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
 import {
-  containsContentRange,
   getManualDecisionContentRanges,
 } from "./contentRangeUtils";
-import { mergeContentRanges } from "./mergeContentRanges";
 import { buildManualSelectionsFromContentRanges } from "./buildManualSelectionsFromContentRanges";
+import { subtractContentRanges } from "./subtractContentRanges";
 
 const PAGES_PER_BATCH = 50;
 
@@ -124,6 +123,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [hasDecisionConflict, setHasDecisionConflict] = useState(false);
   const [redactionRemoveMenu, setRedactionRemoveMenu] = useState<{
     manualId: string;
+    redactionGroupId: string | null;
     x: number;
     y: number;
   } | null>(null);
@@ -144,6 +144,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     if (!isRedactMode && redactionRemoveMenu) {
       setManualRedactionHover(
         redactionRemoveMenu.manualId,
+        redactionRemoveMenu.redactionGroupId,
         false
       );
 
@@ -157,14 +158,25 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return;
     }
 
-    const { manualId } = redactionRemoveMenu;
+    const {
+      manualId,
+      redactionGroupId,
+    } = redactionRemoveMenu;
 
     function clearRedactionHover() {
       document
         .querySelectorAll<HTMLElement>("[data-manual-id]")
         .forEach((element) => {
-          if (element.dataset.manualId === manualId) {
-            element.classList.remove("highlight--redaction-hover");
+          const matches =
+            redactionGroupId !== null
+              ? element.dataset.redactionGroupId ===
+              redactionGroupId
+              : element.dataset.manualId === manualId;
+
+          if (matches) {
+            element.classList.remove(
+              "highlight--redaction-hover"
+            );
           }
         });
     }
@@ -500,152 +512,204 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     }
   }
 
-  function addOrMergeManualTextSelections(page: ReviewPageData, spansToAdd: ManualSpan[]) {
+  function addManualTextSelectionGroup(
+    page: ReviewPageData,
+    spansToAdd: ManualSpan[],
+    redactionGroupId: string
+  ) {
     if (!documentId || spansToAdd.length === 0) return;
 
-    setManualSelections((prev) => {
-      const affectedKeys = new Set(
-        spansToAdd.map((span) => `${span.pageNumber}::${span.itemId}`)
-      );
-
-      const remaining = prev.filter((selection) => {
-        if (selection.kind !== "text") return true;
-
-        return !affectedKeys.has(`${selection.pageNumber}::${selection.itemId}`);
-      });
-
-      const replacements: ManualTextDecision[] = [];
-
-      for (const key of affectedKeys) {
-        const [pageNumberString, itemId] = key.split("::");
-        const pageNumber = Number(pageNumberString);
-
-        const itemText =
-          page.textItems.find((item) => item.itemId === itemId)?.renderText ??
-          page.textItems.find((item) => item.itemId === itemId)?.text ??
-          "";
-
-        const existing = prev.filter(
-          (selection): selection is ManualTextDecision =>
-            selection.kind === "text" &&
-            selection.pageNumber === pageNumber &&
-            selection.itemId === itemId
+    const newSelections: ManualTextDecision[] = spansToAdd.flatMap(
+      (span) => {
+        const item = page.textItems.find(
+          (candidate) => candidate.itemId === span.itemId
         );
 
-        const added = spansToAdd.filter(
-          (span) => span.pageNumber === pageNumber && span.itemId === itemId
+        if (!item) {
+          return [];
+        }
+
+        const sourceText = item.renderText ?? item.text;
+
+        const start = clampRangeValue(
+          span.start,
+          sourceText.length
         );
 
-        mergeSpans([
-          ...existing.map((selection) => ({
-            pageNumber,
-            itemId,
-            start: selection.start,
-            end: selection.end,
-          })),
-          ...added,
-        ]).forEach((span) => {
-          replacements.push({
+        const end = clampRangeValue(
+          span.end,
+          sourceText.length
+        );
+
+        if (end <= start) {
+          return [];
+        }
+
+        const text = sourceText.slice(start, end);
+
+        if (!text.trim()) {
+          return [];
+        }
+
+        return [
+          {
             id: crypto.randomUUID(),
             documentId,
-            kind: "text",
-            pageNumber,
-            itemId,
-            start: span.start,
-            end: span.end,
-            text: itemText.slice(span.start, span.end),
-          });
-        });
+            kind: "text" as const,
+            pageNumber: span.pageNumber,
+            itemId: span.itemId,
+            start,
+            end,
+            text,
+            redactionGroupId,
+          },
+        ];
       }
+    );
 
-      return [...remaining, ...replacements];
-    });
+    if (newSelections.length === 0) {
+      return;
+    }
+
+    setManualSelections((prev) => [
+      ...prev,
+      ...newSelections,
+    ]);
   }
 
-  function addOrMergeManualTableSelection(
-    tableId: string,
-    cell: ReviewTableCell,
+  function addManualTableSelectionGroup(
     pageNumber: number,
-    start: number,
-    end: number
+    tableId: string,
+    cellRanges: Array<{
+      cell: ReviewTableCell;
+      start: number;
+      end: number;
+    }>,
+    redactionGroupId: string
   ) {
-    if (!documentId) return;
+    if (!documentId || !data || cellRanges.length === 0) {
+      return;
+    }
 
-    const sourceText = cell.renderText ?? cell.text;
-    const normalisedStart = clampRangeValue(start, sourceText.length);
-    const normalisedEnd = clampRangeValue(end, sourceText.length);
+    const existingRanges =
+      getManualDecisionContentRanges(manualSelections);
 
-    if (normalisedEnd <= normalisedStart) return;
-    if (!sourceText.slice(normalisedStart, normalisedEnd).trim()) return;
+    const newSelections = cellRanges.flatMap(
+      ({ cell, start, end }) => {
+        const sourceText = cell.renderText ?? cell.text;
 
-    setManualSelections((prev) => {
-      const remaining = prev.filter(
-        (selection) =>
-          !(
-            selection.kind === "table_cell" &&
-            selection.pageNumber === pageNumber &&
-            selection.tableId === tableId &&
-            selection.cellId === cell.cellId
-          )
-      );
+        const normalisedStart = clampRangeValue(
+          start,
+          sourceText.length
+        );
 
-      const existing = prev.filter(
-        (selection): selection is ManualTableCellDecision =>
-          selection.kind === "table_cell" &&
-          selection.pageNumber === pageNumber &&
-          selection.tableId === tableId &&
-          selection.cellId === cell.cellId
-      );
+        const normalisedEnd = clampRangeValue(
+          end,
+          sourceText.length
+        );
 
-      const merged = mergeSpans([
-        ...existing.map((selection) => ({
+        if (normalisedEnd <= normalisedStart) {
+          return [];
+        }
+
+        if (
+          !sourceText
+            .slice(normalisedStart, normalisedEnd)
+            .trim()
+        ) {
+          return [];
+        }
+
+        const selectedRange = {
+          kind: "table_cell" as const,
           pageNumber,
-          itemId: cell.cellId,
-          start: selection.start,
-          end: selection.end,
-        })),
-        {
-          pageNumber,
-          itemId: cell.cellId,
+          itemId: null,
+          tableId,
+          cellId: cell.cellId,
           start: normalisedStart,
           end: normalisedEnd,
-        },
-      ]);
+        };
 
-      const replacements: ManualTableCellDecision[] = merged.map((span) => ({
-        id: crypto.randomUUID(),
-        documentId,
-        kind: "table_cell",
-        pageNumber,
-        tableId,
-        cellId: cell.cellId,
-        start: span.start,
-        end: span.end,
-        text: sourceText.slice(span.start, span.end),
-      }));
+        /*
+         * Do not duplicate portions of cells which are
+         * already manually redacted.
+         */
+        const uncoveredRanges =
+          subtractContentRanges(
+            selectedRange,
+            existingRanges
+          );
 
-      return [...remaining, ...replacements];
-    });
+        return buildManualSelectionsFromContentRanges(
+          uncoveredRanges,
+          data.pages,
+          documentId,
+          () => crypto.randomUUID()
+        ).map((selection) => ({
+          ...selection,
+          redactionGroupId,
+        }));
+      }
+    );
+
+    if (newSelections.length === 0) {
+      return;
+    }
+
+    setManualSelections((previous) => [
+      ...previous,
+      ...newSelections,
+    ]);
   }
 
   function handleTableCellSelection() {
-    if (!isRedactMode || !data) return false;
+    if (!isRedactMode || !data) {
+      return false;
+    }
 
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false;
+
+    if (
+      !selection ||
+      selection.rangeCount === 0 ||
+      selection.isCollapsed
+    ) {
+      return false;
+    }
 
     const range = selection.getRangeAt(0);
-    const startElement = getClosestElementWithAttribute(range.startContainer, "data-cell-id");
-    const endElement = getClosestElementWithAttribute(range.endContainer, "data-cell-id");
 
-    if (!startElement || !endElement) return false;
+    const startElement =
+      getClosestElementWithAttribute(
+        range.startContainer,
+        "data-cell-id"
+      );
+
+    const endElement =
+      getClosestElementWithAttribute(
+        range.endContainer,
+        "data-cell-id"
+      );
+
+    /*
+     * This was not a table selection, so allow the normal
+     * text-selection handler to try instead.
+     */
+    if (!startElement || !endElement) {
+      return false;
+    }
 
     const startCellId = startElement.dataset.cellId;
     const endCellId = endElement.dataset.cellId;
+
     const startTableId = startElement.dataset.tableId;
     const endTableId = endElement.dataset.tableId;
-    const startPageNumber = startElement.dataset.pageNumber;
-    const endPageNumber = endElement.dataset.pageNumber;
+
+    const startPageNumber =
+      startElement.dataset.pageNumber;
+
+    const endPageNumber =
+      endElement.dataset.pageNumber;
 
     if (
       !startCellId ||
@@ -655,11 +719,15 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       !startPageNumber ||
       !endPageNumber
     ) {
-      return false;
+      selection.removeAllRanges();
+      return true;
     }
 
+    /*
+     * A single table redaction selection must remain
+     * inside one table on one page.
+     */
     if (
-      startCellId !== endCellId ||
       startTableId !== endTableId ||
       startPageNumber !== endPageNumber
     ) {
@@ -668,38 +736,148 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     }
 
     const pageNumber = Number(startPageNumber);
-    const page = data.pages.find((candidate) => candidate.pageNumber === pageNumber);
-    const table = page?.tables.find((candidate) => candidate.tableId === startTableId);
-    const cell = table?.rows
-      .flatMap((row) => row.cells)
-      .find((candidate) => candidate.cellId === startCellId);
 
-    if (!page || !table || !cell) {
+    const page = data.pages.find(
+      (candidate) =>
+        candidate.pageNumber === pageNumber
+    );
+
+    const table = page?.tables.find(
+      (candidate) =>
+        candidate.tableId === startTableId
+    );
+
+    if (!page || !table) {
       selection.removeAllRanges();
       return true;
     }
 
-    const start = getTextOffsetWithinItem(
-      startElement,
-      range.startContainer,
-      range.startOffset
+    const cells = table.rows
+      .flatMap((row) => row.cells)
+      .sort(
+        (left, right) =>
+          left.rowIndex - right.rowIndex ||
+          left.colIndex - right.colIndex
+      );
+
+    const startCellIndex = cells.findIndex(
+      (cell) => cell.cellId === startCellId
     );
 
-    const end = getTextOffsetWithinItem(
-      endElement,
-      range.endContainer,
-      range.endOffset
+    const endCellIndex = cells.findIndex(
+      (cell) => cell.cellId === endCellId
     );
 
-    addOrMergeManualTableSelection(
-      startTableId,
-      cell,
-      pageNumber,
-      Math.min(start, end),
-      Math.max(start, end)
+    if (
+      startCellIndex < 0 ||
+      endCellIndex < 0
+    ) {
+      selection.removeAllRanges();
+      return true;
+    }
+
+    const firstCellIndex = Math.min(
+      startCellIndex,
+      endCellIndex
     );
+
+    const lastCellIndex = Math.max(
+      startCellIndex,
+      endCellIndex
+    );
+
+    const selectedCells = cells.slice(
+      firstCellIndex,
+      lastCellIndex + 1
+    );
+
+    const cellRanges = selectedCells.flatMap(
+      (cell, index) => {
+        const sourceText =
+          cell.renderText ?? cell.text;
+
+        if (!sourceText.trim()) {
+          return [];
+        }
+
+        const isFirstCell = index === 0;
+        const isLastCell =
+          index === selectedCells.length - 1;
+
+        let start = 0;
+        let end = sourceText.length;
+
+        if (isFirstCell) {
+          start = getTextOffsetWithinItem(
+            startElement,
+            range.startContainer,
+            range.startOffset
+          );
+        }
+
+        if (isLastCell) {
+          end = getTextOffsetWithinItem(
+            endElement,
+            range.endContainer,
+            range.endOffset
+          );
+        }
+
+        /*
+         * A selection entirely inside one cell needs both
+         * offsets from that same cell.
+         */
+        if (isFirstCell && isLastCell) {
+          start = getTextOffsetWithinItem(
+            startElement,
+            range.startContainer,
+            range.startOffset
+          );
+
+          end = getTextOffsetWithinItem(
+            endElement,
+            range.endContainer,
+            range.endOffset
+          );
+        }
+
+        const normalisedStart =
+          clampRangeValue(
+            Math.min(start, end),
+            sourceText.length
+          );
+
+        const normalisedEnd =
+          clampRangeValue(
+            Math.max(start, end),
+            sourceText.length
+          );
+
+        if (normalisedEnd <= normalisedStart) {
+          return [];
+        }
+
+        return [
+          {
+            cell,
+            start: normalisedStart,
+            end: normalisedEnd,
+          },
+        ];
+      }
+    );
+
+    if (cellRanges.length > 0) {
+      addManualTableSelectionGroup(
+        pageNumber,
+        startTableId,
+        cellRanges,
+        crypto.randomUUID()
+      );
+    }
 
     selection.removeAllRanges();
+
     return true;
   }
 
@@ -795,29 +973,102 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       });
     }
 
-    addOrMergeManualTextSelections(page, spansToAdd);
+    const redactionGroupId = crypto.randomUUID();
+
+    addManualTextSelectionGroup(
+      page,
+      spansToAdd,
+      redactionGroupId
+    );
+
     selection.removeAllRanges();
   }
 
-  function removeManualSelection(id: string) {
-    setManualSelections((prev) => prev.filter((selection) => selection.id !== id));
+  function removeManualSelection(
+    manualId: string,
+    redactionGroupId: string | null
+  ) {
+    setManualSelections((prev) =>
+      prev.filter((selection) => {
+        if (redactionGroupId) {
+          if (selection.kind === "image") {
+            return true;
+          }
+
+          return (
+            selection.redactionGroupId !==
+            redactionGroupId
+          );
+        }
+
+        return selection.id !== manualId;
+      })
+    );
   }
 
-  function getManualRedactionId(target: EventTarget | null) {
+  function getRedactionTarget(target: EventTarget | null) {
     if (!(target instanceof Element)) {
       return null;
     }
 
-    const element = target.closest<HTMLElement>("[data-manual-id]");
+    const element =
+      target.closest<HTMLElement>("[data-manual-id]");
 
-    return element?.dataset.manualId ?? null;
+    const manualId = element?.dataset.manualId;
+
+    if (!element || !manualId) {
+      return null;
+    }
+
+    return {
+      manualId,
+      redactionGroupId:
+        element.dataset.redactionGroupId ?? null,
+    };
   }
 
-  function setManualRedactionHover(manualId: string, isHovered: boolean) {
+  function isSameRedactionTarget(
+    left: {
+      manualId: string;
+      redactionGroupId: string | null;
+    } | null,
+    right: {
+      manualId: string;
+      redactionGroupId: string | null;
+    } | null
+  ) {
+    if (!left || !right) {
+      return false;
+    }
+
+    if (
+      left.redactionGroupId &&
+      right.redactionGroupId
+    ) {
+      return (
+        left.redactionGroupId ===
+        right.redactionGroupId
+      );
+    }
+
+    return left.manualId === right.manualId;
+  }
+
+  function setManualRedactionHover(
+    manualId: string,
+    redactionGroupId: string | null,
+    isHovered: boolean
+  ) {
     document
       .querySelectorAll<HTMLElement>("[data-manual-id]")
       .forEach((element) => {
-        if (element.dataset.manualId === manualId) {
+        const matches =
+          redactionGroupId !== null
+            ? element.dataset.redactionGroupId ===
+            redactionGroupId
+            : element.dataset.manualId === manualId;
+
+        if (matches) {
           element.classList.toggle(
             "highlight--redaction-hover",
             isHovered
@@ -826,9 +1077,15 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       });
   }
 
-  function closeRedactionRemoveMenu(restoreFocus = false) {
+  function closeRedactionRemoveMenu(
+    restoreFocus = false
+  ) {
     if (redactionRemoveMenu) {
-      setManualRedactionHover(redactionRemoveMenu.manualId, false);
+      setManualRedactionHover(
+        redactionRemoveMenu.manualId,
+        redactionRemoveMenu.redactionGroupId,
+        false
+      );
     }
 
     setRedactionRemoveMenu(null);
@@ -845,39 +1102,63 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return;
     }
 
-    const manualId = getManualRedactionId(event.target);
+    const redactionTarget =
+      getRedactionTarget(event.target);
 
-    if (!manualId) {
+    if (!redactionTarget) {
       return;
     }
 
-    const relatedManualId = getManualRedactionId(event.relatedTarget);
+    const relatedTarget =
+      getRedactionTarget(event.relatedTarget);
 
-    if (relatedManualId === manualId) {
+    if (
+      isSameRedactionTarget(
+        redactionTarget,
+        relatedTarget
+      )
+    ) {
       return;
     }
 
-    setManualRedactionHover(manualId, true);
+    setManualRedactionHover(
+      redactionTarget.manualId,
+      redactionTarget.redactionGroupId,
+      true
+    );
   }
 
-  function handleRedactionMouseOut(event: MouseEvent<HTMLElement>) {
+  function handleRedactionMouseOut(
+    event: MouseEvent<HTMLElement>
+  ) {
     if (!isRedactMode) {
       return;
     }
 
-    const manualId = getManualRedactionId(event.target);
+    const redactionTarget =
+      getRedactionTarget(event.target);
 
-    if (!manualId) {
+    if (!redactionTarget) {
       return;
     }
 
-    const relatedManualId = getManualRedactionId(event.relatedTarget);
+    const relatedTarget =
+      getRedactionTarget(event.relatedTarget);
 
-    if (relatedManualId === manualId) {
+    if (
+      isSameRedactionTarget(
+        redactionTarget,
+        relatedTarget
+      )
+    ) {
       return;
     }
 
-    setManualRedactionHover(manualId, false);
+    setManualRedactionHover(
+      redactionTarget.manualId,
+      redactionTarget.redactionGroupId,
+      false
+    );
   }
 
   function handleRedactionContextMenu(event: MouseEvent<HTMLElement>) {
@@ -891,10 +1172,13 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return;
     }
 
-    const element = target.closest<HTMLElement>("[data-manual-id]");
-    const manualId = element?.dataset.manualId;
+    const element =
+      target.closest<HTMLElement>("[data-manual-id]");
 
-    if (!element || !manualId) {
+    const redactionTarget =
+      getRedactionTarget(target);
+
+    if (!element || !redactionTarget) {
       return;
     }
 
@@ -903,7 +1187,9 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     redactionRemoveTriggerRef.current = element;
 
     setRedactionRemoveMenu({
-      manualId,
+      manualId: redactionTarget.manualId,
+      redactionGroupId:
+        redactionTarget.redactionGroupId,
       x: event.clientX,
       y: event.clientY,
     });
@@ -962,57 +1248,71 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   function handleHighlightSelected(
     selectedResults: FindInDocumentResult[]
   ): number {
-    if (!documentId || !data || selectedResults.length === 0) {
-      return 0;
-    }
-
-    const selectedRanges =
-      buildContentRangesFromFindResults(selectedResults);
-
-    if (selectedRanges.length === 0) {
+    if (
+      !documentId ||
+      !data ||
+      selectedResults.length === 0
+    ) {
       return 0;
     }
 
     const existingRanges =
       getManualDecisionContentRanges(manualSelections);
 
-    const genuinelyNewRanges = selectedRanges.filter(
-      (candidateRange) =>
-        !existingRanges.some((existingRange) =>
-          containsContentRange(
-            existingRange,
-            candidateRange
-          )
-        )
-    );
+    const newSelections =
+      selectedResults.flatMap((result) => {
+        const resultRanges =
+          buildContentRangesFromFindResults([result]);
 
-    if (genuinelyNewRanges.length === 0) {
+        /*
+         * Only add portions of this searched occurrence which
+         * are not already covered by an existing redaction.
+         */
+        const uncoveredRanges = resultRanges.flatMap(
+          (range) =>
+            subtractContentRanges(
+              range,
+              existingRanges
+            )
+        );
+
+        if (uncoveredRanges.length === 0) {
+          return [];
+        }
+
+        /*
+         * One selected search occurrence is one logical
+         * redaction, even if that occurrence spans multiple
+         * text blocks.
+         */
+        const redactionGroupId =
+          crypto.randomUUID();
+
+        return buildManualSelectionsFromContentRanges(
+          uncoveredRanges,
+          data.pages,
+          documentId,
+          () => crypto.randomUUID()
+        ).map((selection) => ({
+          ...selection,
+          redactionGroupId,
+        }));
+      });
+
+    if (newSelections.length === 0) {
       return 0;
     }
 
-    const mergedRanges = mergeContentRanges([
-      ...existingRanges,
-      ...genuinelyNewRanges,
+    /*
+     * Crucially: append only the searched redactions.
+     * Existing manual decisions are left untouched.
+     */
+    setManualSelections((previous) => [
+      ...previous,
+      ...newSelections,
     ]);
 
-    const rebuiltTextSelections =
-      buildManualSelectionsFromContentRanges(
-        mergedRanges,
-        data.pages,
-        documentId,
-        () => crypto.randomUUID()
-      );
-
-    const existingImageSelections = manualSelections.filter(
-      (selection) => selection.kind === "image"
-    );
-
-    setManualSelections([
-      ...existingImageSelections,
-      ...rebuiltTextSelections,
-    ]);
-
-    return genuinelyNewRanges.length;
+    return newSelections.length;
   }
 
   function handleFindAndPartiallyRedact(
@@ -1027,63 +1327,67 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return 0;
     }
 
-    const selectedResults = results.filter((result) =>
-      selectedResultIds.has(result.id)
+    const selectedResults = results.filter(
+      (result) =>
+        selectedResultIds.has(result.id)
     );
 
     if (selectedResults.length === 0) {
       return 0;
     }
 
-    const newRanges = selectedResults.flatMap((result) =>
-      buildPartialContentRanges(
-        data.pages,
-        result,
-        selectedRange
-      )
-    );
-
     const existingRanges =
       getManualDecisionContentRanges(manualSelections);
 
-    const genuinelyNewRanges = newRanges.filter(
-      (candidateRange) =>
-        !existingRanges.some((existingRange) =>
-          containsContentRange(
-            existingRange,
-            candidateRange
-          )
-        )
-    );
+    const newSelections =
+      selectedResults.flatMap((result) => {
+        const resultRanges =
+          buildPartialContentRanges(
+            data.pages,
+            result,
+            selectedRange
+          );
 
-    if (genuinelyNewRanges.length === 0) {
+        /*
+         * Only add the uncovered portion of the specific
+         * partial phrase selected by the user.
+         */
+        const uncoveredRanges = resultRanges.flatMap(
+          (range) =>
+            subtractContentRanges(
+              range,
+              existingRanges
+            )
+        );
+
+        if (uncoveredRanges.length === 0) {
+          return [];
+        }
+
+        const redactionGroupId =
+          crypto.randomUUID();
+
+        return buildManualSelectionsFromContentRanges(
+          uncoveredRanges,
+          data.pages,
+          documentId,
+          () => crypto.randomUUID()
+        ).map((selection) => ({
+          ...selection,
+          redactionGroupId,
+        }));
+      });
+
+    if (newSelections.length === 0) {
       return 0;
     }
 
-    const mergedRanges = mergeContentRanges([
-      ...existingRanges,
-      ...genuinelyNewRanges,
+    setManualSelections((previous) => [
+      ...previous,
+      ...newSelections,
     ]);
 
-    const rebuiltSelections =
-      buildManualSelectionsFromContentRanges(
-        mergedRanges,
-        data.pages,
-        documentId,
-        () => crypto.randomUUID()
-      );
-
-    const existingImageSelections =
-      manualSelections.filter(
-        (selection) => selection.kind === "image"
-      );
-
-    setManualSelections([
-      ...existingImageSelections,
-      ...rebuiltSelections,
-    ]);
-
-    return genuinelyNewRanges.length;
+    return newSelections.length;
   }
 
   function handleUndoSelected(
@@ -1099,29 +1403,22 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
     const result = discloseManualRedactions(
       manualSelections,
-      selectedResults
+      selectedResults,
+      () => crypto.randomUUID()
     );
 
     if (result.disclosedCount === 0) {
       return 0;
     }
 
-    const rebuiltTextSelections =
-      buildManualSelectionsFromContentRanges(
-        result.remainingRanges,
-        data.pages,
-        documentId,
-        () => crypto.randomUUID()
-      );
-
-    const existingImageSelections = manualSelections.filter(
-      (selection) => selection.kind === "image"
+    /*
+     * discloseManualRedactions now preserves every unrelated
+     * existing decision and only modifies decisions which
+     * contain the searched phrase.
+     */
+    setManualSelections(
+      result.remainingSelections
     );
-
-    setManualSelections([
-      ...existingImageSelections,
-      ...rebuiltTextSelections,
-    ]);
 
     return result.disclosedCount;
   }
@@ -1142,13 +1439,24 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
             zIndex: 20,
           }}
           onMouseEnter={() => {
-            setManualRedactionHover(redactionRemoveMenu.manualId, true);
+            setManualRedactionHover(
+              redactionRemoveMenu.manualId,
+              redactionRemoveMenu.redactionGroupId,
+              true
+            );
           }}
           onMouseLeave={() => {
-            setManualRedactionHover(redactionRemoveMenu.manualId, false);
+            setManualRedactionHover(
+              redactionRemoveMenu.manualId,
+              redactionRemoveMenu.redactionGroupId,
+              false
+            );
           }}
           onClick={() => {
-            removeManualSelection(redactionRemoveMenu.manualId);
+            removeManualSelection(
+              redactionRemoveMenu.manualId,
+              redactionRemoveMenu.redactionGroupId
+            );
             closeRedactionRemoveMenu();
           }}
         >
