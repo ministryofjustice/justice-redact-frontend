@@ -500,7 +500,7 @@ export default function FindAndRedactModal({
                                                                     excerpt.match &&
                                                                     " "}
 
-                                                                <strong>
+                                                                <strong className="highlight highlight--redaction jr-find-and-redact-result__match">
                                                                     {excerpt.match}
                                                                 </strong>
 
