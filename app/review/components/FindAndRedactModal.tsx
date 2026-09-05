@@ -164,6 +164,20 @@ export default function FindAndRedactModal({
         setResultsError(null);
     }
 
+    function handleSelectAll() {
+        const selectableResultIds = results
+            .filter((result) => !isAlreadyManuallyRedacted(result))
+            .map((result) => result.id);
+
+        setSelectedResultIds(new Set(selectableResultIds));
+        setResultsError(null);
+    }
+
+    function handleClearSelections() {
+        setSelectedResultIds(new Set());
+        setResultsError(null);
+    }
+
     function handleHighlightSelected() {
         if (selectedResultIds.size === 0) {
             setResultsError("Select at least one result to redact");
@@ -404,14 +418,43 @@ export default function FindAndRedactModal({
                         Search and highlight
                     </h2>
 
-                    <h3
-                        id={resultsHeadingId}
-                        className="govuk-heading-m"
-                    >
-                        {results.length}{" "}
-                        {results.length === 1 ? "result " : "results "} found
-                        for &lsquo;{submittedSearchTerm}&rsquo;
-                    </h3>
+                    <div className="jr-find-results-heading-row">
+                        <h3
+                            id={resultsHeadingId}
+                            className="govuk-heading-m jr-find-results-heading"
+                        >
+                            {results.length}{" "}
+                            {results.length === 1 ? "result " : "results "} found
+                            for ‘{submittedSearchTerm}’
+                        </h3>
+
+                        {results.length > 0 && (
+                            <div className="jr-find-results-selection-actions">
+                                <button
+                                    type="button"
+                                    className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                                    onClick={handleSelectAll}
+                                >
+                                    Select all
+                                </button>
+
+                                <span
+                                    className="jr-find-results-selection-actions__separator"
+                                    aria-hidden="true"
+                                >
+                                    |
+                                </span>
+
+                                <button
+                                    type="button"
+                                    className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                                    onClick={handleClearSelections}
+                                >
+                                    Clear selections
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     <div
                         className={[

@@ -332,6 +332,31 @@ main {
   color: govuk.govuk-colour("black");
 }
 
+.jr-find-results-heading-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: govuk.govuk-spacing(2);
+  margin-bottom: govuk.govuk-spacing(4);
+}
+
+.jr-find-results-heading {
+  margin-bottom: 0;
+}
+
+.jr-find-results-selection-actions {
+  display: inline-flex;
+  align-items: baseline;
+  gap: govuk.govuk-spacing(1);
+  white-space: nowrap;
+}
+
+.jr-find-results-selection-actions__separator {
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 19px;
+  line-height: 1.3157894737;
+}
+
 .jr-find-and-redact-results-group {
   display: flex;
   flex: 1;
