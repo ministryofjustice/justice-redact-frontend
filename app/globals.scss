@@ -481,10 +481,12 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 15px;
-  padding: 10px 20px;
-  background: transparent;
-  border-bottom: 1px solid #b1b4b6;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: #f3f3f3;
+  border-bottom: 1px solid var(--govuk-border-colour, #cecece);
 }
 
 .jr-review-page__header-content {
@@ -494,7 +496,9 @@ main {
 }
 
 .jr-review-page__actions {
+  justify-content: flex-start;
   margin-bottom: 0;
+  padding: 0 10px;
 }
 
 .jr-review-page__content {
