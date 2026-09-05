@@ -536,7 +536,7 @@ main {
   text-decoration-line: underline;
   text-decoration-style: wavy;
   text-decoration-color: govuk.govuk-colour("blue");
-  text-decoration-skip-ink: none;
+  text-decoration-skip-ink: auto;
 }
 
 .highlight--allow {
