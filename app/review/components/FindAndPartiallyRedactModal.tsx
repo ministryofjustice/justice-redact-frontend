@@ -227,6 +227,23 @@ export default function FindAndPartiallyRedactModal({
         };
     }
 
+    function getEffectiveSelectedText(): string {
+        const effectiveSelectedRange =
+            getEffectiveSelectedRange();
+
+        if (
+            !effectiveSelectedRange ||
+            !submittedSearchTerm
+        ) {
+            return "";
+        }
+
+        return submittedSearchTerm.slice(
+            effectiveSelectedRange.start,
+            effectiveSelectedRange.end
+        );
+    }
+
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
@@ -447,7 +464,7 @@ export default function FindAndPartiallyRedactModal({
             {isShowingSuccess ? (
                 <>
                     <h2 className="govuk-heading-l">
-                        Search and highlight part
+                        Your redactions have been made
                     </h2>
 
                     <div
@@ -470,9 +487,8 @@ export default function FindAndPartiallyRedactModal({
                                 </span>
 
                                 <span>
-                                    Successfully highlighted part of &lsquo;
-                                    {submittedSearchTerm}
-                                    &rsquo; in{" "}
+                                    &lsquo;{getEffectiveSelectedText()}&rsquo; has been
+                                    redacted within &lsquo;{submittedSearchTerm}&rsquo; in{" "}
                                     {highlightedCount}{" "}
                                     {highlightedCount === 1
                                         ? "place"
@@ -527,7 +543,7 @@ export default function FindAndPartiallyRedactModal({
                         </div>
                     )}
                     <h2 className="govuk-heading-l">
-                        Search and highlight part
+                        Find and redact part
                     </h2>
 
                     <div className="jr-find-results-heading-row">
@@ -535,11 +551,12 @@ export default function FindAndPartiallyRedactModal({
                             id={resultsHeadingId}
                             className="govuk-heading-m jr-find-results-heading"
                         >
-                            {results.length}{" "}
+                            {/* {results.length}{" "}
                             {results.length === 1
                                 ? "result "
                                 : "results "}
-                            found for ‘{submittedSearchTerm}’
+                            found for ‘{submittedSearchTerm}’ */}
+                            {results.length > 0 && "Select what you want to redact"}
                         </h3>
 
                         {results.length > 0 && (
@@ -724,7 +741,7 @@ export default function FindAndPartiallyRedactModal({
                                 data-module="govuk-button"
                                 onClick={handleHighlightSelected}
                             >
-                                Highlight selected
+                                Redact
                             </button>
                         ) : (
                             <button
@@ -786,7 +803,7 @@ export default function FindAndPartiallyRedactModal({
                     )}
 
                     <h2 className="govuk-heading-l">
-                        Search and highlight part
+                        Find and redact part
                     </h2>
 
                     <div
@@ -800,13 +817,13 @@ export default function FindAndPartiallyRedactModal({
                             .join(" ")}
                     >
                         <h3 className="govuk-heading-m">
-                            Specify what to highlight
+                            Select which part you want to redact
                         </h3>
 
-                        <p className="govuk-body">
+                        {/* <p className="govuk-body">
                             Select what to highlight by
                             clicking it in the box below.
-                        </p>
+                        </p> */}
 
                         {selectionError && (
                             <p
@@ -919,7 +936,7 @@ export default function FindAndPartiallyRedactModal({
                     )}
 
                     <h2 className="govuk-heading-l">
-                        Search and highlight part
+                        Find and redact part
                     </h2>
 
                     <div
@@ -936,7 +953,7 @@ export default function FindAndPartiallyRedactModal({
                             className="govuk-label govuk-label--m"
                             htmlFor={inputId}
                         >
-                            Word or phrase
+                            Enter a word or phrase to search for
                         </label>
 
                         {error && (
