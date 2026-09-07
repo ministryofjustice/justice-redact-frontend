@@ -1,7 +1,7 @@
 import {
-    containsContentRange,
     getFindResultContentRanges,
     getManualDecisionContentRange,
+    overlapsContentRange,
 } from "./contentRangeUtils";
 import {
     findInDocument,
@@ -27,54 +27,55 @@ export function findInManualRedactions(
         return [];
     }
 
-    const searchableManualSelections = manualSelections.flatMap(
-        (selection) => {
-            const range = getManualDecisionContentRange(selection);
+    const searchableManualSelections =
+        manualSelections.flatMap((selection) => {
+            const range =
+                getManualDecisionContentRange(selection);
 
             return range
                 ? [{ selection, range }]
                 : [];
-        }
-    );
+        });
 
     if (searchableManualSelections.length === 0) {
         return [];
     }
 
-    const mergedRedactionRanges = mergeContentRanges(
-        searchableManualSelections.map(({ range }) => range)
-    );
+    const mergedRedactionRanges =
+        mergeContentRanges(
+            searchableManualSelections.map(
+                ({ range }) => range
+            )
+        );
 
     const documentResults = findInDocument(
         pages,
         trimmedSearchTerm
     );
 
-    return documentResults.flatMap<FindInManualRedactionResult>(
-        (result) => {
-            const resultRanges =
-                getFindResultContentRanges(result);
+    return documentResults.filter((result) => {
+        const resultRanges =
+            getFindResultContentRanges(result);
 
-            if (resultRanges.length === 0) {
-                return [];
-            }
-
-            const isCurrentlyRedacted =
-                resultRanges.every((resultRange) =>
-                    mergedRedactionRanges.some(
-                        (redactionRange) =>
-                            containsContentRange(
-                                redactionRange,
-                                resultRange
-                            )
-                    )
-                );
-
-            if (!isCurrentlyRedacted) {
-                return [];
-            }
-
-            return [result];
+        if (resultRanges.length === 0) {
+            return false;
         }
-    );
+
+        /*
+         * Include the searched occurrence if any part of it
+         * currently overlaps a manual redaction.
+         *
+         * This allows both fully and partially redacted
+         * occurrences to be disclosed.
+         */
+        return resultRanges.some((resultRange) =>
+            mergedRedactionRanges.some(
+                (redactionRange) =>
+                    overlapsContentRange(
+                        redactionRange,
+                        resultRange
+                    )
+            )
+        );
+    });
 }

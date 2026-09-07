@@ -19,6 +19,7 @@ import type {
     ManualDecision,
     ReviewPageData,
 } from "../types";
+import FindResultMatch from "./FindResultMatch";
 import Modal from "./Modal";
 
 type FindAndDiscloseModalProps = {
@@ -136,6 +137,18 @@ export default function FindAndDiscloseModal({
         setResultsError(null);
     }
 
+    function handleSelectAll() {
+        setSelectedResultIds(
+            new Set(results.map((result) => result.id))
+        );
+        setResultsError(null);
+    }
+
+    function handleClearSelections() {
+        setSelectedResultIds(new Set());
+        setResultsError(null);
+    }
+
     function handleUndoSelected() {
         if (selectedResultIds.size === 0) {
             setResultsError("Select at least one highlight to undo");
@@ -196,7 +209,7 @@ export default function FindAndDiscloseModal({
                 <>
 
                     <h2 className="govuk-heading-l">
-                        Search and undo
+                        Find and remove redactions
                     </h2>
 
                     <div
@@ -219,7 +232,7 @@ export default function FindAndDiscloseModal({
                                 </span>
 
                                 <span>
-                                    Successfully removed the highlight from &lsquo;{submittedSearchTerm}&rsquo; in{" "}
+                                    &lsquo;{submittedSearchTerm}&rsquo; is no longer redacted in{" "}
                                     {highlightedCount}{" "}
                                     {highlightedCount === 1 ? "place" : "places"}.
                                 </span>
@@ -268,7 +281,7 @@ export default function FindAndDiscloseModal({
 
 
                     <h2 className="govuk-heading-l">
-                        Search and undo
+                        Find and remove redactions
                     </h2>
 
                     <div
@@ -283,7 +296,7 @@ export default function FindAndDiscloseModal({
                             className="govuk-label govuk-label--m"
                             htmlFor={inputId}
                         >
-                            Word or phrase
+                            Enter a word or phrase to search for
                         </label>
 
                         {error && (
@@ -373,17 +386,47 @@ export default function FindAndDiscloseModal({
                     )}
 
                     <h2 className="govuk-heading-l">
-                        Search and undo
+                        Find and remove redactions
                     </h2>
 
-                    <h3
-                        id={resultsHeadingId}
-                        className="govuk-heading-m"
-                    >
-                        {results.length}{" "}
-                        {results.length === 1 ? "result " : "results "} found
-                        for &lsquo;{submittedSearchTerm}&rsquo;
-                    </h3>
+                    <div className="jr-find-results-heading-row">
+                        <h3
+                            id={resultsHeadingId}
+                            className="govuk-heading-m jr-find-results-heading"
+                        >
+                            {/* {results.length}{" "}
+                            {results.length === 1 ? "result " : "results "} found
+                            for ‘{submittedSearchTerm}’ */}
+                            {results.length > 0 && "Select what redactions you want to remove"}
+                        </h3>
+
+                        {results.length > 0 && (
+                            <div className="jr-find-results-selection-actions">
+                                <button
+                                    type="button"
+                                    className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                                    onClick={handleSelectAll}
+                                >
+                                    Select all
+                                </button>
+
+                                <span
+                                    className="jr-find-results-selection-actions__separator"
+                                    aria-hidden="true"
+                                >
+                                    |
+                                </span>
+
+                                <button
+                                    type="button"
+                                    className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                                    onClick={handleClearSelections}
+                                >
+                                    Clear selections
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     <div
                         className={[
@@ -468,9 +511,11 @@ export default function FindAndDiscloseModal({
                                                                     excerpt.match &&
                                                                     " "}
 
-                                                                <strong>
-                                                                    {excerpt.match}
-                                                                </strong>
+                                                                <FindResultMatch
+                                                                    result={result}
+                                                                    pages={pages}
+                                                                    manualSelections={manualSelections}
+                                                                />
 
                                                                 {excerpt.match &&
                                                                     excerpt.after &&
@@ -507,7 +552,7 @@ export default function FindAndDiscloseModal({
                                 data-module="govuk-button"
                                 onClick={handleUndoSelected}
                             >
-                                Undo selected
+                                Remove
                             </button>
                         ) : (
                             <button

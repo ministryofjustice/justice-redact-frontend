@@ -246,6 +246,20 @@ function ApplyingRedactionsContent() {
                                 {isCancelling ? "Returning to review..." : "Back"}
                             </button>
                         </div>
+                        <div className="govuk-grid-column-two-thirds">
+                            <section aria-labelledby="applying-redactions-heading">
+                                <h1
+                                    className="govuk-heading-xl"
+                                    id="applying-redactions-heading"
+                                >
+                                    Your redactions are being applied
+                                </h1>
+
+                                {/* <p className="govuk-body">
+                                    This might take around 2 minutes for this document.
+                                </p> */}
+                            </section>
+                        </div>
                         <div className="govuk-grid-column-full">
                             <LinearLoadingBar
                                 label={
@@ -256,20 +270,6 @@ function ApplyingRedactionsContent() {
                             />
                         </div>
 
-                        <div className="govuk-grid-column-two-thirds">
-                            <section aria-labelledby="applying-redactions-heading">
-                                <h1
-                                    className="govuk-heading-xl"
-                                    id="applying-redactions-heading"
-                                >
-                                    Applying redactions
-                                </h1>
-
-                                <p className="govuk-body">
-                                    This might take around 2 minutes for this document.
-                                </p>
-                            </section>
-                        </div>
                     </>
                 )}
             </div>

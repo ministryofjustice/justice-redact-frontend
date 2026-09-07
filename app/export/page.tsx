@@ -199,7 +199,7 @@ function ExportContent() {
                             Back
                         </Link>
                     )}
-                    <h1 className="govuk-heading-xl">Redaction complete</h1>
+                    <h1 className="govuk-heading-xl">Redactions applied</h1>
                     {showStaleRevision && (
                         <div
                             role="region"

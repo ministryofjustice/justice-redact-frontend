@@ -112,6 +112,7 @@ export default function PageContent({
                             id: selection.id,
                             start: selection.start,
                             end: selection.end,
+                            redactionGroupId: selection.redactionGroupId,
                         }));
 
                     const sourceText = item.text;
@@ -205,6 +206,7 @@ export default function PageContent({
                                                             id: selection.id,
                                                             start: selection.start,
                                                             end: selection.end,
+                                                            redactionGroupId: selection.redactionGroupId,
                                                         }));
 
                                                     const isManuallyRedacted = manualForCell.length > 0;

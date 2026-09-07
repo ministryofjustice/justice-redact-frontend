@@ -9,21 +9,25 @@ import {
 } from "react";
 
 import {
+    buildPartialContentRanges,
     buildFindInDocumentExcerpt,
     findInDocument,
     mapOriginalOffsetToNormalisedOffset,
     type FindInDocumentResult,
 } from "../findInDocument";
+
 import {
     containsContentRange,
-    getFindResultContentRanges,
-    getManualDecisionContentRange,
+    getManualDecisionContentRanges,
 } from "../contentRangeUtils";
+
+import { mergeContentRanges } from "../mergeContentRanges";
 import type {
     ManualDecision,
     ReviewPageData,
 } from "../types";
 import Modal from "./Modal";
+import FindResultMatch from "./FindResultMatch";
 import { renderTextSegments } from "../textRendering";
 
 type FindAndPartiallyRedactModalProps = {
@@ -136,6 +140,110 @@ export default function FindAndPartiallyRedactModal({
         });
     }, [isShowingSuccess]);
 
+    function isSelectedPartialRangeAlreadyRedacted(
+        result: FindInDocumentResult
+    ): boolean {
+        const effectiveSelectedRange =
+            getEffectiveSelectedRange();
+
+        if (
+            !effectiveSelectedRange ||
+            !submittedSearchTerm
+        ) {
+            return false;
+        }
+
+        const normalisedSelectedRange = {
+            start: mapOriginalOffsetToNormalisedOffset(
+                submittedSearchTerm,
+                effectiveSelectedRange.start
+            ),
+            end: mapOriginalOffsetToNormalisedOffset(
+                submittedSearchTerm,
+                effectiveSelectedRange.end
+            ),
+        };
+
+        const partialRanges =
+            buildPartialContentRanges(
+                pages,
+                result,
+                normalisedSelectedRange
+            );
+
+        if (partialRanges.length === 0) {
+            return false;
+        }
+
+        const existingRanges = mergeContentRanges(
+            getManualDecisionContentRanges(
+                manualSelections
+            )
+        );
+
+        return partialRanges.every((partialRange) =>
+            existingRanges.some((existingRange) =>
+                containsContentRange(
+                    existingRange,
+                    partialRange
+                )
+            )
+        );
+    }
+
+    function getEffectiveSelectedRange(): SelectedRange | null {
+        if (!selectedRange || !submittedSearchTerm) {
+            return null;
+        }
+
+        const selectedText = submittedSearchTerm.slice(
+            selectedRange.start,
+            selectedRange.end
+        );
+
+        const leadingWhitespaceLength =
+            selectedText.length -
+            selectedText.trimStart().length;
+
+        const trailingWhitespaceLength =
+            selectedText.length -
+            selectedText.trimEnd().length;
+
+        const start =
+            selectedRange.start +
+            leadingWhitespaceLength;
+
+        const end =
+            selectedRange.end -
+            trailingWhitespaceLength;
+
+        if (end <= start) {
+            return null;
+        }
+
+        return {
+            start,
+            end,
+        };
+    }
+
+    function getEffectiveSelectedText(): string {
+        const effectiveSelectedRange =
+            getEffectiveSelectedRange();
+
+        if (
+            !effectiveSelectedRange ||
+            !submittedSearchTerm
+        ) {
+            return "";
+        }
+
+        return submittedSearchTerm.slice(
+            effectiveSelectedRange.start,
+            effectiveSelectedRange.end
+        );
+    }
+
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
@@ -213,39 +321,6 @@ export default function FindAndPartiallyRedactModal({
         });
     }
 
-    function isSelectedRangeAlreadyRedacted(
-        result: FindInDocumentResult,
-        range: SelectedRange
-    ): boolean {
-        const resultRanges =
-            getFindResultContentRanges(result);
-
-        if (resultRanges.length !== 1) {
-            return false;
-        }
-
-        const [resultRange] = resultRanges;
-
-        const partialRange = {
-            ...resultRange,
-            start: resultRange.start + range.start,
-            end: resultRange.start + range.end,
-        };
-
-        return manualSelections.some((selection) => {
-            const selectionRange =
-                getManualDecisionContentRange(selection);
-
-            return (
-                selectionRange !== null &&
-                containsContentRange(
-                    selectionRange,
-                    partialRange
-                )
-            );
-        });
-    }
-
     function handleContinue() {
         if (!selectedRange || !submittedSearchTerm) {
             setSelectionError(
@@ -272,15 +347,7 @@ export default function FindAndPartiallyRedactModal({
             submittedSearchTerm
         );
 
-        setResults(
-            searchResults.filter(
-                (result) =>
-                    !isSelectedRangeAlreadyRedacted(
-                        result,
-                        normalisedSelectedRange
-                    )
-            )
-        );
+        setResults(searchResults);
 
         setSelectedResultIds(new Set());
         setResultsError(null);
@@ -306,10 +373,34 @@ export default function FindAndPartiallyRedactModal({
         setResultsError(null);
     }
 
+    function handleSelectAll() {
+        const selectableResultIds = results
+            .filter(
+                (result) =>
+                    !isSelectedPartialRangeAlreadyRedacted(
+                        result
+                    )
+            )
+            .map((result) => result.id);
+
+        setSelectedResultIds(
+            new Set(selectableResultIds)
+        );
+        setResultsError(null);
+    }
+
+    function handleClearSelections() {
+        setSelectedResultIds(new Set());
+        setResultsError(null);
+    }
+
     function handleHighlightSelected() {
+        const effectiveSelectedRange =
+            getEffectiveSelectedRange();
+
         if (
             selectedResultIds.size === 0 ||
-            !selectedRange ||
+            !effectiveSelectedRange ||
             !submittedSearchTerm
         ) {
             setResultsError("Select at least one result to highlight");
@@ -321,11 +412,11 @@ export default function FindAndPartiallyRedactModal({
         const normalisedSelectedRange = {
             start: mapOriginalOffsetToNormalisedOffset(
                 submittedSearchTerm,
-                selectedRange.start
+                effectiveSelectedRange.start
             ),
             end: mapOriginalOffsetToNormalisedOffset(
                 submittedSearchTerm,
-                selectedRange.end
+                effectiveSelectedRange.end
             ),
         };
 
@@ -373,7 +464,7 @@ export default function FindAndPartiallyRedactModal({
             {isShowingSuccess ? (
                 <>
                     <h2 className="govuk-heading-l">
-                        Search and highlight part
+                        Your redactions have been made
                     </h2>
 
                     <div
@@ -396,9 +487,8 @@ export default function FindAndPartiallyRedactModal({
                                 </span>
 
                                 <span>
-                                    Successfully highlighted part of &lsquo;
-                                    {submittedSearchTerm}
-                                    &rsquo; in{" "}
+                                    &lsquo;{getEffectiveSelectedText()}&rsquo; has been
+                                    redacted within &lsquo;{submittedSearchTerm}&rsquo; in{" "}
                                     {highlightedCount}{" "}
                                     {highlightedCount === 1
                                         ? "place"
@@ -453,21 +543,49 @@ export default function FindAndPartiallyRedactModal({
                         </div>
                     )}
                     <h2 className="govuk-heading-l">
-                        Search and highlight part
+                        Find and redact part
                     </h2>
 
-                    <h3
-                        id={resultsHeadingId}
-                        className="govuk-heading-m"
-                    >
-                        {results.length}{" "}
-                        {results.length === 1
-                            ? "result "
-                            : "results "}
-                        found for &lsquo;
-                        {submittedSearchTerm}
-                        &rsquo;
-                    </h3>
+                    <div className="jr-find-results-heading-row">
+                        <h3
+                            id={resultsHeadingId}
+                            className="govuk-heading-m jr-find-results-heading"
+                        >
+                            {/* {results.length}{" "}
+                            {results.length === 1
+                                ? "result "
+                                : "results "}
+                            found for ‘{submittedSearchTerm}’ */}
+                            {results.length > 0 && "Select what you want to redact"}
+                        </h3>
+
+                        {results.length > 0 && (
+                            <div className="jr-find-results-selection-actions">
+                                <button
+                                    type="button"
+                                    className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                                    onClick={handleSelectAll}
+                                >
+                                    Select all
+                                </button>
+
+                                <span
+                                    className="jr-find-results-selection-actions__separator"
+                                    aria-hidden="true"
+                                >
+                                    |
+                                </span>
+
+                                <button
+                                    type="button"
+                                    className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                                    onClick={handleClearSelections}
+                                >
+                                    Clear selections
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     <div
                         className={[
@@ -521,6 +639,11 @@ export default function FindAndPartiallyRedactModal({
                                                             result
                                                         );
 
+                                                    const isAlreadyRedacted =
+                                                        isSelectedPartialRangeAlreadyRedacted(
+                                                            result
+                                                        );
+
                                                     return (
                                                         <div
                                                             key={
@@ -540,7 +663,11 @@ export default function FindAndPartiallyRedactModal({
                                                                     type="checkbox"
                                                                     className="govuk-checkboxes__input"
                                                                     value={result.id}
-                                                                    checked={selectedResultIds.has(result.id)}
+                                                                    checked={
+                                                                        isAlreadyRedacted ||
+                                                                        selectedResultIds.has(result.id)
+                                                                    }
+                                                                    disabled={isAlreadyRedacted}
                                                                     onChange={(event) => {
                                                                         handleResultSelection(
                                                                             result.id,
@@ -565,11 +692,11 @@ export default function FindAndPartiallyRedactModal({
                                                                         excerpt.match &&
                                                                         " "}
 
-                                                                    <strong>
-                                                                        {
-                                                                            excerpt.match
-                                                                        }
-                                                                    </strong>
+                                                                    <FindResultMatch
+                                                                        result={result}
+                                                                        pages={pages}
+                                                                        manualSelections={manualSelections}
+                                                                    />
 
                                                                     {excerpt.match &&
                                                                         excerpt.after &&
@@ -614,7 +741,7 @@ export default function FindAndPartiallyRedactModal({
                                 data-module="govuk-button"
                                 onClick={handleHighlightSelected}
                             >
-                                Highlight selected
+                                Redact
                             </button>
                         ) : (
                             <button
@@ -676,7 +803,7 @@ export default function FindAndPartiallyRedactModal({
                     )}
 
                     <h2 className="govuk-heading-l">
-                        Search and highlight part
+                        Find and redact part
                     </h2>
 
                     <div
@@ -690,13 +817,13 @@ export default function FindAndPartiallyRedactModal({
                             .join(" ")}
                     >
                         <h3 className="govuk-heading-m">
-                            Specify what to highlight
+                            Select which part you want to redact
                         </h3>
 
-                        <p className="govuk-body">
+                        {/* <p className="govuk-body">
                             Select what to highlight by
                             clicking it in the box below.
-                        </p>
+                        </p> */}
 
                         {selectionError && (
                             <p
@@ -713,7 +840,15 @@ export default function FindAndPartiallyRedactModal({
                         <div
                             ref={selectablePhraseRef}
                             id={selectionContainerId}
-                            className="jr-partial-redaction-selection"
+                            className={[
+                                "govuk-input",
+                                "jr-partial-redaction-selection",
+                                selectionError
+                                    ? "govuk-input--error"
+                                    : "",
+                            ]
+                                .filter(Boolean)
+                                .join(" ")}
                             aria-invalid={
                                 selectionError
                                     ? true
@@ -801,7 +936,7 @@ export default function FindAndPartiallyRedactModal({
                     )}
 
                     <h2 className="govuk-heading-l">
-                        Search and highlight part
+                        Find and redact part
                     </h2>
 
                     <div
@@ -818,7 +953,7 @@ export default function FindAndPartiallyRedactModal({
                             className="govuk-label govuk-label--m"
                             htmlFor={inputId}
                         >
-                            Word or phrase
+                            Enter a word or phrase to search for
                         </label>
 
                         {error && (
