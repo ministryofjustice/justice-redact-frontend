@@ -405,7 +405,7 @@ export default function FindAndRedactModal({
                             {/* {results.length}{" "}
                             {results.length === 1 ? "result " : "results "} found
                             for ‘{submittedSearchTerm}’ */}
-                            Select what you want to redact
+                            {results.length > 0 && "Select what you want to redact"}
                         </h3>
 
                         {results.length > 0 && (
