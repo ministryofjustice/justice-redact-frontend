@@ -1,8 +1,8 @@
 import {
-    containsContentRange,
-    getContentRangeKey,
+    getFindResultContentRanges,
     getManualDecisionContentRange,
     getManualDecisionContentRanges,
+    overlapsContentRange,
 } from "./contentRangeUtils";
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
@@ -21,50 +21,59 @@ export function discloseManualRedactions(
     createId: () => string
 ): DiscloseManualRedactionsResult {
     const existingRanges = mergeContentRanges(
-        getManualDecisionContentRanges(manualSelections)
-    );
-
-    const selectedRanges =
-        buildContentRangesFromFindResults(selectedResults);
-
-    /*
-     * Deduplicate selected results by their exact document position.
-     */
-    const uniqueSelectedRanges = Array.from(
-        new Map(
-            selectedRanges.map((range) => [
-                getContentRangeKey(range),
-                range,
-            ])
-        ).values()
+        getManualDecisionContentRanges(
+            manualSelections
+        )
     );
 
     /*
-     * Ignore stale results which are no longer completely redacted.
+     * A selected result is still valid if any part of the
+     * searched occurrence is currently redacted.
+     *
+     * This supports both fully and partially redacted results
+     * and also protects against stale modal results.
      */
-    const validRangesToRemove = uniqueSelectedRanges.filter(
-        (selectedRange) =>
-            existingRanges.some((existingRange) =>
-                containsContentRange(
-                    existingRange,
-                    selectedRange
+    const validResults = selectedResults.filter(
+        (result) => {
+            const resultRanges =
+                getFindResultContentRanges(result);
+
+            return resultRanges.some((resultRange) =>
+                existingRanges.some(
+                    (existingRange) =>
+                        overlapsContentRange(
+                            existingRange,
+                            resultRange
+                        )
                 )
-            )
+            );
+        }
     );
 
-    if (validRangesToRemove.length === 0) {
+    if (validResults.length === 0) {
         return {
             remainingSelections: manualSelections,
             disclosedCount: 0,
         };
     }
 
+    /*
+     * Remove redaction coverage from the complete searched
+     * occurrence. subtractContentRanges only affects existing
+     * decisions which actually overlap these ranges, so
+     * unrelated redactions remain untouched.
+     */
+    const rangesToRemove =
+        buildContentRangesFromFindResults(
+            validResults
+        );
+
     const remainingSelections =
         manualSelections.flatMap<ManualDecision>(
             (selection) => {
                 /*
-                 * Find and disclose only operates on text/table content.
-                 * Images remain completely untouched.
+                 * Find and disclose only operates on text/table
+                 * content. Images remain completely untouched.
                  */
                 if (selection.kind === "image") {
                     return [selection];
@@ -80,26 +89,28 @@ export function discloseManualRedactions(
                 const remainingRanges =
                     subtractContentRanges(
                         sourceRange,
-                        validRangesToRemove
+                        rangesToRemove
                     );
 
                 /*
                  * This decision was not affected at all.
-                 * Preserve the exact existing decision, including its
-                 * id and redactionGroupId.
+                 * Preserve the exact existing decision, including
+                 * its id and redactionGroupId.
                  */
                 if (
                     remainingRanges.length === 1 &&
-                    remainingRanges[0].start === sourceRange.start &&
-                    remainingRanges[0].end === sourceRange.end
+                    remainingRanges[0].start ===
+                    sourceRange.start &&
+                    remainingRanges[0].end ===
+                    sourceRange.end
                 ) {
                     return [selection];
                 }
 
                 /*
-                 * The searched phrase removed part of this decision.
-                 * Any remaining fragments retain the original
-                 * redactionGroupId.
+                 * The searched occurrence removed part of this
+                 * decision. Any remaining fragments retain the
+                 * original redactionGroupId.
                  */
                 return remainingRanges.flatMap<ManualDecision>(
                     (range) => {
@@ -132,8 +143,12 @@ export function discloseManualRedactions(
             }
         );
 
+    /*
+     * Count searched occurrences disclosed, rather than the
+     * number of underlying text/table segments.
+     */
     return {
         remainingSelections,
-        disclosedCount: validRangesToRemove.length,
+        disclosedCount: validResults.length,
     };
 }
