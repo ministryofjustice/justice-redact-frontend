@@ -3,6 +3,7 @@ import {
     getManualDecisionContentRange,
     getManualDecisionContentRanges,
     overlapsContentRange,
+    type ContentRange,
 } from "./contentRangeUtils";
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
@@ -14,6 +15,268 @@ type DiscloseManualRedactionsResult = {
     remainingSelections: ManualDecision[];
     disclosedCount: number;
 };
+
+type FragmentRecord = {
+    sourceId: string;
+    decision: ManualDecision;
+};
+
+function buildRemainingFragments(
+    selection: ManualDecision,
+    rangesToRemove: ContentRange[],
+    createId: () => string
+): ManualDecision[] {
+    if (selection.kind === "image") {
+        return [selection];
+    }
+
+    const sourceRange =
+        getManualDecisionContentRange(selection);
+
+    if (!sourceRange) {
+        return [selection];
+    }
+
+    const remainingRanges =
+        subtractContentRanges(
+            sourceRange,
+            rangesToRemove
+        );
+
+    /*
+     * Nothing from this decision was disclosed.
+     * Preserve its existing id and metadata.
+     */
+    if (
+        remainingRanges.length === 1 &&
+        remainingRanges[0].start === sourceRange.start &&
+        remainingRanges[0].end === sourceRange.end
+    ) {
+        return [
+            {
+                ...selection,
+            },
+        ];
+    }
+
+    return remainingRanges.flatMap<ManualDecision>(
+        (range) => {
+            const localStart =
+                range.start - sourceRange.start;
+
+            const localEnd =
+                range.end - sourceRange.start;
+
+            const text = selection.text.slice(
+                localStart,
+                localEnd
+            );
+
+            if (!text.trim()) {
+                return [];
+            }
+
+            return [
+                {
+                    ...selection,
+                    id: createId(),
+                    start: range.start,
+                    end: range.end,
+                    text,
+                },
+            ];
+        }
+    );
+}
+
+function splitRedactionGroups(
+    manualSelections: ManualDecision[],
+    rangesToRemove: ContentRange[],
+    createId: () => string
+): Map<string, ManualDecision[]> {
+    const groupedSelections =
+        new Map<string, ManualDecision[]>();
+
+    manualSelections.forEach((selection) => {
+        if (
+            selection.kind === "image" ||
+            !selection.redactionGroupId
+        ) {
+            return;
+        }
+
+        const group =
+            groupedSelections.get(
+                selection.redactionGroupId
+            ) ?? [];
+
+        group.push(selection);
+
+        groupedSelections.set(
+            selection.redactionGroupId,
+            group
+        );
+    });
+
+    const transformedSelections =
+        new Map<string, ManualDecision[]>();
+
+    groupedSelections.forEach(
+        (selections, originalGroupId) => {
+            const pieces: FragmentRecord[][] = [];
+
+            let currentPiece: FragmentRecord[] | null =
+                null;
+
+            let gapBeforeNextSelection = false;
+
+            selections.forEach((selection) => {
+                const sourceRange =
+                    getManualDecisionContentRange(selection);
+
+                if (!sourceRange) {
+                    return;
+                }
+
+                const fragments =
+                    buildRemainingFragments(
+                        selection,
+                        rangesToRemove,
+                        createId
+                    );
+
+                /*
+                 * Initialise this source decision in the lookup.
+                 * If it has been completely disclosed it will
+                 * correctly remain an empty array.
+                 */
+                transformedSelections.set(
+                    selection.id,
+                    []
+                );
+
+                if (fragments.length === 0) {
+                    /*
+                     * This entire part of the original logical
+                     * redaction has disappeared. Anything surviving
+                     * afterwards must belong to a new logical group.
+                     */
+                    currentPiece = null;
+                    gapBeforeNextSelection = true;
+                    return;
+                }
+
+                const firstFragmentRange =
+                    getManualDecisionContentRange(
+                        fragments[0]
+                    );
+
+                /*
+                 * If content was removed from the beginning of this
+                 * decision, a previous surviving decision and this
+                 * fragment are now separated by disclosed content.
+                 */
+                if (
+                    gapBeforeNextSelection ||
+                    (
+                        firstFragmentRange !== null &&
+                        firstFragmentRange.start >
+                        sourceRange.start
+                    )
+                ) {
+                    currentPiece = null;
+                }
+
+                fragments.forEach(
+                    (fragment, fragmentIndex) => {
+                        if (!currentPiece) {
+                            currentPiece = [];
+                            pieces.push(currentPiece);
+                        }
+
+                        currentPiece.push({
+                            sourceId: selection.id,
+                            decision: fragment,
+                        });
+
+                        /*
+                         * subtractContentRanges can split one decision
+                         * into two fragments. Those fragments are on
+                         * opposite sides of disclosed content and must
+                         * therefore become different logical redactions.
+                         */
+                        if (
+                            fragmentIndex <
+                            fragments.length - 1
+                        ) {
+                            currentPiece = null;
+                        }
+                    }
+                );
+
+                const lastFragment =
+                    fragments[
+                    fragments.length - 1
+                    ];
+
+                const lastFragmentRange =
+                    getManualDecisionContentRange(
+                        lastFragment
+                    );
+
+                gapBeforeNextSelection =
+                    lastFragmentRange !== null &&
+                    lastFragmentRange.end <
+                    sourceRange.end;
+
+                if (gapBeforeNextSelection) {
+                    currentPiece = null;
+                }
+            });
+
+            /*
+             * If the original group still consists of one connected
+             * piece, retain its original group id.
+             *
+             * If disclosure split it into multiple pieces, give each
+             * resulting piece its own new group id.
+             */
+            pieces.forEach((piece) => {
+                const redactionGroupId =
+                    pieces.length > 1
+                        ? createId()
+                        : originalGroupId;
+
+                piece.forEach(
+                    ({ sourceId, decision }) => {
+                        if (decision.kind === "image") {
+                            return;
+                        }
+
+                        const groupedDecision = {
+                            ...decision,
+                            redactionGroupId,
+                        };
+
+                        const existing =
+                            transformedSelections.get(
+                                sourceId
+                            ) ?? [];
+
+                        existing.push(groupedDecision);
+
+                        transformedSelections.set(
+                            sourceId,
+                            existing
+                        );
+                    }
+                );
+            });
+        }
+    );
+
+    return transformedSelections;
+}
 
 export function discloseManualRedactions(
     manualSelections: ManualDecision[],
@@ -27,11 +290,8 @@ export function discloseManualRedactions(
     );
 
     /*
-     * A selected result is still valid if any part of the
+     * A result remains valid as long as some part of the
      * searched occurrence is currently redacted.
-     *
-     * This supports both fully and partially redacted results
-     * and also protects against stale modal results.
      */
     const validResults = selectedResults.filter(
         (result) => {
@@ -58,95 +318,60 @@ export function discloseManualRedactions(
     }
 
     /*
-     * Remove redaction coverage from the complete searched
-     * occurrence. subtractContentRanges only affects existing
-     * decisions which actually overlap these ranges, so
-     * unrelated redactions remain untouched.
+     * Find and disclose removes redaction coverage only from
+     * the searched occurrences selected by the user.
      */
     const rangesToRemove =
         buildContentRangesFromFindResults(
             validResults
         );
 
+    /*
+     * Transform grouped redactions as complete logical
+     * selections so that a disclosure in the middle creates
+     * two genuinely independent redaction groups.
+     */
+    const groupedTransform =
+        splitRedactionGroups(
+            manualSelections,
+            rangesToRemove,
+            createId
+        );
+
     const remainingSelections =
         manualSelections.flatMap<ManualDecision>(
             (selection) => {
-                /*
-                 * Find and disclose only operates on text/table
-                 * content. Images remain completely untouched.
-                 */
                 if (selection.kind === "image") {
                     return [selection];
                 }
 
-                const sourceRange =
-                    getManualDecisionContentRange(selection);
-
-                if (!sourceRange) {
-                    return [selection];
-                }
-
-                const remainingRanges =
-                    subtractContentRanges(
-                        sourceRange,
-                        rangesToRemove
+                /*
+                 * Grouped selections were handled together above so
+                 * their new grouping can account for splits across
+                 * multiple text items.
+                 */
+                if (selection.redactionGroupId) {
+                    return (
+                        groupedTransform.get(
+                            selection.id
+                        ) ?? []
                     );
-
-                /*
-                 * This decision was not affected at all.
-                 * Preserve the exact existing decision, including
-                 * its id and redactionGroupId.
-                 */
-                if (
-                    remainingRanges.length === 1 &&
-                    remainingRanges[0].start ===
-                    sourceRange.start &&
-                    remainingRanges[0].end ===
-                    sourceRange.end
-                ) {
-                    return [selection];
                 }
 
                 /*
-                 * The searched occurrence removed part of this
-                 * decision. Any remaining fragments retain the
-                 * original redactionGroupId.
+                 * Legacy/ungrouped decisions use their individual ids
+                 * for removal. If one is split into two, the resulting
+                 * fragments already receive separate ids and therefore
+                 * behave as independent redactions.
                  */
-                return remainingRanges.flatMap<ManualDecision>(
-                    (range) => {
-                        const localStart =
-                            range.start - sourceRange.start;
-
-                        const localEnd =
-                            range.end - sourceRange.start;
-
-                        const text = selection.text.slice(
-                            localStart,
-                            localEnd
-                        );
-
-                        if (!text.trim()) {
-                            return [];
-                        }
-
-                        return [
-                            {
-                                ...selection,
-                                id: createId(),
-                                start: range.start,
-                                end: range.end,
-                                text,
-                            },
-                        ];
-                    }
+                return buildRemainingFragments(
+                    selection,
+                    rangesToRemove,
+                    createId
                 );
             }
         );
 
-    /*
-     * Count searched occurrences disclosed, rather than the
-     * number of underlying text/table segments.
-     */
     return {
         remainingSelections,
         disclosedCount: validResults.length,
