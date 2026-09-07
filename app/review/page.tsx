@@ -572,10 +572,21 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return;
     }
 
-    setManualSelections((prev) => [
-      ...prev,
-      ...newSelections,
-    ]);
+    const newSelectionRanges =
+      getManualDecisionContentRanges(newSelections);
+
+    setManualSelections((prev) => {
+      const preservedSelections =
+        removeManualSelectionsWithinRanges(
+          prev,
+          newSelectionRanges
+        );
+
+      return [
+        ...preservedSelections,
+        ...newSelections,
+      ];
+    });
   }
 
   function addManualTableSelectionGroup(
