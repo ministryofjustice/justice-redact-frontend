@@ -217,7 +217,7 @@ export default function FindAndRedactModal({
                 <>
 
                     <h2 className="govuk-heading-l">
-                        Search and highlight
+                        Your redactions have been made
                     </h2>
 
                     <div
@@ -240,7 +240,7 @@ export default function FindAndRedactModal({
                                 </span>
 
                                 <span>
-                                    Successfully highlighted &lsquo;{submittedSearchTerm}&rsquo; in{" "}
+                                    &lsquo;{submittedSearchTerm}&rsquo; has been redacted in{" "}
                                     {highlightedCount}{" "}
                                     {highlightedCount === 1 ? "place" : "places"}.
                                 </span>
@@ -289,7 +289,7 @@ export default function FindAndRedactModal({
 
 
                     <h2 className="govuk-heading-l">
-                        Search and highlight
+                        Find and redact
                     </h2>
 
                     <div
@@ -304,7 +304,7 @@ export default function FindAndRedactModal({
                             className="govuk-label govuk-label--m"
                             htmlFor={inputId}
                         >
-                            Word or phrase
+                            Enter a word or phrase to search for
                         </label>
 
                         {error && (
@@ -394,7 +394,7 @@ export default function FindAndRedactModal({
                     )}
 
                     <h2 className="govuk-heading-l">
-                        Search and highlight
+                        Find and redact
                     </h2>
 
                     <div className="jr-find-results-heading-row">
@@ -402,9 +402,10 @@ export default function FindAndRedactModal({
                             id={resultsHeadingId}
                             className="govuk-heading-m jr-find-results-heading"
                         >
-                            {results.length}{" "}
+                            {/* {results.length}{" "}
                             {results.length === 1 ? "result " : "results "} found
-                            for ‘{submittedSearchTerm}’
+                            for ‘{submittedSearchTerm}’ */}
+                            Select what you want to redact
                         </h3>
 
                         {results.length > 0 && (
@@ -566,7 +567,7 @@ export default function FindAndRedactModal({
                                 data-module="govuk-button"
                                 onClick={handleHighlightSelected}
                             >
-                                Highlight selected
+                                Redact
                             </button>
                         ) : (
                             <button
