@@ -9,11 +9,19 @@ import {
 } from "react";
 
 import {
+    buildPartialContentRanges,
     buildFindInDocumentExcerpt,
     findInDocument,
     mapOriginalOffsetToNormalisedOffset,
     type FindInDocumentResult,
 } from "../findInDocument";
+
+import {
+    containsContentRange,
+    getManualDecisionContentRanges,
+} from "../contentRangeUtils";
+
+import { mergeContentRanges } from "../mergeContentRanges";
 import type {
     ManualDecision,
     ReviewPageData,
@@ -131,6 +139,50 @@ export default function FindAndPartiallyRedactModal({
             successBannerRef.current?.focus();
         });
     }, [isShowingSuccess]);
+
+    function isSelectedPartialRangeAlreadyRedacted(
+        result: FindInDocumentResult
+    ): boolean {
+        if (!selectedRange || !submittedSearchTerm) {
+            return false;
+        }
+
+        const normalisedSelectedRange = {
+            start: mapOriginalOffsetToNormalisedOffset(
+                submittedSearchTerm,
+                selectedRange.start
+            ),
+            end: mapOriginalOffsetToNormalisedOffset(
+                submittedSearchTerm,
+                selectedRange.end
+            ),
+        };
+
+        const partialRanges = buildPartialContentRanges(
+            pages,
+            result,
+            normalisedSelectedRange
+        );
+
+        if (partialRanges.length === 0) {
+            return false;
+        }
+
+        const existingRanges = mergeContentRanges(
+            getManualDecisionContentRanges(
+                manualSelections
+            )
+        );
+
+        return partialRanges.every((partialRange) =>
+            existingRanges.some((existingRange) =>
+                containsContentRange(
+                    existingRange,
+                    partialRange
+                )
+            )
+        );
+    }
 
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -262,8 +314,17 @@ export default function FindAndPartiallyRedactModal({
     }
 
     function handleSelectAll() {
+        const selectableResultIds = results
+            .filter(
+                (result) =>
+                    !isSelectedPartialRangeAlreadyRedacted(
+                        result
+                    )
+            )
+            .map((result) => result.id);
+
         setSelectedResultIds(
-            new Set(results.map((result) => result.id))
+            new Set(selectableResultIds)
         );
         setResultsError(null);
     }
@@ -515,6 +576,11 @@ export default function FindAndPartiallyRedactModal({
                                                             result
                                                         );
 
+                                                    const isAlreadyRedacted =
+                                                        isSelectedPartialRangeAlreadyRedacted(
+                                                            result
+                                                        );
+
                                                     return (
                                                         <div
                                                             key={
@@ -534,7 +600,11 @@ export default function FindAndPartiallyRedactModal({
                                                                     type="checkbox"
                                                                     className="govuk-checkboxes__input"
                                                                     value={result.id}
-                                                                    checked={selectedResultIds.has(result.id)}
+                                                                    checked={
+                                                                        isAlreadyRedacted ||
+                                                                        selectedResultIds.has(result.id)
+                                                                    }
+                                                                    disabled={isAlreadyRedacted}
                                                                     onChange={(event) => {
                                                                         handleResultSelection(
                                                                             result.id,
