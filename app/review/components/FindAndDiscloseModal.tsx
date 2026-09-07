@@ -19,6 +19,7 @@ import type {
     ManualDecision,
     ReviewPageData,
 } from "../types";
+import FindResultMatch from "./FindResultMatch";
 import Modal from "./Modal";
 
 type FindAndDiscloseModalProps = {
@@ -509,9 +510,11 @@ export default function FindAndDiscloseModal({
                                                                     excerpt.match &&
                                                                     " "}
 
-                                                                <strong>
-                                                                    {excerpt.match}
-                                                                </strong>
+                                                                <FindResultMatch
+                                                                    result={result}
+                                                                    pages={pages}
+                                                                    manualSelections={manualSelections}
+                                                                />
 
                                                                 {excerpt.match &&
                                                                     excerpt.after &&

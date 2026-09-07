@@ -14,10 +14,8 @@ import {
     type FindInDocumentResult,
 } from "../findInDocument";
 import {
-    containsContentRange,
-    getFindResultContentRanges,
-    getManualDecisionContentRange,
-} from "../contentRangeUtils";
+    isFindResultFullyRedacted,
+} from "../findResultRedactionDisplay";
 import type {
     ManualDecision,
     ReviewPageData,
@@ -97,32 +95,6 @@ export default function FindAndRedactModal({
         });
     }, [isShowingSuccess]);
 
-    function isAlreadyManuallyRedacted(
-        result: FindInDocumentResult
-    ): boolean {
-        const resultRanges =
-            getFindResultContentRanges(result);
-
-        if (resultRanges.length === 0) {
-            return false;
-        }
-
-        return resultRanges.every((resultRange) =>
-            manualSelections.some((selection) => {
-                const selectionRange =
-                    getManualDecisionContentRange(selection);
-
-                return (
-                    selectionRange !== null &&
-                    containsContentRange(
-                        selectionRange,
-                        resultRange
-                    )
-                );
-            })
-        );
-    }
-
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
@@ -166,7 +138,13 @@ export default function FindAndRedactModal({
 
     function handleSelectAll() {
         const selectableResultIds = results
-            .filter((result) => !isAlreadyManuallyRedacted(result))
+            .filter(
+                (result) =>
+                    !isFindResultFullyRedacted(
+                        result,
+                        manualSelections
+                    )
+            )
             .map((result) => result.id);
 
         setSelectedResultIds(new Set(selectableResultIds));
@@ -504,7 +482,10 @@ export default function FindAndRedactModal({
                                                     buildFindInDocumentExcerpt(result);
 
                                                 const isAlreadyRedacted =
-                                                    isAlreadyManuallyRedacted(result);
+                                                    isFindResultFullyRedacted(
+                                                        result,
+                                                        manualSelections
+                                                    );
 
                                                 return (
                                                     <div
@@ -543,7 +524,13 @@ export default function FindAndRedactModal({
                                                                     excerpt.match &&
                                                                     " "}
 
-                                                                <strong className="highlight highlight--redaction jr-find-and-redact-result__match">
+                                                                <strong
+                                                                    className={
+                                                                        isAlreadyRedacted
+                                                                            ? "highlight highlight--redaction jr-find-and-redact-result__match"
+                                                                            : undefined
+                                                                    }
+                                                                >
                                                                     {excerpt.match}
                                                                 </strong>
 

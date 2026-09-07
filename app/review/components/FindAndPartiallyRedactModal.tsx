@@ -24,6 +24,7 @@ import type {
     ReviewPageData,
 } from "../types";
 import Modal from "./Modal";
+import FindResultMatch from "./FindResultMatch";
 import { renderTextSegments } from "../textRendering";
 
 type FindAndPartiallyRedactModalProps = {
@@ -604,11 +605,11 @@ export default function FindAndPartiallyRedactModal({
                                                                         excerpt.match &&
                                                                         " "}
 
-                                                                    <strong>
-                                                                        {
-                                                                            excerpt.match
-                                                                        }
-                                                                    </strong>
+                                                                    <FindResultMatch
+                                                                        result={result}
+                                                                        pages={pages}
+                                                                        manualSelections={manualSelections}
+                                                                    />
 
                                                                     {excerpt.match &&
                                                                         excerpt.after &&
