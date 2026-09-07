@@ -14,11 +14,6 @@ import {
     mapOriginalOffsetToNormalisedOffset,
     type FindInDocumentResult,
 } from "../findInDocument";
-import {
-    containsContentRange,
-    getFindResultContentRanges,
-    getManualDecisionContentRange,
-} from "../contentRangeUtils";
 import type {
     ManualDecision,
     ReviewPageData,
@@ -214,39 +209,6 @@ export default function FindAndPartiallyRedactModal({
         });
     }
 
-    function isSelectedRangeAlreadyRedacted(
-        result: FindInDocumentResult,
-        range: SelectedRange
-    ): boolean {
-        const resultRanges =
-            getFindResultContentRanges(result);
-
-        if (resultRanges.length !== 1) {
-            return false;
-        }
-
-        const [resultRange] = resultRanges;
-
-        const partialRange = {
-            ...resultRange,
-            start: resultRange.start + range.start,
-            end: resultRange.start + range.end,
-        };
-
-        return manualSelections.some((selection) => {
-            const selectionRange =
-                getManualDecisionContentRange(selection);
-
-            return (
-                selectionRange !== null &&
-                containsContentRange(
-                    selectionRange,
-                    partialRange
-                )
-            );
-        });
-    }
-
     function handleContinue() {
         if (!selectedRange || !submittedSearchTerm) {
             setSelectionError(
@@ -273,15 +235,7 @@ export default function FindAndPartiallyRedactModal({
             submittedSearchTerm
         );
 
-        setResults(
-            searchResults.filter(
-                (result) =>
-                    !isSelectedRangeAlreadyRedacted(
-                        result,
-                        normalisedSelectedRange
-                    )
-            )
-        );
+        setResults(searchResults);
 
         setSelectedResultIds(new Set());
         setResultsError(null);
