@@ -246,16 +246,6 @@ function ApplyingRedactionsContent() {
                                 {isCancelling ? "Returning to review..." : "Back"}
                             </button>
                         </div>
-                        <div className="govuk-grid-column-full">
-                            <LinearLoadingBar
-                                label={
-                                    status === "applying_redactions"
-                                        ? "Applying redactions"
-                                        : `Redaction status: ${status}`
-                                }
-                            />
-                        </div>
-
                         <div className="govuk-grid-column-two-thirds">
                             <section aria-labelledby="applying-redactions-heading">
                                 <h1
@@ -270,6 +260,16 @@ function ApplyingRedactionsContent() {
                                 </p> */}
                             </section>
                         </div>
+                        <div className="govuk-grid-column-full">
+                            <LinearLoadingBar
+                                label={
+                                    status === "applying_redactions"
+                                        ? "Applying redactions"
+                                        : `Redaction status: ${status}`
+                                }
+                            />
+                        </div>
+
                     </>
                 )}
             </div>
