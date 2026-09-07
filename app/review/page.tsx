@@ -1441,29 +1441,51 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return 0;
     }
 
-    /*
-     * Build the replacement redaction for each selected
-     * search occurrence first.
-     */
-    const replacements = selectedResults.flatMap(
+    const existingRanges =
+      getManualDecisionContentRanges(
+        manualSelections
+      );
+
+    const additions = selectedResults.flatMap(
       (result) => {
-        const replacementRanges =
+        /*
+         * Build only the part of the searched occurrence
+         * selected by the user in the previous modal.
+         */
+        const partialRanges =
           buildPartialContentRanges(
             data.pages,
             result,
             selectedRange
           );
 
-        if (replacementRanges.length === 0) {
+        /*
+         * Do not add another redaction over anything which is
+         * already redacted. Existing redactions are left exactly
+         * as they are.
+         */
+        const uncoveredRanges =
+          partialRanges.flatMap((range) =>
+            subtractContentRanges(
+              range,
+              existingRanges
+            )
+          );
+
+        if (uncoveredRanges.length === 0) {
           return [];
         }
 
+        /*
+         * One selected occurrence is one logical new redaction,
+         * even if the partial range spans multiple text items.
+         */
         const redactionGroupId =
           crypto.randomUUID();
 
-        const replacementSelections =
+        const selections =
           buildManualSelectionsFromContentRanges(
-            replacementRanges,
+            uncoveredRanges,
             data.pages,
             documentId,
             () => crypto.randomUUID()
@@ -1472,58 +1494,38 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
             redactionGroupId,
           }));
 
-        if (replacementSelections.length === 0) {
+        if (selections.length === 0) {
           return [];
         }
 
         return [
           {
             result,
-            selections: replacementSelections,
+            selections,
           },
         ];
       }
     );
 
-    if (replacements.length === 0) {
+    if (additions.length === 0) {
       return 0;
     }
 
+    const newSelections = additions.flatMap(
+      ({ selections }) => selections
+    );
+
     /*
-     * Remove existing manual redaction only from the complete
-     * searched occurrence being replaced.
-     *
-     * Anything outside those selected search results remains
-     * untouched.
+     * Existing redactions are preserved.
+     * Only previously unredacted parts of the user's partial
+     * selection are appended.
      */
-    const searchedRangesToReplace =
-      replacements.flatMap(({ result }) =>
-        buildContentRangesFromFindResults([
-          result,
-        ])
-      );
-
-    const preservedSelections =
-      removeManualSelectionsWithinRanges(
-        manualSelections,
-        searchedRangesToReplace
-      );
-
-    const replacementSelections =
-      replacements.flatMap(
-        ({ selections }) => selections
-      );
-
-    setManualSelections([
-      ...preservedSelections,
-      ...replacementSelections,
+    setManualSelections((previous) => [
+      ...previous,
+      ...newSelections,
     ]);
 
-    /*
-     * Count occurrences processed, not the number of underlying
-     * content-range decisions created.
-     */
-    return replacements.length;
+    return additions.length;
   }
 
   function handleUndoSelected(
