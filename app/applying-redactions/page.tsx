@@ -262,12 +262,12 @@ function ApplyingRedactionsContent() {
                                     className="govuk-heading-xl"
                                     id="applying-redactions-heading"
                                 >
-                                    Applying redactions
+                                    Your redactions are being applied
                                 </h1>
 
-                                <p className="govuk-body">
+                                {/* <p className="govuk-body">
                                     This might take around 2 minutes for this document.
-                                </p>
+                                </p> */}
                             </section>
                         </div>
                     </>
