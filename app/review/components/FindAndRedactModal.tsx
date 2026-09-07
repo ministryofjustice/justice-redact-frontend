@@ -20,6 +20,7 @@ import type {
     ManualDecision,
     ReviewPageData,
 } from "../types";
+import FindResultMatch from "./FindResultMatch";
 import Modal from "./Modal";
 
 type FindAndRedactModalProps = {
@@ -524,15 +525,11 @@ export default function FindAndRedactModal({
                                                                     excerpt.match &&
                                                                     " "}
 
-                                                                <strong
-                                                                    className={
-                                                                        isAlreadyRedacted
-                                                                            ? "highlight highlight--redaction jr-find-and-redact-result__match"
-                                                                            : undefined
-                                                                    }
-                                                                >
-                                                                    {excerpt.match}
-                                                                </strong>
+                                                                <FindResultMatch
+                                                                    result={result}
+                                                                    pages={pages}
+                                                                    manualSelections={manualSelections}
+                                                                />
 
                                                                 {excerpt.match &&
                                                                     excerpt.after &&

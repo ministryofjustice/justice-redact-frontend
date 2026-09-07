@@ -27,7 +27,6 @@ import HighlightKey from "./components/HighlightKey";
 import {
   getClosestElementWithAttribute,
   getTextOffsetWithinItem,
-  mergeSpans,
 } from "./selectionUtils";
 import type {
   ManualDecision,
@@ -1268,63 +1267,85 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return 0;
     }
 
-    const existingRanges =
-      getManualDecisionContentRanges(manualSelections);
-
-    const newSelections =
-      selectedResults.flatMap((result) => {
+    const replacements = selectedResults.flatMap(
+      (result) => {
         const resultRanges =
           buildContentRangesFromFindResults([result]);
 
-        /*
-         * Only add portions of this searched occurrence which
-         * are not already covered by an existing redaction.
-         */
-        const uncoveredRanges = resultRanges.flatMap(
-          (range) =>
-            subtractContentRanges(
-              range,
-              existingRanges
-            )
-        );
-
-        if (uncoveredRanges.length === 0) {
+        if (resultRanges.length === 0) {
           return [];
         }
 
         /*
          * One selected search occurrence is one logical
-         * redaction, even if that occurrence spans multiple
-         * text blocks.
+         * redaction, even if it spans multiple text blocks.
          */
         const redactionGroupId =
           crypto.randomUUID();
 
-        return buildManualSelectionsFromContentRanges(
-          uncoveredRanges,
-          data.pages,
-          documentId,
-          () => crypto.randomUUID()
-        ).map((selection) => ({
-          ...selection,
-          redactionGroupId,
-        }));
-      });
+        const selections =
+          buildManualSelectionsFromContentRanges(
+            resultRanges,
+            data.pages,
+            documentId,
+            () => crypto.randomUUID()
+          ).map((selection) => ({
+            ...selection,
+            redactionGroupId,
+          }));
 
-    if (newSelections.length === 0) {
+        if (selections.length === 0) {
+          return [];
+        }
+
+        return [
+          {
+            ranges: resultRanges,
+            selections,
+          },
+        ];
+      }
+    );
+
+    if (replacements.length === 0) {
       return 0;
     }
 
     /*
-     * Crucially: append only the searched redactions.
-     * Existing manual decisions are left untouched.
+     * Remove any existing redaction inside the selected
+     * searched occurrences before applying the new full
+     * redaction.
+     *
+     * Existing redactions outside those occurrences remain
+     * untouched.
      */
-    setManualSelections((previous) => [
-      ...previous,
-      ...newSelections,
-    ]);
+    const rangesToReplace = replacements.flatMap(
+      (replacement) => replacement.ranges
+    );
 
-    return newSelections.length;
+    const replacementSelections =
+      replacements.flatMap(
+        (replacement) => replacement.selections
+      );
+
+    setManualSelections((previous) => {
+      const preservedSelections =
+        removeManualSelectionsWithinRanges(
+          previous,
+          rangesToReplace
+        );
+
+      return [
+        ...preservedSelections,
+        ...replacementSelections,
+      ];
+    });
+
+    /*
+     * Count selected occurrences, not underlying decisions,
+     * because one occurrence may span multiple text items.
+     */
+    return replacements.length;
   }
 
   function removeManualSelectionsWithinRanges(
