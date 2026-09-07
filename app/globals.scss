@@ -332,6 +332,31 @@ main {
   color: govuk.govuk-colour("black");
 }
 
+.jr-find-results-heading-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: govuk.govuk-spacing(2);
+  margin-bottom: govuk.govuk-spacing(4);
+}
+
+.jr-find-results-heading {
+  margin-bottom: 0;
+}
+
+.jr-find-results-selection-actions {
+  display: inline-flex;
+  align-items: baseline;
+  gap: govuk.govuk-spacing(1);
+  white-space: nowrap;
+}
+
+.jr-find-results-selection-actions__separator {
+  font-family: "GDS Transport", arial, sans-serif;
+  font-size: 19px;
+  line-height: 1.3157894737;
+}
+
 .jr-find-and-redact-results-group {
   display: flex;
   flex: 1;
@@ -456,10 +481,12 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 15px;
-  padding: 10px 20px;
-  background: transparent;
-  border-bottom: 1px solid #b1b4b6;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: #f3f3f3;
+  border-bottom: 1px solid var(--govuk-border-colour, #cecece);
 }
 
 .jr-review-page__header-content {
@@ -469,7 +496,9 @@ main {
 }
 
 .jr-review-page__actions {
+  justify-content: flex-start;
   margin-bottom: 0;
+  padding: 0;
 }
 
 .jr-review-page__content {
@@ -536,7 +565,7 @@ main {
   text-decoration-line: underline;
   text-decoration-style: wavy;
   text-decoration-color: govuk.govuk-colour("blue");
-  text-decoration-skip-ink: none;
+  text-decoration-skip-ink: auto;
 }
 
 .highlight--allow {

@@ -14,14 +14,13 @@ import {
     type FindInDocumentResult,
 } from "../findInDocument";
 import {
-    containsContentRange,
-    getFindResultContentRanges,
-    getManualDecisionContentRange,
-} from "../contentRangeUtils";
+    isFindResultFullyRedacted,
+} from "../findResultRedactionDisplay";
 import type {
     ManualDecision,
     ReviewPageData,
 } from "../types";
+import FindResultMatch from "./FindResultMatch";
 import Modal from "./Modal";
 
 type FindAndRedactModalProps = {
@@ -97,32 +96,6 @@ export default function FindAndRedactModal({
         });
     }, [isShowingSuccess]);
 
-    function isAlreadyManuallyRedacted(
-        result: FindInDocumentResult
-    ): boolean {
-        const resultRanges =
-            getFindResultContentRanges(result);
-
-        if (resultRanges.length === 0) {
-            return false;
-        }
-
-        return resultRanges.every((resultRange) =>
-            manualSelections.some((selection) => {
-                const selectionRange =
-                    getManualDecisionContentRange(selection);
-
-                return (
-                    selectionRange !== null &&
-                    containsContentRange(
-                        selectionRange,
-                        resultRange
-                    )
-                );
-            })
-        );
-    }
-
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
@@ -161,6 +134,26 @@ export default function FindAndRedactModal({
             return next;
         });
 
+        setResultsError(null);
+    }
+
+    function handleSelectAll() {
+        const selectableResultIds = results
+            .filter(
+                (result) =>
+                    !isFindResultFullyRedacted(
+                        result,
+                        manualSelections
+                    )
+            )
+            .map((result) => result.id);
+
+        setSelectedResultIds(new Set(selectableResultIds));
+        setResultsError(null);
+    }
+
+    function handleClearSelections() {
+        setSelectedResultIds(new Set());
         setResultsError(null);
     }
 
@@ -224,7 +217,7 @@ export default function FindAndRedactModal({
                 <>
 
                     <h2 className="govuk-heading-l">
-                        Search and highlight
+                        Your redactions have been made
                     </h2>
 
                     <div
@@ -247,7 +240,7 @@ export default function FindAndRedactModal({
                                 </span>
 
                                 <span>
-                                    Successfully highlighted &lsquo;{submittedSearchTerm}&rsquo; in{" "}
+                                    &lsquo;{submittedSearchTerm}&rsquo; has been redacted in{" "}
                                     {highlightedCount}{" "}
                                     {highlightedCount === 1 ? "place" : "places"}.
                                 </span>
@@ -296,7 +289,7 @@ export default function FindAndRedactModal({
 
 
                     <h2 className="govuk-heading-l">
-                        Search and highlight
+                        Find and redact
                     </h2>
 
                     <div
@@ -311,7 +304,7 @@ export default function FindAndRedactModal({
                             className="govuk-label govuk-label--m"
                             htmlFor={inputId}
                         >
-                            Word or phrase
+                            Enter a word or phrase to search for
                         </label>
 
                         {error && (
@@ -401,17 +394,47 @@ export default function FindAndRedactModal({
                     )}
 
                     <h2 className="govuk-heading-l">
-                        Search and highlight
+                        Find and redact
                     </h2>
 
-                    <h3
-                        id={resultsHeadingId}
-                        className="govuk-heading-m"
-                    >
-                        {results.length}{" "}
-                        {results.length === 1 ? "result " : "results "} found
-                        for &lsquo;{submittedSearchTerm}&rsquo;
-                    </h3>
+                    <div className="jr-find-results-heading-row">
+                        <h3
+                            id={resultsHeadingId}
+                            className="govuk-heading-m jr-find-results-heading"
+                        >
+                            {/* {results.length}{" "}
+                            {results.length === 1 ? "result " : "results "} found
+                            for ‘{submittedSearchTerm}’ */}
+                            {results.length > 0 && "Select what you want to redact"}
+                        </h3>
+
+                        {results.length > 0 && (
+                            <div className="jr-find-results-selection-actions">
+                                <button
+                                    type="button"
+                                    className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                                    onClick={handleSelectAll}
+                                >
+                                    Select all
+                                </button>
+
+                                <span
+                                    className="jr-find-results-selection-actions__separator"
+                                    aria-hidden="true"
+                                >
+                                    |
+                                </span>
+
+                                <button
+                                    type="button"
+                                    className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                                    onClick={handleClearSelections}
+                                >
+                                    Clear selections
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     <div
                         className={[
@@ -461,7 +484,10 @@ export default function FindAndRedactModal({
                                                     buildFindInDocumentExcerpt(result);
 
                                                 const isAlreadyRedacted =
-                                                    isAlreadyManuallyRedacted(result);
+                                                    isFindResultFullyRedacted(
+                                                        result,
+                                                        manualSelections
+                                                    );
 
                                                 return (
                                                     <div
@@ -500,9 +526,11 @@ export default function FindAndRedactModal({
                                                                     excerpt.match &&
                                                                     " "}
 
-                                                                <strong className="highlight highlight--redaction jr-find-and-redact-result__match">
-                                                                    {excerpt.match}
-                                                                </strong>
+                                                                <FindResultMatch
+                                                                    result={result}
+                                                                    pages={pages}
+                                                                    manualSelections={manualSelections}
+                                                                />
 
                                                                 {excerpt.match &&
                                                                     excerpt.after &&
@@ -539,7 +567,7 @@ export default function FindAndRedactModal({
                                 data-module="govuk-button"
                                 onClick={handleHighlightSelected}
                             >
-                                Highlight selected
+                                Redact
                             </button>
                         ) : (
                             <button

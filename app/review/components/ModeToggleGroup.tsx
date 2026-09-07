@@ -16,16 +16,16 @@ const modes: Array<{
     statusClass: string;
 }> = [
         {
-            value: "select",
-            label: "Select",
-            statusLabel: "Select mode",
-            statusClass: "govuk-tag--purple",
-        },
-        {
             value: "redact",
             label: "Redact",
             statusLabel: "Redact mode",
             statusClass: "govuk-tag--orange",
+        },
+        {
+            value: "select",
+            label: "Select",
+            statusLabel: "Select mode",
+            statusClass: "govuk-tag--purple",
         },
         {
             value: "preview",

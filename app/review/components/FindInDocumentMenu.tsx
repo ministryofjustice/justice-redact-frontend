@@ -140,7 +140,7 @@ export default function FindInDocumentMenu({
                             menuItemRefs.current[1] = element;
                         }}
                     >
-                        Find and partially redact
+                        Find and redact part
                     </button>
                 </li>
 
@@ -157,7 +157,7 @@ export default function FindInDocumentMenu({
                             menuItemRefs.current[2] = element;
                         }}
                     >
-                        Find and disclose
+                        Find and remove redactions
                     </button>
                 </li>
             </ul>
