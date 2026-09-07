@@ -209,7 +209,7 @@ export default function FindAndDiscloseModal({
                 <>
 
                     <h2 className="govuk-heading-l">
-                        Search and undo
+                        Find and remove redactions
                     </h2>
 
                     <div
@@ -232,7 +232,7 @@ export default function FindAndDiscloseModal({
                                 </span>
 
                                 <span>
-                                    Successfully removed the highlight from &lsquo;{submittedSearchTerm}&rsquo; in{" "}
+                                    &lsquo;{submittedSearchTerm}&rsquo; is no longer redacted in{" "}
                                     {highlightedCount}{" "}
                                     {highlightedCount === 1 ? "place" : "places"}.
                                 </span>
@@ -281,7 +281,7 @@ export default function FindAndDiscloseModal({
 
 
                     <h2 className="govuk-heading-l">
-                        Search and undo
+                        Find and remove redactions
                     </h2>
 
                     <div
@@ -296,7 +296,7 @@ export default function FindAndDiscloseModal({
                             className="govuk-label govuk-label--m"
                             htmlFor={inputId}
                         >
-                            Word or phrase
+                            Enter a word or phrase to search for
                         </label>
 
                         {error && (
@@ -386,7 +386,7 @@ export default function FindAndDiscloseModal({
                     )}
 
                     <h2 className="govuk-heading-l">
-                        Search and undo
+                        Find and remove redactions
                     </h2>
 
                     <div className="jr-find-results-heading-row">
@@ -394,9 +394,10 @@ export default function FindAndDiscloseModal({
                             id={resultsHeadingId}
                             className="govuk-heading-m jr-find-results-heading"
                         >
-                            {results.length}{" "}
+                            {/* {results.length}{" "}
                             {results.length === 1 ? "result " : "results "} found
-                            for ‘{submittedSearchTerm}’
+                            for ‘{submittedSearchTerm}’ */}
+                            {results.length > 0 && "Select what redactions you want to remove"}
                         </h3>
 
                         {results.length > 0 && (
@@ -551,7 +552,7 @@ export default function FindAndDiscloseModal({
                                 data-module="govuk-button"
                                 onClick={handleUndoSelected}
                             >
-                                Undo selected
+                                Remove
                             </button>
                         ) : (
                             <button
