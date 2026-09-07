@@ -143,26 +143,33 @@ export default function FindAndPartiallyRedactModal({
     function isSelectedPartialRangeAlreadyRedacted(
         result: FindInDocumentResult
     ): boolean {
-        if (!selectedRange || !submittedSearchTerm) {
+        const effectiveSelectedRange =
+            getEffectiveSelectedRange();
+
+        if (
+            !effectiveSelectedRange ||
+            !submittedSearchTerm
+        ) {
             return false;
         }
 
         const normalisedSelectedRange = {
             start: mapOriginalOffsetToNormalisedOffset(
                 submittedSearchTerm,
-                selectedRange.start
+                effectiveSelectedRange.start
             ),
             end: mapOriginalOffsetToNormalisedOffset(
                 submittedSearchTerm,
-                selectedRange.end
+                effectiveSelectedRange.end
             ),
         };
 
-        const partialRanges = buildPartialContentRanges(
-            pages,
-            result,
-            normalisedSelectedRange
-        );
+        const partialRanges =
+            buildPartialContentRanges(
+                pages,
+                result,
+                normalisedSelectedRange
+            );
 
         if (partialRanges.length === 0) {
             return false;
@@ -182,6 +189,42 @@ export default function FindAndPartiallyRedactModal({
                 )
             )
         );
+    }
+
+    function getEffectiveSelectedRange(): SelectedRange | null {
+        if (!selectedRange || !submittedSearchTerm) {
+            return null;
+        }
+
+        const selectedText = submittedSearchTerm.slice(
+            selectedRange.start,
+            selectedRange.end
+        );
+
+        const leadingWhitespaceLength =
+            selectedText.length -
+            selectedText.trimStart().length;
+
+        const trailingWhitespaceLength =
+            selectedText.length -
+            selectedText.trimEnd().length;
+
+        const start =
+            selectedRange.start +
+            leadingWhitespaceLength;
+
+        const end =
+            selectedRange.end -
+            trailingWhitespaceLength;
+
+        if (end <= start) {
+            return null;
+        }
+
+        return {
+            start,
+            end,
+        };
     }
 
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -335,9 +378,12 @@ export default function FindAndPartiallyRedactModal({
     }
 
     function handleHighlightSelected() {
+        const effectiveSelectedRange =
+            getEffectiveSelectedRange();
+
         if (
             selectedResultIds.size === 0 ||
-            !selectedRange ||
+            !effectiveSelectedRange ||
             !submittedSearchTerm
         ) {
             setResultsError("Select at least one result to highlight");
@@ -349,11 +395,11 @@ export default function FindAndPartiallyRedactModal({
         const normalisedSelectedRange = {
             start: mapOriginalOffsetToNormalisedOffset(
                 submittedSearchTerm,
-                selectedRange.start
+                effectiveSelectedRange.start
             ),
             end: mapOriginalOffsetToNormalisedOffset(
                 submittedSearchTerm,
-                selectedRange.end
+                effectiveSelectedRange.end
             ),
         };
 
