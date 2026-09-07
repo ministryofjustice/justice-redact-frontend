@@ -32,7 +32,6 @@ import {
 import type {
   ManualDecision,
   ManualSpan,
-  ManualTableCellDecision,
   ManualTextDecision,
   PageStatus,
   ReviewPageData,
@@ -54,7 +53,9 @@ import {
 import { discloseManualRedactions } from "./discloseManualRedactions";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
 import {
+  getManualDecisionContentRange,
   getManualDecisionContentRanges,
+  type ContentRange,
 } from "./contentRangeUtils";
 import { buildManualSelectionsFromContentRanges } from "./buildManualSelectionsFromContentRanges";
 import { subtractContentRanges } from "./subtractContentRanges";
@@ -1315,6 +1316,78 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     return newSelections.length;
   }
 
+  function removeManualSelectionsWithinRanges(
+    selections: ManualDecision[],
+    rangesToRemove: ContentRange[]
+  ): ManualDecision[] {
+    return selections.flatMap<ManualDecision>(
+      (selection) => {
+        if (selection.kind === "image") {
+          return [selection];
+        }
+
+        const sourceRange =
+          getManualDecisionContentRange(selection);
+
+        if (!sourceRange) {
+          return [selection];
+        }
+
+        const remainingRanges =
+          subtractContentRanges(
+            sourceRange,
+            rangesToRemove
+          );
+
+        /*
+         * This decision does not overlap any of the selected
+         * searched occurrences, so preserve it exactly.
+         */
+        if (
+          remainingRanges.length === 1 &&
+          remainingRanges[0].start === sourceRange.start &&
+          remainingRanges[0].end === sourceRange.end
+        ) {
+          return [selection];
+        }
+
+        /*
+         * The searched occurrence overlapped this decision.
+         * Preserve any portions outside the searched term,
+         * including the original redactionGroupId.
+         */
+        return remainingRanges.flatMap<ManualDecision>(
+          (range) => {
+            const localStart =
+              range.start - sourceRange.start;
+
+            const localEnd =
+              range.end - sourceRange.start;
+
+            const text = selection.text.slice(
+              localStart,
+              localEnd
+            );
+
+            if (!text.trim()) {
+              return [];
+            }
+
+            return [
+              {
+                ...selection,
+                id: crypto.randomUUID(),
+                start: range.start,
+                end: range.end,
+                text,
+              },
+            ];
+          }
+        );
+      }
+    );
+  }
+
   function handleFindAndPartiallyRedact(
     results: FindInDocumentResult[],
     selectedResultIds: Set<string>,
@@ -1336,58 +1409,89 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return 0;
     }
 
-    const existingRanges =
-      getManualDecisionContentRanges(manualSelections);
-
-    const newSelections =
-      selectedResults.flatMap((result) => {
-        const resultRanges =
+    /*
+     * Build the replacement redaction for each selected
+     * search occurrence first.
+     */
+    const replacements = selectedResults.flatMap(
+      (result) => {
+        const replacementRanges =
           buildPartialContentRanges(
             data.pages,
             result,
             selectedRange
           );
 
-        /*
-         * Only add the uncovered portion of the specific
-         * partial phrase selected by the user.
-         */
-        const uncoveredRanges = resultRanges.flatMap(
-          (range) =>
-            subtractContentRanges(
-              range,
-              existingRanges
-            )
-        );
-
-        if (uncoveredRanges.length === 0) {
+        if (replacementRanges.length === 0) {
           return [];
         }
 
         const redactionGroupId =
           crypto.randomUUID();
 
-        return buildManualSelectionsFromContentRanges(
-          uncoveredRanges,
-          data.pages,
-          documentId,
-          () => crypto.randomUUID()
-        ).map((selection) => ({
-          ...selection,
-          redactionGroupId,
-        }));
-      });
+        const replacementSelections =
+          buildManualSelectionsFromContentRanges(
+            replacementRanges,
+            data.pages,
+            documentId,
+            () => crypto.randomUUID()
+          ).map((selection) => ({
+            ...selection,
+            redactionGroupId,
+          }));
 
-    if (newSelections.length === 0) {
+        if (replacementSelections.length === 0) {
+          return [];
+        }
+
+        return [
+          {
+            result,
+            selections: replacementSelections,
+          },
+        ];
+      }
+    );
+
+    if (replacements.length === 0) {
       return 0;
     }
 
-    setManualSelections((previous) => [
-      ...previous,
-      ...newSelections,
+    /*
+     * Remove existing manual redaction only from the complete
+     * searched occurrence being replaced.
+     *
+     * Anything outside those selected search results remains
+     * untouched.
+     */
+    const searchedRangesToReplace =
+      replacements.flatMap(({ result }) =>
+        buildContentRangesFromFindResults([
+          result,
+        ])
+      );
+
+    const preservedSelections =
+      removeManualSelectionsWithinRanges(
+        manualSelections,
+        searchedRangesToReplace
+      );
+
+    const replacementSelections =
+      replacements.flatMap(
+        ({ selections }) => selections
+      );
+
+    setManualSelections([
+      ...preservedSelections,
+      ...replacementSelections,
     ]);
 
-    return newSelections.length;
+    /*
+     * Count occurrences processed, not the number of underlying
+     * content-range decisions created.
+     */
+    return replacements.length;
   }
 
   function handleUndoSelected(
