@@ -9,7 +9,6 @@ import {
 } from "react";
 
 import {
-    buildFindInDocumentExcerpt,
     findInDocument,
     type FindInDocumentResult,
 } from "../findInDocument";
@@ -20,7 +19,7 @@ import type {
     ManualDecision,
     ReviewPageData,
 } from "../types";
-import FindResultMatch from "./FindResultMatch";
+import FindResultExcerpt from "./FindResultExcerpt";
 import Modal from "./Modal";
 
 type FindAndRedactModalProps = {
@@ -480,9 +479,6 @@ export default function FindAndRedactModal({
                                                 const checkboxId =
                                                     `${inputId}-result-${index}`;
 
-                                                const excerpt =
-                                                    buildFindInDocumentExcerpt(result);
-
                                                 const isAlreadyRedacted =
                                                     isFindResultFullyRedacted(
                                                         result,
@@ -519,25 +515,11 @@ export default function FindAndRedactModal({
                                                                 htmlFor={checkboxId}
                                                                 className="govuk-label govuk-checkboxes__label jr-find-and-redact-result__label"
                                                             >
-                                                                {excerpt.hasLeadingEllipsis && "…"}
-                                                                {excerpt.before}
-
-                                                                {excerpt.before &&
-                                                                    excerpt.match &&
-                                                                    " "}
-
-                                                                <FindResultMatch
+                                                                <FindResultExcerpt
                                                                     result={result}
                                                                     pages={pages}
                                                                     manualSelections={manualSelections}
                                                                 />
-
-                                                                {excerpt.match &&
-                                                                    excerpt.after &&
-                                                                    " "}
-
-                                                                {excerpt.after}
-                                                                {excerpt.hasTrailingEllipsis && "…"}
 
                                                                 <span className="govuk-visually-hidden">
                                                                     {" "}

@@ -245,3 +245,132 @@ export function getFindResultRedactedDisplayRanges(
         }))
     );
 }
+
+export function getFindResultExcerptRedactedDisplayRanges(
+    result: FindInDocumentResult,
+    pages: ReviewPageData[],
+    manualSelections: ManualDecision[]
+): FindResultDisplayRange[] {
+    const manualRanges =
+        mergeContentRanges(
+            getManualDecisionContentRanges(
+                manualSelections
+            )
+        );
+
+    const displayRanges:
+        FindResultDisplayRange[] = [];
+
+    result.displaySegments.forEach(
+        (segment) => {
+            const sourceText =
+                getSourceTextForRange(
+                    pages,
+                    segment
+                );
+
+            if (!sourceText) {
+                return;
+            }
+
+            manualRanges.forEach(
+                (manualRange) => {
+                    if (
+                        !overlapsContentRange(
+                            segment,
+                            manualRange
+                        )
+                    ) {
+                        return;
+                    }
+
+                    const overlapStart =
+                        Math.max(
+                            segment.start,
+                            manualRange.start
+                        );
+
+                    const overlapEnd =
+                        Math.min(
+                            segment.end,
+                            manualRange.end
+                        );
+
+                    if (
+                        overlapEnd <=
+                        overlapStart
+                    ) {
+                        return;
+                    }
+
+                    /*
+                     * Map the persisted source offsets into
+                     * the normalised text used by the result
+                     * excerpt.
+                     */
+                    const normalisedStart =
+                        mapOriginalOffsetToNormalisedOffset(
+                            sourceText,
+                            overlapStart
+                        );
+
+                    const normalisedEnd =
+                        mapOriginalOffsetToNormalisedOffset(
+                            sourceText,
+                            overlapEnd
+                        );
+
+                    const localStart =
+                        normalisedStart -
+                        segment.sourceNormalisedStart;
+
+                    const localEnd =
+                        normalisedEnd -
+                        segment.sourceNormalisedStart;
+
+                    const start =
+                        segment.displayStart +
+                        localStart;
+
+                    const end =
+                        segment.displayStart +
+                        localEnd;
+
+                    /*
+                     * Clamp the redaction to this displayed
+                     * source segment.
+                     */
+                    const clampedStart =
+                        Math.max(
+                            segment.displayStart,
+                            start
+                        );
+
+                    const clampedEnd =
+                        Math.min(
+                            segment.displayEnd,
+                            end
+                        );
+
+                    if (
+                        clampedEnd <=
+                        clampedStart
+                    ) {
+                        return;
+                    }
+
+                    displayRanges.push({
+                        start:
+                            clampedStart,
+                        end:
+                            clampedEnd,
+                    });
+                }
+            );
+        }
+    );
+
+    return mergeDisplayRanges(
+        displayRanges
+    );
+}
