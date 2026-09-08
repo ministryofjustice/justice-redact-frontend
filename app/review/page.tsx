@@ -134,13 +134,77 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeDecisionSaveRef =
     useRef<Promise<SaveRedactionDecisionsResponse> | null>(null);
-  const reviewSelectionMouseUpCleanupRef =
-    useRef<(() => void) | null>(null);
 
   const { data, isLoading, error } = useReviewData(documentId);
 
   const isPreviewMode = reviewMode === "preview";
   const isRedactMode = reviewMode === "redact";
+
+  useEffect(() => {
+    if (!isRedactMode || !data) {
+      return;
+    }
+
+    function handleDocumentMouseUp(
+      event: globalThis.MouseEvent
+    ) {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const selection = window.getSelection();
+
+      if (
+        !selection ||
+        selection.rangeCount === 0 ||
+        selection.isCollapsed
+      ) {
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+
+      const intersectsRedactableContent =
+        Array.from(
+          document.querySelectorAll<HTMLElement>(
+            ".jr-review-block.redactable[data-page-number][data-item-id], [data-cell-id]"
+          )
+        ).some((element) => {
+          try {
+            return range.intersectsNode(element);
+          } catch {
+            return false;
+          }
+        });
+
+      if (!intersectsRedactableContent) {
+        return;
+      }
+
+      const handledTable =
+        handleTableCellSelection();
+
+      if (!handledTable) {
+        handleTextSelection();
+      }
+
+      window.requestAnimationFrame(() => {
+        window.getSelection()?.removeAllRanges();
+      });
+    }
+
+    document.addEventListener(
+      "mouseup",
+      handleDocumentMouseUp
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mouseup",
+        handleDocumentMouseUp
+      );
+    };
+  });
 
   useEffect(() => {
     if (!isRedactMode && redactionRemoveMenu) {
@@ -275,12 +339,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       isActive = false;
     };
   }, [documentId, data]);
-
-  useEffect(() => {
-    return () => {
-      reviewSelectionMouseUpCleanupRef.current?.();
-    };
-  }, []);
 
   const saveCurrentDecisions = useCallback(
     async (
@@ -666,62 +724,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       ...previous,
       ...newSelections,
     ]);
-  }
-
-  function handleReviewSelectionMouseDown(
-    event: MouseEvent<HTMLElement>
-  ) {
-    if (!isRedactMode || event.button !== 0) {
-      return;
-    }
-
-    if (!(event.target instanceof Element)) {
-      return;
-    }
-
-    const startedInRedactableContent =
-      event.target.closest(
-        ".jr-review-block.redactable[data-item-id], [data-cell-id]"
-      );
-
-    if (!startedInRedactableContent) {
-      return;
-    }
-
-    reviewSelectionMouseUpCleanupRef.current?.();
-
-    function handleDocumentMouseUp(
-      mouseUpEvent: globalThis.MouseEvent
-    ) {
-      reviewSelectionMouseUpCleanupRef.current?.();
-
-      if (mouseUpEvent.button !== 0) {
-        return;
-      }
-
-      const handledTable =
-        handleTableCellSelection();
-
-      if (!handledTable) {
-        handleTextSelection();
-      }
-    }
-
-    document.addEventListener(
-      "mouseup",
-      handleDocumentMouseUp
-    );
-
-    reviewSelectionMouseUpCleanupRef.current =
-      () => {
-        document.removeEventListener(
-          "mouseup",
-          handleDocumentMouseUp
-        );
-
-        reviewSelectionMouseUpCleanupRef.current =
-          null;
-      };
   }
 
   function handleTableCellSelection() {
@@ -1735,7 +1737,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       {data && visiblePages.length > 0 && (
         <>
           <div
-            onMouseDown={handleReviewSelectionMouseDown}
             onMouseOver={handleRedactionMouseOver}
             onMouseOut={handleRedactionMouseOut}
             onContextMenu={handleRedactionContextMenu}
