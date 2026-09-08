@@ -2,6 +2,7 @@
 
 import {
     type FormEvent,
+    type MouseEvent,
     useEffect,
     useId,
     useRef,
@@ -82,6 +83,11 @@ export default function FindAndPartiallyRedactModal({
         useState<string | null>(null);
     const [highlightedCount, setHighlightedCount] =
         useState<number | null>(null);
+    const [partialRedactionRemoveMenu, setPartialRedactionRemoveMenu] =
+        useState<{
+            x: number;
+            y: number;
+        } | null>(null);
 
     const inputId = useId();
     const resultsHeadingId = useId();
@@ -95,6 +101,8 @@ export default function FindAndPartiallyRedactModal({
     const firstResultCheckboxRef =
         useRef<HTMLInputElement>(null);
     const selectablePhraseRef = useRef<HTMLDivElement>(null);
+    const partialRedactionRemoveMenuRef =
+        useRef<HTMLButtonElement>(null);
 
     const isShowingSelectionStep =
         submittedSearchTerm !== null && !isShowingResults;
@@ -139,6 +147,95 @@ export default function FindAndPartiallyRedactModal({
             successBannerRef.current?.focus();
         });
     }, [isShowingSuccess]);
+
+    useEffect(() => {
+        if (!partialRedactionRemoveMenu) {
+            return;
+        }
+
+        function handleMouseDown(
+            event: globalThis.MouseEvent
+        ) {
+            if (!(event.target instanceof Node)) {
+                return;
+            }
+
+            if (
+                partialRedactionRemoveMenuRef.current?.contains(
+                    event.target
+                )
+            ) {
+                return;
+            }
+
+            closePartialRedactionRemoveMenu();
+        }
+
+        function handleKeyDown(
+            event: KeyboardEvent
+        ) {
+            if (event.key !== "Escape") {
+                return;
+            }
+
+            event.preventDefault();
+            closePartialRedactionRemoveMenu();
+        }
+
+        function handleViewportChange() {
+            closePartialRedactionRemoveMenu();
+        }
+
+        document.addEventListener(
+            "mousedown",
+            handleMouseDown
+        );
+
+        document.addEventListener(
+            "keydown",
+            handleKeyDown
+        );
+
+        window.addEventListener(
+            "scroll",
+            handleViewportChange,
+            true
+        );
+
+        window.addEventListener(
+            "resize",
+            handleViewportChange
+        );
+
+        return () => {
+            document.removeEventListener(
+                "mousedown",
+                handleMouseDown
+            );
+
+            document.removeEventListener(
+                "keydown",
+                handleKeyDown
+            );
+
+            window.removeEventListener(
+                "scroll",
+                handleViewportChange,
+                true
+            );
+
+            window.removeEventListener(
+                "resize",
+                handleViewportChange
+            );
+        };
+    }, [partialRedactionRemoveMenu]);
+
+    useEffect(() => {
+        if (!selectedRange) {
+            closePartialRedactionRemoveMenu();
+        }
+    }, [selectedRange]);
 
     function isSelectedPartialRangeAlreadyRedacted(
         result: FindInDocumentResult
@@ -225,6 +322,120 @@ export default function FindAndPartiallyRedactModal({
             start,
             end,
         };
+    }
+
+    function getPartialRedactionElement(
+        target: EventTarget | null
+    ): HTMLElement | null {
+        if (!(target instanceof Element)) {
+            return null;
+        }
+
+        const element =
+            target.closest<HTMLElement>(
+                '[data-manual-id="partial-redaction-selection"]'
+            );
+
+        if (
+            !element ||
+            !selectablePhraseRef.current?.contains(element)
+        ) {
+            return null;
+        }
+
+        return element;
+    }
+
+    function setPartialRedactionHover(
+        isHovered: boolean
+    ) {
+        selectablePhraseRef.current
+            ?.querySelectorAll<HTMLElement>(
+                '[data-manual-id="partial-redaction-selection"]'
+            )
+            .forEach((element) => {
+                element.classList.toggle(
+                    "highlight--redaction-hover",
+                    isHovered
+                );
+            });
+    }
+
+    function closePartialRedactionRemoveMenu() {
+        setPartialRedactionHover(false);
+        setPartialRedactionRemoveMenu(null);
+    }
+
+    function handlePartialRedactionMouseOver(
+        event: MouseEvent<HTMLDivElement>
+    ) {
+        const target =
+            getPartialRedactionElement(event.target);
+
+        if (!target) {
+            return;
+        }
+
+        const relatedTarget =
+            getPartialRedactionElement(
+                event.relatedTarget
+            );
+
+        if (relatedTarget) {
+            return;
+        }
+
+        setPartialRedactionHover(true);
+    }
+
+    function handlePartialRedactionMouseOut(
+        event: MouseEvent<HTMLDivElement>
+    ) {
+        const target =
+            getPartialRedactionElement(event.target);
+
+        if (!target) {
+            return;
+        }
+
+        const relatedTarget =
+            getPartialRedactionElement(
+                event.relatedTarget
+            );
+
+        if (relatedTarget) {
+            return;
+        }
+
+        setPartialRedactionHover(false);
+    }
+
+    function handlePartialRedactionContextMenu(
+        event: MouseEvent<HTMLDivElement>
+    ) {
+        const target =
+            getPartialRedactionElement(event.target);
+
+        if (!target) {
+            return;
+        }
+
+        event.preventDefault();
+
+        setPartialRedactionHover(true);
+
+        setPartialRedactionRemoveMenu({
+            x: event.clientX,
+            y: event.clientY,
+        });
+    }
+
+    function removePartialRedactionSelection() {
+        setSelectedRange(null);
+        setSelectionError(null);
+        closePartialRedactionRemoveMenu();
+
+        window.getSelection()?.removeAllRanges();
     }
 
     function getEffectiveSelectedText(): string {
@@ -862,6 +1073,9 @@ export default function FindAndPartiallyRedactModal({
                             tabIndex={0}
                             onMouseUp={captureSelectedRange}
                             onKeyUp={captureSelectedRange}
+                            onMouseOver={handlePartialRedactionMouseOver}
+                            onMouseOut={handlePartialRedactionMouseOut}
+                            onContextMenu={handlePartialRedactionContextMenu}
                         >
                             {renderTextSegments(
                                 submittedSearchTerm,
@@ -878,6 +1092,32 @@ export default function FindAndPartiallyRedactModal({
                                 false
                             )}
                         </div>
+                        {partialRedactionRemoveMenu && (
+                            <button
+                                ref={partialRedactionRemoveMenuRef}
+                                type="button"
+                                className="jr-redaction-remove-menu"
+                                aria-label="Remove redaction"
+                                title="Remove redaction"
+                                style={{
+                                    position: "fixed",
+                                    left: partialRedactionRemoveMenu.x,
+                                    top: partialRedactionRemoveMenu.y,
+                                    zIndex: 20,
+                                }}
+                                onMouseEnter={() => {
+                                    setPartialRedactionHover(true);
+                                }}
+                                onMouseLeave={() => {
+                                    setPartialRedactionHover(false);
+                                }}
+                                onClick={removePartialRedactionSelection}
+                            >
+                                <span className="jr-redaction-remove-menu__item">
+                                    Remove redaction
+                                </span>
+                            </button>
+                        )}
                     </div>
 
                     <div className="govuk-button-group govuk-!-margin-top-4">
