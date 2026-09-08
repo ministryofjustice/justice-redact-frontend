@@ -3,6 +3,14 @@ import type { ContentRange } from "./contentRangeUtils";
 
 export type FindInDocumentMatchSegment = ContentRange;
 
+export type FindInDocumentDisplaySegment =
+    ContentRange & {
+        displayStart: number;
+        displayEnd: number;
+        sourceNormalisedStart: number;
+        sourceNormalisedEnd: number;
+    };
+
 export type FindInDocumentResult = {
     id: string;
     kind: "text" | "table_cell";
@@ -13,8 +21,8 @@ export type FindInDocumentResult = {
     cellId: string | null;
 
     display: DisplayMatch;
-
     segments: FindInDocumentMatchSegment[];
+    displaySegments: FindInDocumentDisplaySegment[];
 };
 
 export type FindInDocumentExcerpt = {
@@ -253,6 +261,214 @@ function buildTextMatchSegments(
             end: originalEnd,
         };
     });
+}
+
+function buildTextDisplay(
+    searchableDocument: SearchableDocument,
+    matchStart: number,
+    matchEnd: number,
+    contextLength = DEFAULT_CONTEXT_LENGTH
+): {
+    display: DisplayMatch;
+    displaySegments: FindInDocumentDisplaySegment[];
+} {
+    const displayStart = Math.max(
+        0,
+        matchStart - contextLength
+    );
+
+    const displayEnd = Math.min(
+        searchableDocument.text.length,
+        matchEnd + contextLength
+    );
+
+    const displaySegments =
+        findOverlappingChunks(
+            searchableDocument.chunks,
+            displayStart,
+            displayEnd
+        ).map(
+            ({
+                chunk,
+                overlapStart,
+                overlapEnd,
+            }) => {
+                const localStart =
+                    overlapStart -
+                    chunk.combinedStart;
+
+                const localEnd =
+                    overlapEnd -
+                    chunk.combinedStart;
+
+                const originalStart =
+                    chunk.normalisedOffsets[
+                    localStart
+                    ];
+
+                const originalEnd =
+                    chunk.normalisedOffsets[
+                    localEnd - 1
+                    ] + 1;
+
+                return {
+                    kind: "text" as const,
+                    pageNumber:
+                        chunk.pageNumber,
+                    itemId: chunk.itemId,
+                    tableId: null,
+                    cellId: null,
+                    start: originalStart,
+                    end: originalEnd,
+
+                    displayStart:
+                        overlapStart -
+                        displayStart,
+
+                    displayEnd:
+                        overlapEnd -
+                        displayStart,
+
+                    sourceNormalisedStart:
+                        localStart,
+
+                    sourceNormalisedEnd:
+                        localEnd,
+                };
+            }
+        );
+
+    return {
+        display: {
+            text: searchableDocument.text.slice(
+                displayStart,
+                displayEnd
+            ),
+
+            matchStart:
+                matchStart - displayStart,
+
+            matchEnd:
+                matchEnd - displayStart,
+
+            hasLeadingEllipsis:
+                displayStart > 0,
+
+            hasTrailingEllipsis:
+                displayEnd <
+                searchableDocument.text.length,
+        },
+
+        displaySegments,
+    };
+}
+
+function buildTableDisplay(
+    sourceText: string,
+    matchStart: number,
+    matchEnd: number,
+    pageNumber: number,
+    tableId: string,
+    cellId: string,
+    contextLength = DEFAULT_CONTEXT_LENGTH
+): {
+    display: DisplayMatch;
+    displaySegments: FindInDocumentDisplaySegment[];
+} {
+    const normalised =
+        normaliseWhitespaceForSearch(
+            sourceText
+        );
+
+    const normalisedMatchStart =
+        mapOriginalOffsetToNormalisedOffset(
+            sourceText,
+            matchStart
+        );
+
+    const normalisedMatchEnd =
+        mapOriginalOffsetToNormalisedOffset(
+            sourceText,
+            matchEnd
+        );
+
+    const displayStart = Math.max(
+        0,
+        normalisedMatchStart -
+        contextLength
+    );
+
+    const displayEnd = Math.min(
+        normalised.text.length,
+        normalisedMatchEnd +
+        contextLength
+    );
+
+    const originalStart =
+        displayStart <
+            normalised.originalOffsets.length
+            ? normalised.originalOffsets[
+            displayStart
+            ]
+            : sourceText.length;
+
+    const originalEnd =
+        displayEnd > displayStart
+            ? normalised.originalOffsets[
+            displayEnd - 1
+            ] + 1
+            : originalStart;
+
+    return {
+        display: {
+            text: normalised.text.slice(
+                displayStart,
+                displayEnd
+            ),
+
+            matchStart:
+                normalisedMatchStart -
+                displayStart,
+
+            matchEnd:
+                normalisedMatchEnd -
+                displayStart,
+
+            hasLeadingEllipsis:
+                displayStart > 0,
+
+            hasTrailingEllipsis:
+                displayEnd <
+                normalised.text.length,
+        },
+
+        displaySegments:
+            displayEnd > displayStart
+                ? [
+                    {
+                        kind: "table_cell",
+                        pageNumber,
+                        itemId: null,
+                        tableId,
+                        cellId,
+                        start: originalStart,
+                        end: originalEnd,
+
+                        displayStart: 0,
+
+                        displayEnd:
+                            displayEnd -
+                            displayStart,
+
+                        sourceNormalisedStart:
+                            displayStart,
+
+                        sourceNormalisedEnd:
+                            displayEnd,
+                    },
+                ]
+                : [],
+    };
 }
 
 function buildPartialContentRangesFromFindResult(
@@ -618,16 +834,13 @@ export function findInDocument(
 
         const firstSegment = segments[0];
 
-        const displaySource = buildDisplaySourceText(
-            searchableDocument.chunks,
+        const {
+            display,
+            displaySegments,
+        } = buildTextDisplay(
+            searchableDocument,
             start,
             end
-        );
-
-        const display = buildDisplayMatch(
-            displaySource.text,
-            displaySource.matchStart,
-            displaySource.matchEnd
         );
 
         results.push({
@@ -646,8 +859,8 @@ export function findInDocument(
             cellId: null,
 
             display,
-
             segments,
+            displaySegments,
         });
     });
 
@@ -660,6 +873,19 @@ export function findInDocument(
                         trimmedSearchTerm
                     ).forEach(
                         ({ start, end }, occurrenceIndex) => {
+
+                            const {
+                                display,
+                                displaySegments,
+                            } = buildTableDisplay(
+                                cell.text,
+                                start,
+                                end,
+                                page.pageNumber,
+                                table.tableId,
+                                cell.cellId
+                            );
+
                             results.push({
                                 id: [
                                     "table-cell",
@@ -678,23 +904,24 @@ export function findInDocument(
                                 tableId: table.tableId,
                                 cellId: cell.cellId,
 
-                                display: buildDisplayMatch(
-                                    cell.text,
-                                    start,
-                                    end
-                                ),
+                                display,
 
                                 segments: [
                                     {
                                         kind: "table_cell",
-                                        pageNumber: page.pageNumber,
+                                        pageNumber:
+                                            page.pageNumber,
                                         itemId: null,
-                                        tableId: table.tableId,
-                                        cellId: cell.cellId,
+                                        tableId:
+                                            table.tableId,
+                                        cellId:
+                                            cell.cellId,
                                         start,
                                         end,
                                     },
                                 ],
+
+                                displaySegments,
                             });
                         }
                     );
