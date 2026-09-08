@@ -693,18 +693,31 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     function handleDocumentMouseUp(
       mouseUpEvent: globalThis.MouseEvent
     ) {
+
       reviewSelectionMouseUpCleanupRef.current?.();
 
       if (mouseUpEvent.button !== 0) {
         return;
       }
 
-      const handledTable =
-        handleTableCellSelection();
+      window.requestAnimationFrame(() => {
+        const selection = window.getSelection();
 
-      if (!handledTable) {
-        handleTextSelection();
-      }
+        if (
+          !selection ||
+          selection.rangeCount === 0 ||
+          selection.isCollapsed
+        ) {
+          return;
+        }
+
+        const handledTable =
+          handleTableCellSelection();
+
+        if (!handledTable) {
+          handleTextSelection();
+        }
+      });
     }
 
     document.addEventListener(
