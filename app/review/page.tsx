@@ -141,6 +141,72 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const isRedactMode = reviewMode === "redact";
 
   useEffect(() => {
+    if (!isRedactMode || !data) {
+      return;
+    }
+
+    function handleDocumentMouseUp(
+      event: globalThis.MouseEvent
+    ) {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const selection = window.getSelection();
+
+      if (
+        !selection ||
+        selection.rangeCount === 0 ||
+        selection.isCollapsed
+      ) {
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+
+      const intersectsRedactableContent =
+        Array.from(
+          document.querySelectorAll<HTMLElement>(
+            ".jr-review-block.redactable[data-page-number][data-item-id], [data-cell-id]"
+          )
+        ).some((element) => {
+          try {
+            return range.intersectsNode(element);
+          } catch {
+            return false;
+          }
+        });
+
+      if (!intersectsRedactableContent) {
+        return;
+      }
+
+      const handledTable =
+        handleTableCellSelection();
+
+      if (!handledTable) {
+        handleTextSelection();
+      }
+
+      window.requestAnimationFrame(() => {
+        window.getSelection()?.removeAllRanges();
+      });
+    }
+
+    document.addEventListener(
+      "mouseup",
+      handleDocumentMouseUp
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mouseup",
+        handleDocumentMouseUp
+      );
+    };
+  });
+
+  useEffect(() => {
     if (!isRedactMode && redactionRemoveMenu) {
       setManualRedactionHover(
         redactionRemoveMenu.manualId,
@@ -357,9 +423,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
             if (error instanceof ApiError && error.status === 409) {
               throw error;
             }
-
-            // A transient failure in the previous save should not prevent
-            // the latest state from being retried.
           }
         }
 
@@ -372,10 +435,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       activeDecisionSaveRef.current = savePromise;
 
       void savePromise
-        .catch(() => {
-          // Error has already been handled by saveCurrentDecisions.
-        })
-        .finally(() => {
+        .catch(() => { }).finally(() => {
           if (activeDecisionSaveRef.current === savePromise) {
             activeDecisionSaveRef.current = null;
           }
@@ -470,9 +530,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           if (error instanceof ApiError && error.status === 409) {
             throw error;
           }
-
-          // A transient autosave failure should not prevent Apply from
-          // making one final attempt to save the latest decisions.
         }
       }
 
@@ -641,10 +698,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           end: normalisedEnd,
         };
 
-        /*
-         * Do not duplicate portions of cells which are
-         * already manually redacted.
-         */
         const uncoveredRanges =
           subtractContentRanges(
             selectedRange,
@@ -702,10 +755,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         "data-cell-id"
       );
 
-    /*
-     * This was not a table selection, so allow the normal
-     * text-selection handler to try instead.
-     */
     if (!startElement || !endElement) {
       return false;
     }
@@ -734,10 +783,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return true;
     }
 
-    /*
-     * A single table redaction selection must remain
-     * inside one table on one page.
-     */
     if (
       startTableId !== endTableId ||
       startPageNumber !== endPageNumber
@@ -834,10 +879,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           );
         }
 
-        /*
-         * A selection entirely inside one cell needs both
-         * offsets from that same cell.
-         */
         if (isFirstCell && isLastCell) {
           start = getTextOffsetWithinItem(
             startElement,
@@ -893,88 +934,166 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   }
 
   function handleTextSelection() {
-    if (!isRedactMode || !data) return;
+    if (!isRedactMode || !data) {
+      return;
+    }
 
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
-
-    const range = selection.getRangeAt(0);
-    const startElement = getClosestElementWithAttribute(range.startContainer, "data-item-id");
-    const endElement = getClosestElementWithAttribute(range.endContainer, "data-item-id");
-
-    if (!startElement || !endElement) return;
-
-    const startItemId = startElement.dataset.itemId;
-    const endItemId = endElement.dataset.itemId;
-    const startPageNumber = startElement.dataset.pageNumber;
-    const endPageNumber = endElement.dataset.pageNumber;
 
     if (
-      !startItemId ||
-      !endItemId ||
-      !startPageNumber ||
-      !endPageNumber ||
-      startPageNumber !== endPageNumber
+      !selection ||
+      selection.rangeCount === 0 ||
+      selection.isCollapsed
     ) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+
+    const intersectedElements = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        ".jr-review-block.redactable[data-page-number][data-item-id]"
+      )
+    ).filter((element) => {
+      try {
+        return range.intersectsNode(element);
+      } catch {
+        return false;
+      }
+    });
+
+    if (intersectedElements.length === 0) {
+      return;
+    }
+
+    const pageNumbers = new Set(
+      intersectedElements
+        .map(
+          (element) =>
+            element.dataset.pageNumber
+        )
+        .filter(
+          (pageNumber): pageNumber is string =>
+            Boolean(pageNumber)
+        )
+    );
+
+    if (pageNumbers.size !== 1) {
       selection.removeAllRanges();
       return;
     }
 
-    const pageNumber = Number(startPageNumber);
-    const page = data.pages.find((candidate) => candidate.pageNumber === pageNumber);
+    const pageNumberValue =
+      Array.from(pageNumbers)[0];
+
+    if (!pageNumberValue) {
+      selection.removeAllRanges();
+      return;
+    }
+
+    const pageNumber =
+      Number(pageNumberValue);
+
+    const page = data.pages.find(
+      (candidate) =>
+        candidate.pageNumber === pageNumber
+    );
 
     if (!page) {
       selection.removeAllRanges();
       return;
     }
 
-    const pageItemElements = Array.from(
-      document.querySelectorAll<HTMLElement>(
-        `.jr-review-block.redactable[data-page-number="${pageNumber}"][data-item-id]`
-      )
-    );
-
-    const startIndex = pageItemElements.findIndex(
-      (element) => element.dataset.itemId === startItemId
-    );
-
-    const endIndex = pageItemElements.findIndex(
-      (element) => element.dataset.itemId === endItemId
-    );
-
-    if (startIndex < 0 || endIndex < 0 || startIndex > endIndex) {
-      selection.removeAllRanges();
-      return;
-    }
-
     const spansToAdd: ManualSpan[] = [];
 
-    for (let index = startIndex; index <= endIndex; index += 1) {
-      const element = pageItemElements[index];
-      const itemId = element.dataset.itemId;
+    intersectedElements.forEach((element) => {
+      const itemId =
+        element.dataset.itemId;
 
-      if (!itemId) continue;
+      if (!itemId) {
+        return;
+      }
 
-      const item = page.textItems.find((candidate) => candidate.itemId === itemId);
+      const item = page.textItems.find(
+        (candidate) =>
+          candidate.itemId === itemId
+      );
 
-      if (!item) continue;
+      if (!item) {
+        return;
+      }
 
-      const sourceText = item.text;
-      const start =
-        index === startIndex
-          ? getTextOffsetWithinItem(element, range.startContainer, range.startOffset)
-          : 0;
+      const sourceText =
+        item.text;
 
-      const end =
-        index === endIndex
-          ? getTextOffsetWithinItem(element, range.endContainer, range.endOffset)
-          : sourceText.length;
+      let start = 0;
+      let end = sourceText.length;
 
-      const normalisedStart = clampRangeValue(Math.min(start, end), sourceText.length);
-      const normalisedEnd = clampRangeValue(Math.max(start, end), sourceText.length);
+      const startElement =
+        getClosestElementWithAttribute(
+          range.startContainer,
+          "data-item-id"
+        );
 
-      if (normalisedEnd <= normalisedStart) continue;
-      if (!sourceText.slice(normalisedStart, normalisedEnd).trim()) continue;
+      const endElement =
+        getClosestElementWithAttribute(
+          range.endContainer,
+          "data-item-id"
+        );
+
+      if (
+        startElement?.dataset.itemId ===
+        itemId
+      ) {
+        start =
+          getTextOffsetWithinItem(
+            element,
+            range.startContainer,
+            range.startOffset
+          );
+      }
+
+      if (
+        endElement?.dataset.itemId ===
+        itemId
+      ) {
+        end =
+          getTextOffsetWithinItem(
+            element,
+            range.endContainer,
+            range.endOffset
+          );
+      }
+
+      const normalisedStart =
+        clampRangeValue(
+          Math.min(start, end),
+          sourceText.length
+        );
+
+      const normalisedEnd =
+        clampRangeValue(
+          Math.max(start, end),
+          sourceText.length
+        );
+
+      if (
+        normalisedEnd <=
+        normalisedStart
+      ) {
+        return;
+      }
+
+      if (
+        !sourceText
+          .slice(
+            normalisedStart,
+            normalisedEnd
+          )
+          .trim()
+      ) {
+        return;
+      }
 
       spansToAdd.push({
         pageNumber,
@@ -982,14 +1101,16 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         start: normalisedStart,
         end: normalisedEnd,
       });
-    }
+    });
 
-    const redactionGroupId = crypto.randomUUID();
+    if (spansToAdd.length === 0) {
+      return;
+    }
 
     addManualTextSelectionGroup(
       page,
       spansToAdd,
-      redactionGroupId
+      crypto.randomUUID()
     );
 
     selection.removeAllRanges();
@@ -1276,10 +1397,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           return [];
         }
 
-        /*
-         * One selected search occurrence is one logical
-         * redaction, even if it spans multiple text blocks.
-         */
         const redactionGroupId =
           crypto.randomUUID();
 
@@ -1311,14 +1428,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return 0;
     }
 
-    /*
-     * Remove any existing redaction inside the selected
-     * searched occurrences before applying the new full
-     * redaction.
-     *
-     * Existing redactions outside those occurrences remain
-     * untouched.
-     */
     const rangesToReplace = replacements.flatMap(
       (replacement) => replacement.ranges
     );
@@ -1341,10 +1450,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       ];
     });
 
-    /*
-     * Count selected occurrences, not underlying decisions,
-     * because one occurrence may span multiple text items.
-     */
     return replacements.length;
   }
 
@@ -1371,10 +1476,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
             rangesToRemove
           );
 
-        /*
-         * This decision does not overlap any of the selected
-         * searched occurrences, so preserve it exactly.
-         */
         if (
           remainingRanges.length === 1 &&
           remainingRanges[0].start === sourceRange.start &&
@@ -1383,11 +1484,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           return [selection];
         }
 
-        /*
-         * The searched occurrence overlapped this decision.
-         * Preserve any portions outside the searched term,
-         * including the original redactionGroupId.
-         */
         return remainingRanges.flatMap<ManualDecision>(
           (range) => {
             const localStart =
@@ -1448,10 +1544,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
     const additions = selectedResults.flatMap(
       (result) => {
-        /*
-         * Build only the part of the searched occurrence
-         * selected by the user in the previous modal.
-         */
         const partialRanges =
           buildPartialContentRanges(
             data.pages,
@@ -1459,11 +1551,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
             selectedRange
           );
 
-        /*
-         * Do not add another redaction over anything which is
-         * already redacted. Existing redactions are left exactly
-         * as they are.
-         */
         const uncoveredRanges =
           partialRanges.flatMap((range) =>
             subtractContentRanges(
@@ -1476,10 +1563,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           return [];
         }
 
-        /*
-         * One selected occurrence is one logical new redaction,
-         * even if the partial range spans multiple text items.
-         */
         const redactionGroupId =
           crypto.randomUUID();
 
@@ -1515,11 +1598,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       ({ selections }) => selections
     );
 
-    /*
-     * Existing redactions are preserved.
-     * Only previously unredacted parts of the user's partial
-     * selection are appended.
-     */
     setManualSelections((previous) => [
       ...previous,
       ...newSelections,
@@ -1549,11 +1627,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return 0;
     }
 
-    /*
-     * discloseManualRedactions now preserves every unrelated
-     * existing decision and only modifies decisions which
-     * contain the searched phrase.
-     */
     setManualSelections(
       result.remainingSelections
     );
@@ -1664,10 +1737,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       {data && visiblePages.length > 0 && (
         <>
           <div
-            onMouseUp={() => {
-              const handledTable = handleTableCellSelection();
-              if (!handledTable) handleTextSelection();
-            }}
             onMouseOver={handleRedactionMouseOver}
             onMouseOut={handleRedactionMouseOut}
             onContextMenu={handleRedactionContextMenu}
