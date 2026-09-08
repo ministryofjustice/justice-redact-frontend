@@ -693,31 +693,18 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     function handleDocumentMouseUp(
       mouseUpEvent: globalThis.MouseEvent
     ) {
-
       reviewSelectionMouseUpCleanupRef.current?.();
 
       if (mouseUpEvent.button !== 0) {
         return;
       }
 
-      window.requestAnimationFrame(() => {
-        const selection = window.getSelection();
+      const handledTable =
+        handleTableCellSelection();
 
-        if (
-          !selection ||
-          selection.rangeCount === 0 ||
-          selection.isCollapsed
-        ) {
-          return;
-        }
-
-        const handledTable =
-          handleTableCellSelection();
-
-        if (!handledTable) {
-          handleTextSelection();
-        }
-      });
+      if (!handledTable) {
+        handleTextSelection();
+      }
     }
 
     document.addEventListener(
@@ -945,88 +932,166 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   }
 
   function handleTextSelection() {
-    if (!isRedactMode || !data) return;
+    if (!isRedactMode || !data) {
+      return;
+    }
 
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
-
-    const range = selection.getRangeAt(0);
-    const startElement = getClosestElementWithAttribute(range.startContainer, "data-item-id");
-    const endElement = getClosestElementWithAttribute(range.endContainer, "data-item-id");
-
-    if (!startElement || !endElement) return;
-
-    const startItemId = startElement.dataset.itemId;
-    const endItemId = endElement.dataset.itemId;
-    const startPageNumber = startElement.dataset.pageNumber;
-    const endPageNumber = endElement.dataset.pageNumber;
 
     if (
-      !startItemId ||
-      !endItemId ||
-      !startPageNumber ||
-      !endPageNumber ||
-      startPageNumber !== endPageNumber
+      !selection ||
+      selection.rangeCount === 0 ||
+      selection.isCollapsed
     ) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+
+    const intersectedElements = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        ".jr-review-block.redactable[data-page-number][data-item-id]"
+      )
+    ).filter((element) => {
+      try {
+        return range.intersectsNode(element);
+      } catch {
+        return false;
+      }
+    });
+
+    if (intersectedElements.length === 0) {
+      return;
+    }
+
+    const pageNumbers = new Set(
+      intersectedElements
+        .map(
+          (element) =>
+            element.dataset.pageNumber
+        )
+        .filter(
+          (pageNumber): pageNumber is string =>
+            Boolean(pageNumber)
+        )
+    );
+
+    if (pageNumbers.size !== 1) {
       selection.removeAllRanges();
       return;
     }
 
-    const pageNumber = Number(startPageNumber);
-    const page = data.pages.find((candidate) => candidate.pageNumber === pageNumber);
+    const pageNumberValue =
+      Array.from(pageNumbers)[0];
+
+    if (!pageNumberValue) {
+      selection.removeAllRanges();
+      return;
+    }
+
+    const pageNumber =
+      Number(pageNumberValue);
+
+    const page = data.pages.find(
+      (candidate) =>
+        candidate.pageNumber === pageNumber
+    );
 
     if (!page) {
       selection.removeAllRanges();
       return;
     }
 
-    const pageItemElements = Array.from(
-      document.querySelectorAll<HTMLElement>(
-        `.jr-review-block.redactable[data-page-number="${pageNumber}"][data-item-id]`
-      )
-    );
-
-    const startIndex = pageItemElements.findIndex(
-      (element) => element.dataset.itemId === startItemId
-    );
-
-    const endIndex = pageItemElements.findIndex(
-      (element) => element.dataset.itemId === endItemId
-    );
-
-    if (startIndex < 0 || endIndex < 0 || startIndex > endIndex) {
-      selection.removeAllRanges();
-      return;
-    }
-
     const spansToAdd: ManualSpan[] = [];
 
-    for (let index = startIndex; index <= endIndex; index += 1) {
-      const element = pageItemElements[index];
-      const itemId = element.dataset.itemId;
+    intersectedElements.forEach((element) => {
+      const itemId =
+        element.dataset.itemId;
 
-      if (!itemId) continue;
+      if (!itemId) {
+        return;
+      }
 
-      const item = page.textItems.find((candidate) => candidate.itemId === itemId);
+      const item = page.textItems.find(
+        (candidate) =>
+          candidate.itemId === itemId
+      );
 
-      if (!item) continue;
+      if (!item) {
+        return;
+      }
 
-      const sourceText = item.text;
-      const start =
-        index === startIndex
-          ? getTextOffsetWithinItem(element, range.startContainer, range.startOffset)
-          : 0;
+      const sourceText =
+        item.text;
 
-      const end =
-        index === endIndex
-          ? getTextOffsetWithinItem(element, range.endContainer, range.endOffset)
-          : sourceText.length;
+      let start = 0;
+      let end = sourceText.length;
 
-      const normalisedStart = clampRangeValue(Math.min(start, end), sourceText.length);
-      const normalisedEnd = clampRangeValue(Math.max(start, end), sourceText.length);
+      const startElement =
+        getClosestElementWithAttribute(
+          range.startContainer,
+          "data-item-id"
+        );
 
-      if (normalisedEnd <= normalisedStart) continue;
-      if (!sourceText.slice(normalisedStart, normalisedEnd).trim()) continue;
+      const endElement =
+        getClosestElementWithAttribute(
+          range.endContainer,
+          "data-item-id"
+        );
+
+      if (
+        startElement?.dataset.itemId ===
+        itemId
+      ) {
+        start =
+          getTextOffsetWithinItem(
+            element,
+            range.startContainer,
+            range.startOffset
+          );
+      }
+
+      if (
+        endElement?.dataset.itemId ===
+        itemId
+      ) {
+        end =
+          getTextOffsetWithinItem(
+            element,
+            range.endContainer,
+            range.endOffset
+          );
+      }
+
+      const normalisedStart =
+        clampRangeValue(
+          Math.min(start, end),
+          sourceText.length
+        );
+
+      const normalisedEnd =
+        clampRangeValue(
+          Math.max(start, end),
+          sourceText.length
+        );
+
+      if (
+        normalisedEnd <=
+        normalisedStart
+      ) {
+        return;
+      }
+
+      if (
+        !sourceText
+          .slice(
+            normalisedStart,
+            normalisedEnd
+          )
+          .trim()
+      ) {
+        return;
+      }
 
       spansToAdd.push({
         pageNumber,
@@ -1034,14 +1099,16 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         start: normalisedStart,
         end: normalisedEnd,
       });
-    }
+    });
 
-    const redactionGroupId = crypto.randomUUID();
+    if (spansToAdd.length === 0) {
+      return;
+    }
 
     addManualTextSelectionGroup(
       page,
       spansToAdd,
-      redactionGroupId
+      crypto.randomUUID()
     );
 
     selection.removeAllRanges();
