@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../lib/api";
+import BackLink from "../components/BackLink";
 
 const FILE_ERROR =
   "The selected file must be a NOMIS or DPS file in PDF format";
@@ -319,9 +319,7 @@ export default function UploadPage() {
     <main className="govuk-main-wrapper" id="main-content">
       <div className="govuk-grid-row">
         <div className="govuk-grid-column-two-thirds">
-          <Link href="/" className="govuk-back-link">
-            Back
-          </Link>
+          <BackLink href="/" />
 
           {error && (
             <div

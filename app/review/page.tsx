@@ -22,6 +22,7 @@ import ReviewPageHeader from "./components/ReviewPageHeader";
 import ReviewPagination from "./components/ReviewPagination";
 import ReviewStatusMessages from "./components/ReviewStatusMessages";
 import QuickHelpModal from "./components/QuickHelpModal";
+import BackLink from "../components/BackLink";
 import { clampRangeValue } from "./textRendering";
 import HighlightKey from "./components/HighlightKey";
 import {
@@ -1712,13 +1713,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       />
       {selectedRangeStart === 0 && (
         <div className="govuk-grid-column-full-width">
-          <button
-            type="button"
-            className="govuk-back-link govuk-back-link-button"
-            onClick={() => router.push("/upload")}
-          >
-            Back
-          </button>
+          <BackLink href="/upload" />
         </div>
       )}
       <div className="govuk-grid-column-full-width">

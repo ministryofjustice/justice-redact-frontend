@@ -18,6 +18,7 @@ import {
 
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import BackLink from "../components/BackLink";
 
 type PageCounts = {
     original: number;
@@ -306,6 +307,12 @@ function ExportContent() {
         <>
             <div className="govuk-grid-row">
                 <div className="govuk-grid-column-two-thirds">
+                    <BackLink
+                        href={`/review?documentId=${encodeURIComponent(
+                            data.documentId
+                        )}`}
+                    />
+
                     <div className="govuk-panel govuk-panel--confirmation">
                         <h1 className="govuk-panel__title">
                             Redactions applied
