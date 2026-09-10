@@ -896,66 +896,78 @@ main {
   color: #0b0c0c !important;
 }
 
-/* Button actions that must visually match the GOV.UK Back link. */
-.govuk-back-link-button {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  cursor: pointer;
-  color: #0b0c0c;
+/* Export page */
+.jr-export-file-description {
+  margin-bottom: govuk.govuk-spacing(2);
 }
 
-.govuk-back-link-button:visited {
-  color: #0b0c0c;
+.jr-export-sanitisation-details {
+  margin-bottom: 2px;
 }
 
-.govuk-back-link-button:hover {
-  color: rgba(11, 12, 12, 0.99);
+.jr-export-page-counts-section {
+  margin-bottom: govuk.govuk-spacing(6);
 }
 
-.govuk-back-link-button:focus {
-  color: #0b0c0c;
+.jr-export-page-counts {
+  display: inline-flex;
+  align-items: stretch;
+  margin-bottom: govuk.govuk-spacing(6);
 }
 
-/* Export page count summary */
-.page-counts-section {
-  margin-bottom: 30px;
+.jr-export-page-counts__item {
+  flex: 0 0 auto;
 }
 
-.page-counts {
-  display: grid;
-  grid-template-columns: 1fr 1px 1fr 1fr 1fr;
-  column-gap: 30px;
-  align-items: start;
-  width: 100%;
-  margin: 0;
+.jr-export-page-counts__item--original {
+  padding-right: govuk.govuk-spacing(3);
 }
 
-.page-counts__item {
-  min-width: 0;
+.jr-export-page-counts__number,
+.jr-export-page-counts__label {
+  margin-bottom: 0;
 }
 
-.page-counts__number {
-  margin: 0;
-  font-family: "GDS Transport", arial, sans-serif;
-  font-size: 24px;
-  line-height: 1.25;
-  font-weight: 700;
+.jr-export-page-counts__divider {
+  display: flex;
+  flex: 0 0 2em;
+  justify-content: center;
+  margin-right: govuk.govuk-spacing(3);
 }
 
-.page-counts__label {
-  margin: 0;
-  font-family: "GDS Transport", arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.25;
-}
-
-.page-counts__divider {
+.jr-export-page-counts__divider::before {
   width: 1px;
-  height: 55px;
-  background-color: #0b0c0c;
+  background-color:
+    govuk.govuk-colour("mid-grey");
+  content: "";
+}
+
+.jr-export-page-counts__divider+.jr-export-page-counts__item {
+  padding-left: govuk.govuk-spacing(3);
+}
+
+.jr-export-page-counts__item+.jr-export-page-counts__item {
+  margin-left: 2em;
+}
+
+@media (max-width: 40.0525em) {
+  .jr-export-page-counts {
+    display: block;
+    margin-bottom: govuk.govuk-spacing(4);
+  }
+
+  .jr-export-page-counts__item,
+  .jr-export-page-counts__item--original,
+  .jr-export-page-counts__divider+.jr-export-page-counts__item {
+    margin-left: 0;
+    margin-bottom: govuk.govuk-spacing(4);
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .jr-export-page-counts__divider {
+    display: none;
+  }
 }
 
 @media (max-width: 40.0525em) {
@@ -973,17 +985,6 @@ main {
     margin-bottom: 10px;
   }
 
-  .page-counts {
-    display: block;
-  }
-
-  .page-counts__item {
-    margin-bottom: 20px;
-  }
-
-  .page-counts__divider {
-    display: none;
-  }
 }
 
 /* Animations */
