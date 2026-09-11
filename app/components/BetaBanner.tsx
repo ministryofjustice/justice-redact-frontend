@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function BetaBanner() {
     return (
         <div className="govuk-phase-banner govuk-width-container">
@@ -7,7 +9,14 @@ export default function BetaBanner() {
                 </strong>
 
                 <span className="govuk-phase-banner__text">
-                    This is a new service. We&apos;re still working on ways to improve it.
+                    This is a new service – your{" "}
+                    <Link
+                        href="/contact"
+                        className="govuk-link govuk-link--no-visited-state"
+                    >
+                        feedback
+                    </Link>{" "}
+                    will help us to improve it.
                 </span>
             </p>
         </div>
