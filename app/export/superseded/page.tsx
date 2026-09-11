@@ -77,8 +77,13 @@ function SupersededExportContent() {
                 )}
 
                 <p className="govuk-body">
-                    Contact the Justice Redact team if you
-                    need help.
+                    <Link
+                        href="/contact"
+                        className="govuk-link govuk-link--no-visited-state"
+                    >
+                        Contact the Justice Redact team
+                    </Link>{" "}
+                    if you need help.
                 </p>
             </div>
         </div>
