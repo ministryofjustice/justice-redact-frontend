@@ -590,11 +590,14 @@ main {
   position: absolute;
   inset: 0;
   box-sizing: border-box;
-  background: govuk.govuk-colour("orange", $variant: "tint-80");
+
+  background: rgba(244, 119, 56, 0.75);
+
   border-top: 2px solid govuk.govuk-colour("orange");
   border-right: 0;
   border-bottom: 2px solid govuk.govuk-colour("orange");
   border-left: 0;
+
   pointer-events: none;
 }
 
