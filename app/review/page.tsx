@@ -14,6 +14,8 @@ import { ApiError, fetchJson } from "../lib/api";
 
 import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
+import { useReviewPages } from "./useReviewPages";
+import { loadReviewSearchPages } from "./reviewDataCache";
 import { buildReviewStateFromPersistedDecisions } from "./redactionDecisionPersistence";
 import EndOfDocumentActions from "./components/EndOfDocumentActions";
 import PageContent from "./components/PageContent";
@@ -118,6 +120,14 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isFindAndRedactOpen, setIsFindAndRedactOpen] = useState(false);
   const [isFindAndDiscloseOpen, setIsFindAndDiscloseOpen] = useState(false);
   const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
+  const [searchPages, setSearchPages] =
+    useState<ReviewPageData[] | null>(null);
+
+  const [isSearchLoading, setIsSearchLoading] =
+    useState(false);
+
+  const [searchError, setSearchError] =
+    useState<string | null>(null);
   const [hasLoadedPersistedDecisions, setHasLoadedPersistedDecisions] =
     useState(false);
   const [decisionSaveError, setDecisionSaveError] = useState<string | null>(null);
@@ -138,8 +148,110 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   const { data, isLoading, error } = useReviewData(documentId);
 
+  const requestedPageStart =
+    selectedRangeStart + 1;
+
+  const requestedPageEnd =
+    data && data.summary.totalPages > 0
+      ? Math.min(
+        data.summary.totalPages,
+        selectedRangeStart + PAGES_PER_BATCH
+      )
+      : null;
+
+  const {
+    pages: visiblePages,
+    isLoading: isPagesLoading,
+    error: pagesError,
+  } = useReviewPages(
+    documentId,
+    requestedPageStart,
+    requestedPageEnd,
+    Boolean(data)
+  );
+
   const isPreviewMode = reviewMode === "preview";
   const isRedactMode = reviewMode === "redact";
+
+  const ensureSearchPages =
+    useCallback(async () => {
+      if (!documentId) {
+        return null;
+      }
+
+      if (searchPages) {
+        return searchPages;
+      }
+
+      try {
+        setIsSearchLoading(true);
+        setSearchError(null);
+
+        const pages =
+          await loadReviewSearchPages(
+            documentId
+          );
+
+        setSearchPages(pages);
+
+        return pages;
+      } catch (err) {
+        setSearchError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load document search data."
+        );
+
+        return null;
+      } finally {
+        setIsSearchLoading(false);
+      }
+    }, [
+      documentId,
+      searchPages,
+    ]);
+
+  const openFindAndRedact =
+    useCallback(async () => {
+      const pages =
+        await ensureSearchPages();
+
+      if (!pages) {
+        return;
+      }
+
+      setIsFindAndPartiallyRedactOpen(false);
+      setIsFindAndDiscloseOpen(false);
+      setIsFindAndRedactOpen(true);
+    }, [ensureSearchPages]);
+
+  const openFindAndPartiallyRedact =
+    useCallback(async () => {
+      const pages =
+        await ensureSearchPages();
+
+      if (!pages) {
+        return;
+      }
+
+      setIsFindAndRedactOpen(false);
+      setIsFindAndDiscloseOpen(false);
+      setIsFindAndPartiallyRedactOpen(true);
+    }, [ensureSearchPages]);
+
+  const openFindAndDisclose =
+    useCallback(async () => {
+      const pages =
+        await ensureSearchPages();
+
+      if (!pages) {
+        return;
+      }
+
+      setIsFindAndRedactOpen(false);
+      setIsFindAndPartiallyRedactOpen(false);
+      setIsFindAndDiscloseOpen(true);
+    }, [ensureSearchPages]);
 
   useEffect(() => {
     if (!isRedactMode || !data) {
@@ -457,25 +569,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     saveCurrentDecisions,
   ]);
 
-  const visiblePages = useMemo(() => {
-    if (!data) return [];
-
-    const firstPageNumber = selectedRangeStart + 1;
-    const lastPageNumber = Math.min(
-      data.summary.totalPages,
-      selectedRangeStart + PAGES_PER_BATCH
-    );
-
-    return data.pages
-      .slice()
-      .sort((a, b) => a.pageNumber - b.pageNumber)
-      .filter(
-        (page) =>
-          page.pageNumber >= firstPageNumber &&
-          page.pageNumber <= lastPageNumber
-      );
-  }, [data, selectedRangeStart]);
-
   const pageRanges = useMemo(() => {
     const totalPages = data?.summary.totalPages ?? 0;
     const count = Math.ceil(totalPages / PAGES_PER_BATCH);
@@ -707,7 +800,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
         return buildManualSelectionsFromContentRanges(
           uncoveredRanges,
-          data.pages,
+          visiblePages,
           documentId,
           () => crypto.randomUUID()
         ).map((selection) => ({
@@ -794,7 +887,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
     const pageNumber = Number(startPageNumber);
 
-    const page = data.pages.find(
+    const page = visiblePages.find(
       (candidate) =>
         candidate.pageNumber === pageNumber
     );
@@ -995,7 +1088,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     const pageNumber =
       Number(pageNumberValue);
 
-    const page = data.pages.find(
+    const page = visiblePages.find(
       (candidate) =>
         candidate.pageNumber === pageNumber
     );
@@ -1383,7 +1476,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   ): number {
     if (
       !documentId ||
-      !data ||
+      !searchPages ||
       selectedResults.length === 0
     ) {
       return 0;
@@ -1404,7 +1497,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         const selections =
           buildManualSelectionsFromContentRanges(
             resultRanges,
-            data.pages,
+            searchPages,
             documentId,
             () => crypto.randomUUID()
           ).map((selection) => ({
@@ -1525,7 +1618,10 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       end: number;
     }
   ): number {
-    if (!documentId || !data) {
+    if (
+      !documentId ||
+      !searchPages
+    ) {
       return 0;
     }
 
@@ -1547,7 +1643,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       (result) => {
         const partialRanges =
           buildPartialContentRanges(
-            data.pages,
+            searchPages,
             result,
             selectedRange
           );
@@ -1570,7 +1666,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         const selections =
           buildManualSelectionsFromContentRanges(
             uncoveredRanges,
-            data.pages,
+            searchPages,
             documentId,
             () => crypto.randomUUID()
           ).map((selection) => ({
@@ -1682,27 +1778,33 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         reviewMode={reviewMode}
         onReviewModeChange={setReviewMode}
         onQuickHelp={() => setIsQuickHelpOpen(true)}
-        onFindAndRedact={() => setIsFindAndRedactOpen(true)}
-        onFindAndPartiallyRedact={() => setIsFindAndPartiallyRedactOpen(true)}
-        onFindAndDisclose={() => setIsFindAndDiscloseOpen(true)}
+        onFindAndRedact={() => {
+          void openFindAndRedact();
+        }}
+        onFindAndPartiallyRedact={() => {
+          void openFindAndPartiallyRedact();
+        }}
+        onFindAndDisclose={() => {
+          void openFindAndDisclose();
+        }}
       />
       <FindAndRedactModal
         isOpen={isFindAndRedactOpen}
-        pages={data?.pages ?? []}
+        pages={searchPages ?? []}
         manualSelections={manualSelections}
         onClose={() => setIsFindAndRedactOpen(false)}
         onHighlightSelected={handleHighlightSelected}
       />
       <FindAndPartiallyRedactModal
         isOpen={isFindAndPartiallyRedactOpen}
-        pages={data?.pages ?? []}
+        pages={searchPages ?? []}
         manualSelections={manualSelections}
         onClose={() => setIsFindAndPartiallyRedactOpen(false)}
         onHighlightSelected={handleFindAndPartiallyRedact}
       />
       <FindAndDiscloseModal
         isOpen={isFindAndDiscloseOpen}
-        pages={data?.pages ?? []}
+        pages={searchPages ?? []}
         manualSelections={manualSelections}
         onClose={() => setIsFindAndDiscloseOpen(false)}
         onUndoSelected={handleUndoSelected}
@@ -1725,8 +1827,17 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       <HighlightKey />
 
       <ReviewStatusMessages
-        isLoading={isLoading}
-        error={error ?? decisionSaveError}
+        isLoading={
+          isLoading ||
+          isPagesLoading ||
+          isSearchLoading
+        }
+        error={
+          error ??
+          pagesError ??
+          searchError ??
+          decisionSaveError
+        }
       />
 
       {data && visiblePages.length > 0 && (
