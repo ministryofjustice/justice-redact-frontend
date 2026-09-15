@@ -81,15 +81,14 @@ export default function ImageRedactionFrame({
                     {isManuallyRedacted && (
                         <div
                             aria-hidden="true"
-                            style={{
-                                position: "absolute",
-                                inset: 0,
-                                background: isPreviewMode ? "#000" : "#f6d7d2",
-                                border: isPreviewMode ? "2px solid #000" : "2px solid #d4351c",
-                                opacity: isPreviewMode ? 1 : 0.75,
-                                pointerEvents: "none",
-                                boxSizing: "border-box",
-                            }}
+                            className={[
+                                "jr-review-image-redaction",
+                                isPreviewMode
+                                    ? "jr-review-image-redaction--preview"
+                                    : "",
+                            ]
+                                .filter(Boolean)
+                                .join(" ")}
                         />
                     )}
                 </div>

@@ -6,6 +6,7 @@ import { loadReviewData } from "../review/reviewDataCache";
 import { ApiError, fetchJson } from "../lib/api";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import BackLink from "../components/BackLink";
 
 type DocumentStatusResponse = {
   documentId: string;
@@ -108,33 +109,18 @@ function ProcessingContent() {
         setError(null);
 
         if (data.status === "ready_for_review") {
-          try {
-            await loadReviewData(currentDocumentId);
-
-            if (!isActive) return;
-
-            router.replace(
-              `/review?documentId=${encodeURIComponent(currentDocumentId)}`
+          void loadReviewData(currentDocumentId).catch((err) => {
+            console.warn(
+              "Review data prefetch failed",
+              err
             );
-          } catch (err) {
-            if (!isActive) return;
+          });
 
-            if (err instanceof ApiError && err.retryable) {
-              console.warn("Temporary review data loading failure", {
-                status: err.status,
-                message: err.message,
-              });
+          if (!isActive) return;
 
-              scheduleNextPoll();
-              return;
-            }
-
-            setError(
-              err instanceof Error
-                ? err.message
-                : "Unable to load the document for review."
-            );
-          }
+          router.replace(
+            `/review?documentId=${encodeURIComponent(currentDocumentId)}`
+          );
 
           return;
         }
@@ -225,14 +211,15 @@ function ProcessingContent() {
         ) : (
           <>
             <div className="govuk-grid-column-full">
-              <button
-                type="button"
-                className="govuk-back-link govuk-back-link-button"
-                onClick={handleBackToUpload}
+              <BackLink
+                href="/upload"
+                onBack={handleBackToUpload}
                 disabled={isAbandoning}
               >
-                {isAbandoning ? "Stopping processing..." : "Back"}
-              </button>
+                {isAbandoning
+                  ? "Stopping processing..."
+                  : "Back"}
+              </BackLink>
             </div>
             <div className="govuk-grid-column-full">
               <LinearLoadingBar

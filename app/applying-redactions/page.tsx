@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
-
+import BackLink from "../components/BackLink";
 import { ApiError, fetchJson } from "../lib/api";
 
 type DocumentStatusResponse = {
@@ -237,14 +237,21 @@ function ApplyingRedactionsContent() {
                 ) : (
                     <>
                         <div className="govuk-grid-column-full">
-                            <button
-                                type="button"
-                                className="govuk-back-link govuk-back-link-button"
-                                onClick={handleBackToReview}
+                            <BackLink
+                                href={
+                                    documentId
+                                        ? `/review?documentId=${encodeURIComponent(
+                                            documentId
+                                        )}`
+                                        : "/upload"
+                                }
+                                onBack={handleBackToReview}
                                 disabled={isCancelling}
                             >
-                                {isCancelling ? "Returning to review..." : "Back"}
-                            </button>
+                                {isCancelling
+                                    ? "Returning to review..."
+                                    : "Back"}
+                            </BackLink>
                         </div>
                         <div className="govuk-grid-column-two-thirds">
                             <section aria-labelledby="applying-redactions-heading">

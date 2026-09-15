@@ -4,6 +4,7 @@ import Link from "next/link";
 import MojCrest from "./components/MojCrest";
 import GovukInit from "./components/GovukInit";
 import GovukFooter from "./components/GovukFooter";
+import BetaBanner from "./components/BetaBanner";
 
 export const metadata: Metadata = {
   title: "Justice Redact",
@@ -29,22 +30,32 @@ export default function RootLayout({
           Skip to main content
         </a>
 
-        <header className="moj-header" role="banner">
-          <div className="moj-header__container govuk-width-container">
-            <div className="moj-header__logo">
-              <MojCrest />
+        <header role="banner">
+          <div className="moj-header">
+            <div className="moj-header__container govuk-width-container">
+              <div className="moj-header__logo">
+                <MojCrest />
 
-              <div className="moj-header__content">
-                <Link className="moj-header__link moj-header__link--organisation-name" href="/">
-                  Ministry of Justice
-                </Link>
+                <div className="moj-header__content">
+                  <Link
+                    className="moj-header__link moj-header__link--organisation-name"
+                    href="/"
+                  >
+                    Ministry of Justice
+                  </Link>
 
-                <Link className="moj-header__link moj-header__link--service-name" href="/">
-                  Justice Redact
-                </Link>
+                  <Link
+                    className="moj-header__link moj-header__link--service-name"
+                    href="/"
+                  >
+                    Justice Redact
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
+
+          <BetaBanner />
         </header>
 
         <div className="jr-app-content">

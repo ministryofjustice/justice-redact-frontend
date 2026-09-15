@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { fetchJson } from "../lib/api";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import BackLink from "../components/BackLink";
 
 type ProcessDocumentResponse = {
     documentId: string;
@@ -107,14 +108,15 @@ function SubjectDetailsContent() {
         <main className="govuk-main-wrapper" id="main-content">
             <div className="govuk-grid-row">
                 <div className="govuk-grid-column-two-thirds">
-                    <button
-                        type="button"
-                        className="govuk-back-link govuk-back-link-button"
-                        onClick={handleBackToUpload}
+                    <BackLink
+                        href="/upload"
+                        onBack={handleBackToUpload}
                         disabled={isAbandoning || isSubmitting}
                     >
-                        {isAbandoning ? "Returning to upload..." : "Back"}
-                    </button>
+                        {isAbandoning
+                            ? "Returning to upload..."
+                            : "Back"}
+                    </BackLink>
 
                     {error && (
                         <div

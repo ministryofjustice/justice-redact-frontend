@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function GovukFooter() {
     return (
         <footer className="govuk-footer" role="contentinfo">
@@ -31,23 +33,41 @@ export default function GovukFooter() {
                             Support links
                         </h2>
 
-                        <ul hidden className="govuk-footer__inline-list">
+                        <ul className="govuk-footer__inline-list">
                             <li className="govuk-footer__inline-list-item">
-                                <a
+                                <Link
                                     className="govuk-footer__link"
                                     href="/accessibility"
                                 >
                                     Accessibility
-                                </a>
+                                </Link>
                             </li>
 
                             <li className="govuk-footer__inline-list-item">
-                                <a
+                                <Link
                                     className="govuk-footer__link"
                                     href="/privacy"
                                 >
                                     Privacy
-                                </a>
+                                </Link>
+                            </li>
+
+                            <li className="govuk-footer__inline-list-item">
+                                <Link
+                                    className="govuk-footer__link"
+                                    href="/cookies"
+                                >
+                                    Cookies
+                                </Link>
+                            </li>
+
+                            <li className="govuk-footer__inline-list-item">
+                                <Link
+                                    className="govuk-footer__link"
+                                    href="/contact"
+                                >
+                                    Contact
+                                </Link>
                             </li>
                         </ul>
 
