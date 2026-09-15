@@ -140,6 +140,10 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   } | null>(null);
 
   const decisionRevisionRef = useRef(0);
+  const [
+    lastSavedDecisionState,
+    setLastSavedDecisionState,
+  ] = useState<string | null>(null);
   const redactionRemoveTriggerRef = useRef<HTMLElement | null>(null);
   const redactionRemoveMenuRef = useRef<HTMLButtonElement | null>(null);
   const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -434,6 +438,17 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           persisted.decisions
         );
 
+        const restoredRequest =
+          buildApplyRedactionsRequest(
+            currentDocumentId,
+            restored.manualSelections,
+            restored.pageStatuses
+          );
+
+        setLastSavedDecisionState(
+          JSON.stringify(restoredRequest)
+        );
+
         setManualSelections(restored.manualSelections);
         setPageStatuses(restored.pageStatuses);
         decisionRevisionRef.current = persisted.revision;
@@ -483,7 +498,13 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           },
         );
 
-        decisionRevisionRef.current = response.revision;
+        decisionRevisionRef.current =
+          response.revision;
+
+        setLastSavedDecisionState(
+          JSON.stringify(request)
+        );
+
         setDecisionSaveError(null);
 
         return response;
@@ -521,8 +542,27 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return;
     }
 
+    const currentRequest =
+      buildApplyRedactionsRequest(
+        documentId,
+        manualSelections,
+        pageStatuses
+      );
+
+    const currentDecisionState =
+      JSON.stringify(currentRequest);
+
+    if (
+      currentDecisionState ===
+      lastSavedDecisionState
+    ) {
+      return;
+    }
+
     if (autosaveTimeoutRef.current) {
-      clearTimeout(autosaveTimeoutRef.current);
+      clearTimeout(
+        autosaveTimeoutRef.current
+      );
     }
 
     autosaveTimeoutRef.current = setTimeout(() => {
@@ -566,6 +606,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     pageStatuses,
     hasLoadedPersistedDecisions,
     hasDecisionConflict,
+    lastSavedDecisionState,
     saveCurrentDecisions,
   ]);
 
