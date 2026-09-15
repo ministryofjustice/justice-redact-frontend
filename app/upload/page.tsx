@@ -11,6 +11,8 @@ const FILE_ERROR =
 const BODY_TEXT_ERROR = "Select a document that contains body text";
 
 const MINIMUM_BODY_CHARACTERS = 50;
+const MAX_VALIDATION_PAGES = 20;
+const LEADING_VALIDATION_PAGES = 10;
 
 type DocumentType = "nomis" | "dps" | "unidentified";
 
@@ -53,17 +55,78 @@ export default function UploadPage() {
     return text.replace(/\s+/g, " ").trim();
   }
 
-  async function analysePdf(file: File): Promise<PdfAnalysisResult> {
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  function getValidationPageNumbers(
+    totalPages: number
+  ): number[] {
+    if (totalPages <= MAX_VALIDATION_PAGES) {
+      return Array.from(
+        { length: totalPages },
+        (_, index) => index + 1
+      );
+    }
 
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+    const pageNumbers = new Set<number>();
+
+    const leadingPageCount = Math.min(
+      LEADING_VALIDATION_PAGES,
+      totalPages
+    );
+
+    for (
+      let pageNumber = 1;
+      pageNumber <= leadingPageCount;
+      pageNumber += 1
+    ) {
+      pageNumbers.add(pageNumber);
+    }
+
+    const remainingSampleCount =
+      MAX_VALIDATION_PAGES - leadingPageCount;
+
+    for (
+      let index = 1;
+      index <= remainingSampleCount;
+      index += 1
+    ) {
+      const pageNumber =
+        leadingPageCount +
+        Math.round(
+          ((totalPages - leadingPageCount) * index) /
+          remainingSampleCount
+        );
+
+      pageNumbers.add(
+        Math.min(totalPages, pageNumber)
+      );
+    }
+
+    return Array.from(pageNumbers).sort(
+      (left, right) => left - right
+    );
+  }
+
+  async function analysePdf(
+    file: File
+  ): Promise<PdfAnalysisResult> {
+    const pdfjsLib = await import(
+      "pdfjs-dist/legacy/build/pdf.mjs"
+    );
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "/pdf.worker.min.mjs";
 
     const buffer = await file.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({ data: buffer });
+
+    const loadingTask = pdfjsLib.getDocument({
+      data: buffer,
+    });
 
     try {
       const pdf = await loadingTask.promise;
-      const metadata = await pdf.getMetadata().catch(() => null);
+
+      const metadata = await pdf
+        .getMetadata()
+        .catch(() => null);
 
       const metadataTitle =
         "info" in (metadata ?? {}) &&
@@ -73,135 +136,218 @@ export default function UploadPage() {
           ? metadata.info.Title
           : "";
 
-      const allBodyLines: string[] = [];
-      const allDocumentLines: string[] = [];
       const firstPageLines: string[] = [];
+      const sampledDocumentLines: string[] = [];
 
-      let imageCount = 0;
+      let bodyTextLength = 0;
+      let sampledPagesWithImages = 0;
+
+      const validationPageNumbers =
+        getValidationPageNumbers(
+          pdf.numPages
+        );
 
       for (
-        let pageNumber = 1;
-        pageNumber <= pdf.numPages;
-        pageNumber += 1
+        const pageNumber
+        of validationPageNumbers
       ) {
-        const page = await pdf.getPage(pageNumber);
+        const page =
+          await pdf.getPage(pageNumber);
 
         try {
-          const viewport = page.getViewport({ scale: 1 });
+          const viewport =
+            page.getViewport({
+              scale: 1,
+            });
 
-          const textContent = await page.getTextContent();
-          const operatorList = await page.getOperatorList();
-
-          imageCount += operatorList.fnArray.filter(
-            (fn) =>
-              fn === pdfjsLib.OPS.paintImageXObject ||
-              fn === pdfjsLib.OPS.paintInlineImageXObject ||
-              fn === pdfjsLib.OPS.paintImageXObjectRepeat
-          ).length;
+          const textContent =
+            await page.getTextContent();
 
           const pageLines = textContent.items
             .map((item) => {
-              if (!("str" in item) || typeof item.str !== "string") {
+              if (
+                !("str" in item) ||
+                typeof item.str !== "string"
+              ) {
                 return null;
               }
 
-              const text = item.str.trim();
-              const y = Array.isArray(item.transform)
-                ? item.transform[5]
-                : undefined;
+              const text =
+                normaliseText(item.str);
 
-              if (!text || typeof y !== "number") {
+              const y =
+                Array.isArray(item.transform)
+                  ? item.transform[5]
+                  : undefined;
+
+              if (
+                !text ||
+                typeof y !== "number"
+              ) {
                 return null;
               }
 
-              return { text, y };
+              return {
+                text,
+                y,
+              };
             })
-            .filter(Boolean) as Array<{ text: string; y: number }>;
+            .filter(
+              (
+                item
+              ): item is {
+                text: string;
+                y: number;
+              } => item !== null
+            );
 
-          const pageTextLines = pageLines.map(({ text }) => text);
+          const pageTextLines =
+            pageLines.map(
+              ({ text }) => text
+            );
 
-          allDocumentLines.push(...pageTextLines);
+          sampledDocumentLines.push(
+            ...pageTextLines
+          );
 
           if (pageNumber === 1) {
-            firstPageLines.push(...pageTextLines);
+            firstPageLines.push(
+              ...pageTextLines
+            );
           }
 
-          const bodyLines = pageLines
-            .filter(({ y }) => {
-              const topBoundary = viewport.height * 0.85;
-              const bottomBoundary = viewport.height * 0.15;
+          const topBoundary =
+            viewport.height * 0.85;
 
-              return y < topBoundary && y > bottomBoundary;
-            })
-            .map(({ text }) => text);
+          const bottomBoundary =
+            viewport.height * 0.15;
 
-          allBodyLines.push(...bodyLines);
+          const meaningfulBodyLines =
+            pageLines
+              .filter(
+                ({ y }) =>
+                  y < topBoundary &&
+                  y > bottomBoundary
+              )
+              .map(({ text }) => text)
+              .filter((line) => {
+                const isTooShort =
+                  line.length < 3;
+
+                const isPageNumber =
+                  /^\d+$/.test(line);
+
+                const hasWords =
+                  /[a-zA-Z]{2,}/.test(
+                    line
+                  );
+
+                return (
+                  !isTooShort &&
+                  !isPageNumber &&
+                  hasWords
+                );
+              });
+
+          bodyTextLength +=
+            meaningfulBodyLines.join(
+              " "
+            ).length;
+
+          /*
+           * Once there is substantial body text,
+           * this cannot meet the scanned-document
+           * rule, so avoid the relatively expensive
+           * operator-list inspection.
+           */
+          if (bodyTextLength < 500) {
+            const operatorList =
+              await page.getOperatorList();
+
+            const pageHasImage =
+              operatorList.fnArray.some(
+                (fn) =>
+                  fn ===
+                  pdfjsLib.OPS
+                    .paintImageXObject ||
+                  fn ===
+                  pdfjsLib.OPS
+                    .paintInlineImageXObject ||
+                  fn ===
+                  pdfjsLib.OPS
+                    .paintImageXObjectRepeat
+              );
+
+            if (pageHasImage) {
+              sampledPagesWithImages += 1;
+            }
+          }
         } finally {
           page.cleanup();
         }
       }
 
-      const normalisedLines = allBodyLines.map(normaliseText);
+      const firstPageText =
+        normaliseText(
+          firstPageLines.join(" ")
+        ).toLowerCase();
 
-      const lineCounts = normalisedLines.reduce<Record<string, number>>(
-        (acc, line) => {
-          acc[line] = (acc[line] ?? 0) + 1;
-          return acc;
-        },
-        {}
-      );
+      const sampledDocumentText =
+        normaliseText(
+          sampledDocumentLines.join(" ")
+        ).toLowerCase();
 
-      const meaningfulLines = normalisedLines.filter((line) => {
-        const isRepeatedHeaderOrFooter = lineCounts[line] > 1;
-        const isTooShort = line.length < 3;
-        const isPageNumber = /^\d+$/.test(line);
-        const hasWords = /[a-zA-Z]{2,}/.test(line);
-
-        return (
-          !isRepeatedHeaderOrFooter &&
-          !isTooShort &&
-          !isPageNumber &&
-          hasWords
-        );
-      });
-
-      const firstPageText = normaliseText(
-        firstPageLines.join(" ")
-      ).toLowerCase();
-
-      const repeatedText = normaliseText(
-        allDocumentLines.join(" ")
-      ).toLowerCase();
-
-      const title = metadataTitle.toLowerCase();
+      const title =
+        metadataTitle.toLowerCase();
 
       const isNomisDocument =
         firstPageText.includes("nomis") ||
         firstPageText.includes("noms") ||
-        repeatedText.includes("module: sar_");
+        sampledDocumentText.includes(
+          "module: sar_"
+        );
 
       const isDpsDocument =
-        (firstPageText.includes("location") &&
-          firstPageText.includes("category") &&
-          firstPageText.includes("csra") &&
-          firstPageText.includes("incentive level")) ||
+        (
+          firstPageText.includes(
+            "location"
+          ) &&
+          firstPageText.includes(
+            "category"
+          ) &&
+          firstPageText.includes(
+            "csra"
+          ) &&
+          firstPageText.includes(
+            "incentive level"
+          )
+        ) ||
         title.includes("dps") ||
-        (repeatedText.includes("created by:") &&
-          repeatedText.includes("happened:"));
-
-      const bodyTextLength = meaningfulLines.join(" ").length;
+        (
+          sampledDocumentText.includes(
+            "created by:"
+          ) &&
+          sampledDocumentText.includes(
+            "happened:"
+          )
+        );
 
       const hasBodyText =
-        bodyTextLength >= MINIMUM_BODY_CHARACTERS;
+        bodyTextLength >=
+        MINIMUM_BODY_CHARACTERS;
 
       const mightBeScannedDocument =
-        imageCount >= pdf.numPages && bodyTextLength < 500;
+        bodyTextLength < 500 &&
+        validationPageNumbers.length > 0 &&
+        sampledPagesWithImages ===
+        validationPageNumbers.length;
 
-      const documentType: DocumentType = isNomisDocument
-        ? "nomis"
-        : isDpsDocument
-          ? "dps"
-          : "unidentified";
+      const documentType: DocumentType =
+        isNomisDocument
+          ? "nomis"
+          : isDpsDocument
+            ? "dps"
+            : "unidentified";
 
       return {
         hasBodyText,
@@ -212,7 +358,10 @@ export default function UploadPage() {
       try {
         await loadingTask.destroy();
       } catch (cleanupError) {
-        console.warn("Failed to clean up PDF.js loading task", cleanupError);
+        console.warn(
+          "Failed to clean up PDF.js loading task",
+          cleanupError
+        );
       }
     }
   }
