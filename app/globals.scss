@@ -591,8 +591,6 @@ main {
   inset: 0;
   box-sizing: border-box;
 
-  background: rgba(244, 119, 56, 0.75);
-
   border-top: 2px solid govuk.govuk-colour("orange");
   border-right: 0;
   border-bottom: 2px solid govuk.govuk-colour("orange");
@@ -601,9 +599,24 @@ main {
   pointer-events: none;
 }
 
+.jr-review-image-redaction::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background: govuk.govuk-colour("orange", $variant: "tint-80");
+  opacity: 0.75;
+
+  pointer-events: none;
+}
+
 .jr-review-image-redaction--preview {
   background: govuk.govuk-colour("black");
   border: 2px solid govuk.govuk-colour("black");
+}
+
+.jr-review-image-redaction--preview::before {
+  display: none;
 }
 
 .highlight--redaction:hover,
