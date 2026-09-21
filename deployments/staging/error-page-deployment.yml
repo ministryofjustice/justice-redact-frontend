@@ -168,7 +168,14 @@ spec:
                     );
                   } catch (error) {
                     console.error(
-                      "Failed to serve access denied page"
+                      "Failed to serve access denied page",
+                      error instanceof Error
+                        ? {
+                            name: error.name,
+                            message: error.message,
+                            stack: error.stack,
+                          }
+                        : String(error)
                     );
 
                     response.writeHead(
