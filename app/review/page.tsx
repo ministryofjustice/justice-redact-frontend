@@ -709,72 +709,91 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     spansToAdd: ManualSpan[],
     redactionGroupId: string
   ) {
-    if (!documentId || spansToAdd.length === 0) return;
-
-    const newSelections: ManualTextDecision[] = spansToAdd.flatMap(
-      (span) => {
-        const item = page.textItems.find(
-          (candidate) => candidate.itemId === span.itemId
-        );
-
-        if (!item) {
-          return [];
-        }
-
-        const sourceText = item.text;
-
-        const start = clampRangeValue(
-          span.start,
-          sourceText.length
-        );
-
-        const end = clampRangeValue(
-          span.end,
-          sourceText.length
-        );
-
-        if (end <= start) {
-          return [];
-        }
-
-        const text = sourceText.slice(start, end);
-
-        if (!text.trim()) {
-          return [];
-        }
-
-        return [
-          {
-            id: crypto.randomUUID(),
-            documentId,
-            kind: "text" as const,
-            pageNumber: span.pageNumber,
-            itemId: span.itemId,
-            start,
-            end,
-            text,
-            redactionGroupId,
-          },
-        ];
-      }
-    );
-
-    if (newSelections.length === 0) {
+    if (!documentId || spansToAdd.length === 0) {
       return;
     }
 
-    const newSelectionRanges =
-      getManualDecisionContentRanges(newSelections);
+    setManualSelections((previous) => {
+      const existingRanges =
+        getManualDecisionContentRanges(previous);
 
-    setManualSelections((prev) => {
-      const preservedSelections =
-        removeManualSelectionsWithinRanges(
-          prev,
-          newSelectionRanges
+      const requestedRanges =
+        spansToAdd.flatMap<ContentRange>((span) => {
+          const item = page.textItems.find(
+            (candidate) =>
+              candidate.itemId === span.itemId
+          );
+
+          if (!item) {
+            return [];
+          }
+
+          const sourceText = item.text;
+
+          const start = clampRangeValue(
+            span.start,
+            sourceText.length
+          );
+
+          const end = clampRangeValue(
+            span.end,
+            sourceText.length
+          );
+
+          if (end <= start) {
+            return [];
+          }
+
+          if (
+            !sourceText
+              .slice(start, end)
+              .trim()
+          ) {
+            return [];
+          }
+
+          return [
+            {
+              kind: "text" as const,
+              pageNumber: span.pageNumber,
+              itemId: span.itemId,
+              tableId: null,
+              cellId: null,
+              start,
+              end,
+            },
+          ];
+        });
+
+      const uncoveredRanges =
+        requestedRanges.flatMap((range) =>
+          subtractContentRanges(
+            range,
+            existingRanges
+          )
         );
 
+      if (uncoveredRanges.length === 0) {
+        return previous;
+      }
+
+      const newSelections =
+        buildManualSelectionsFromContentRanges(
+          uncoveredRanges,
+          [page],
+          documentId,
+          () => crypto.randomUUID()
+        ).map((selection) => ({
+          ...selection,
+          redactionGroupId,
+        }));
+
+      if (newSelections.length === 0) {
+        return previous;
+      }
+
       return [
-        ...preservedSelections,
+        ...previous,
         ...newSelections,
       ];
     });
