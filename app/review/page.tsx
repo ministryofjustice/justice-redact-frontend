@@ -721,7 +721,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           return [];
         }
 
-        const sourceText = item.renderText ?? item.text;
+        const sourceText = item.text;
 
         const start = clampRangeValue(
           span.start,
@@ -799,7 +799,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
     const newSelections = cellRanges.flatMap(
       ({ cell, start, end }) => {
-        const sourceText = cell.renderText ?? cell.text;
+        const sourceText = cell.text;
 
         const normalisedStart = clampRangeValue(
           start,
@@ -984,8 +984,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
     const cellRanges = selectedCells.flatMap(
       (cell, index) => {
-        const sourceText =
-          cell.renderText ?? cell.text;
+        const sourceText = cell.text;
 
         if (!sourceText.trim()) {
           return [];
