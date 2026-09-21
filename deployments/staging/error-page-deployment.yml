@@ -31,45 +31,159 @@ spec:
           args:
             - |
               const http = require("http");
-              const fs = require("fs");
 
-              const htmlTemplate = fs.readFileSync(
-                "/error-pages/403.html",
-                "utf8"
-              );
-              
-              const mojCrest = fs.readFileSync(
-                "/app/public/moj/assets/images/moj-logotype-crest-2024.svg",
-                "utf8"
-              );
-              
-              const html = htmlTemplate.replace(
-                "{{MOJ_CREST}}",
-                mojCrest
-              );
+              const FRONTEND_ORIGIN =
+                "http://justice-redact-frontend";
+
+              const STATIC_PREFIXES = [
+                "/_next/static/",
+                "/styles/",
+                "/assets/",
+                "/govuk/",
+                "/moj/",
+              ];
+
+              const STATIC_FILES = new Set([
+                "/favicon.ico",
+              ]);
+
+              function getOriginalPath(request) {
+                const originalUri =
+                  request.headers["x-original-uri"];
+
+                if (
+                  typeof originalUri === "string" &&
+                  originalUri.startsWith("/")
+                ) {
+                  return originalUri;
+                }
+
+                return "/";
+              }
+
+              function isStaticAsset(path) {
+                const pathname =
+                  path.split("?")[0];
+
+                return (
+                  STATIC_FILES.has(pathname) ||
+                  STATIC_PREFIXES.some(
+                    (prefix) =>
+                      pathname.startsWith(prefix)
+                  )
+                );
+              }
+
+              async function fetchFrontend(path) {
+                return fetch(
+                  `${FRONTEND_ORIGIN}${path}`,
+                  {
+                    redirect: "manual",
+                  }
+                );
+              }
+
+              async function sendFrontendResponse(
+                frontendResponse,
+                response,
+                statusOverride
+              ) {
+                const body = Buffer.from(
+                  await frontendResponse.arrayBuffer()
+                );
+
+                const headers = {};
+
+                for (
+                  const headerName of [
+                    "content-type",
+                    "cache-control",
+                    "etag",
+                    "last-modified",
+                  ]
+                ) {
+                  const value =
+                    frontendResponse.headers.get(
+                      headerName
+                    );
+
+                  if (value) {
+                    headers[headerName] = value;
+                  }
+                }
+
+                response.writeHead(
+                  statusOverride ??
+                    frontendResponse.status,
+                  headers
+                );
+
+                response.end(body);
+              }
 
               const server = http.createServer(
-                (request, response) => {
+                async (request, response) => {
                   if (request.url === "/health") {
                     response.writeHead(
                       200,
                       {
-                        "Content-Type": "text/plain; charset=utf-8",
+                        "Content-Type":
+                          "text/plain; charset=utf-8",
                       }
                     );
+
                     response.end("ok");
                     return;
                   }
 
-                  response.writeHead(
-                    403,
-                    {
-                      "Content-Type": "text/html; charset=utf-8",
-                      "Cache-Control": "no-store",
-                    }
-                  );
+                  try {
+                    const originalPath =
+                      getOriginalPath(request);
 
-                  response.end(html);
+                    if (
+                      isStaticAsset(originalPath)
+                    ) {
+                      const assetResponse =
+                        await fetchFrontend(
+                          originalPath
+                        );
+
+                      await sendFrontendResponse(
+                        assetResponse,
+                        response
+                      );
+
+                      return;
+                    }
+
+                    const pageResponse =
+                      await fetchFrontend(
+                        "/access-denied"
+                      );
+
+                    await sendFrontendResponse(
+                      pageResponse,
+                      response,
+                      403
+                    );
+                  } catch (error) {
+                    console.error(
+                      "Failed to serve access denied page"
+                    );
+
+                    response.writeHead(
+                      403,
+                      {
+                        "Content-Type":
+                          "text/plain; charset=utf-8",
+                        "Cache-Control": "no-store",
+                      }
+                    );
+
+                    response.end(
+                      "You do not have access to this service."
+                    );
+                  }
                 }
               );
 
@@ -115,13 +229,3 @@ spec:
             capabilities:
               drop:
                 - ALL
-
-          volumeMounts:
-            - name: error-page
-              mountPath: /error-pages
-              readOnly: true
-
-      volumes:
-        - name: error-page
-          configMap:
-            name: justice-redact-error-page
