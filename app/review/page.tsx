@@ -15,7 +15,10 @@ import { ApiError, fetchJson } from "../lib/api";
 import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
 import { useReviewPages } from "./useReviewPages";
-import { loadReviewSearchPages } from "./reviewDataCache";
+import {
+  getCachedReviewSearchPages,
+  loadReviewSearchPages,
+} from "./reviewDataCache";
 import { buildReviewStateFromPersistedDecisions } from "./redactionDecisionPersistence";
 import EndOfDocumentActions from "./components/EndOfDocumentActions";
 import PageContent from "./components/PageContent";
@@ -121,7 +124,17 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isFindAndDiscloseOpen, setIsFindAndDiscloseOpen] = useState(false);
   const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
   const [searchPages, setSearchPages] =
-    useState<ReviewPageData[] | null>(null);
+    useState<ReviewPageData[] | null>(() => {
+      if (!documentId) {
+        return null;
+      }
+
+      return (
+        getCachedReviewSearchPages(
+          documentId
+        ) ?? null
+      );
+    });
 
   const [isSearchLoading, setIsSearchLoading] =
     useState(false);

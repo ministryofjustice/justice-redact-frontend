@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: justice-redact-error-page
+  namespace: ${NAMESPACE}
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: justice-redact-error-page
+
+  template:
+    metadata:
+      labels:
+        app: justice-redact-error-page
+
+    spec:
+      automountServiceAccountToken: false
+
+      containers:
+        - name: error-page
+          image: ${IMAGE}
+          imagePullPolicy: Always
+
+          command:
+            - node
+            - -e
+
+          args:
+            - |
+              const http = require("http");
+              const fs = require("fs");
+
+              const htmlTemplate = fs.readFileSync(
+                "/error-pages/403.html",
+                "utf8"
+              );
+              
+              const mojCrest = fs.readFileSync(
+                "/app/public/moj/assets/images/moj-logotype-crest-2024.svg",
+                "utf8"
+              );
+              
+              const html = htmlTemplate.replace(
+                "{{MOJ_CREST}}",
+                mojCrest
+              );
+
+              const server = http.createServer(
+                (request, response) => {
+                  if (request.url === "/health") {
+                    response.writeHead(
+                      200,
+                      {
+                        "Content-Type": "text/plain; charset=utf-8",
+                      }
+                    );
+                    response.end("ok");
+                    return;
+                  }
+
+                  response.writeHead(
+                    403,
+                    {
+                      "Content-Type": "text/html; charset=utf-8",
+                      "Cache-Control": "no-store",
+                    }
+                  );
+
+                  response.end(html);
+                }
+              );
+
+              server.listen(
+                8080,
+                "0.0.0.0"
+              );
+
+          ports:
+            - containerPort: 8080
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "25m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          volumeMounts:
+            - name: error-page
+              mountPath: /error-pages
+              readOnly: true
+
+      volumes:
+        - name: error-page
+          configMap:
+            name: justice-redact-error-page
