@@ -76,7 +76,7 @@ spec:
 
               async function fetchFrontend(path) {
                 return fetch(
-                  `${FRONTEND_ORIGIN}${path}`,
+                  FRONTEND_ORIGIN + path,
                   {
                     redirect: "manual",
                   }
