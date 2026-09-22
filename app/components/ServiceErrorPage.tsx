@@ -39,6 +39,16 @@ const ERROR_CONTENT: Record<
                 <p className="govuk-body">
                     If that does not work, it means you cannot access Justice Redact.
                 </p>
+
+                <p className="govuk-body">
+                    <a
+                        className="govuk-link"
+                        href="mailto:JusticeRedactTeam@justice.gov.uk"
+                    >
+                        Contact the Justice Redact team
+                    </a>{" "}
+                    if you need help.
+                </p>
             </>
         ),
     },
@@ -98,20 +108,18 @@ export default function ServiceErrorPage({
     const content = ERROR_CONTENT[variant];
 
     return (
-        <main className="govuk-main-wrapper" id="main-content">
-            <div className="govuk-grid-row">
-                <div className="govuk-grid-column-two-thirds">
-                    <h1 className="govuk-heading-xl">{content.heading}</h1>
+        <div className="govuk-grid-row">
+            <div className="govuk-grid-column-two-thirds">
+                <h1 className="govuk-heading-xl">{content.heading}</h1>
 
-                    {content.body}
+                {content.body}
 
-                    {variant !== 503 && (
-                        <p className="govuk-body">
-                            Contact the Justice Redact team
-                        </p>
-                    )}
-                </div>
+                {variant !== 403 && variant !== 503 && (
+                    <p className="govuk-body">
+                        Contact the Justice Redact team
+                    </p>
+                )}
             </div>
-        </main>
+        </div>
     );
 }

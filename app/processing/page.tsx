@@ -2,7 +2,10 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { loadReviewData } from "../review/reviewDataCache";
+import {
+  loadReviewData,
+  loadReviewSearchPages,
+} from "../review/reviewDataCache";
 import { ApiError, fetchJson } from "../lib/api";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
@@ -109,12 +112,31 @@ function ProcessingContent() {
         setError(null);
 
         if (data.status === "ready_for_review") {
-          void loadReviewData(currentDocumentId).catch((err) => {
+          const [
+            reviewDataResult,
+            reviewSearchResult,
+          ] = await Promise.allSettled([
+            loadReviewData(currentDocumentId),
+            loadReviewSearchPages(currentDocumentId),
+          ]);
+
+          if (
+            reviewDataResult.status === "rejected"
+          ) {
             console.warn(
               "Review data prefetch failed",
-              err
+              reviewDataResult.reason
             );
-          });
+          }
+
+          if (
+            reviewSearchResult.status === "rejected"
+          ) {
+            console.warn(
+              "Review search data prefetch failed",
+              reviewSearchResult.reason
+            );
+          }
 
           if (!isActive) return;
 

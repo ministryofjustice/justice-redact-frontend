@@ -15,7 +15,10 @@ import { ApiError, fetchJson } from "../lib/api";
 import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
 import { useReviewPages } from "./useReviewPages";
-import { loadReviewSearchPages } from "./reviewDataCache";
+import {
+  getCachedReviewSearchPages,
+  loadReviewSearchPages,
+} from "./reviewDataCache";
 import { buildReviewStateFromPersistedDecisions } from "./redactionDecisionPersistence";
 import EndOfDocumentActions from "./components/EndOfDocumentActions";
 import PageContent from "./components/PageContent";
@@ -34,7 +37,6 @@ import {
 import type {
   ManualDecision,
   ManualSpan,
-  ManualTextDecision,
   PageStatus,
   ReviewPageData,
   ReviewTableCell,
@@ -47,6 +49,7 @@ import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import BetaBanner from "../components/BetaBanner";
 
 import {
   buildPartialContentRanges,
@@ -121,7 +124,17 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isFindAndDiscloseOpen, setIsFindAndDiscloseOpen] = useState(false);
   const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
   const [searchPages, setSearchPages] =
-    useState<ReviewPageData[] | null>(null);
+    useState<ReviewPageData[] | null>(() => {
+      if (!documentId) {
+        return null;
+      }
+
+      return (
+        getCachedReviewSearchPages(
+          documentId
+        ) ?? null
+      );
+    });
 
   const [isSearchLoading, setIsSearchLoading] =
     useState(false);
@@ -140,6 +153,10 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   } | null>(null);
 
   const decisionRevisionRef = useRef(0);
+  const [
+    lastSavedDecisionState,
+    setLastSavedDecisionState,
+  ] = useState<string | null>(null);
   const redactionRemoveTriggerRef = useRef<HTMLElement | null>(null);
   const redactionRemoveMenuRef = useRef<HTMLButtonElement | null>(null);
   const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -434,6 +451,17 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           persisted.decisions
         );
 
+        const restoredRequest =
+          buildApplyRedactionsRequest(
+            currentDocumentId,
+            restored.manualSelections,
+            restored.pageStatuses
+          );
+
+        setLastSavedDecisionState(
+          JSON.stringify(restoredRequest)
+        );
+
         setManualSelections(restored.manualSelections);
         setPageStatuses(restored.pageStatuses);
         decisionRevisionRef.current = persisted.revision;
@@ -483,7 +511,13 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           },
         );
 
-        decisionRevisionRef.current = response.revision;
+        decisionRevisionRef.current =
+          response.revision;
+
+        setLastSavedDecisionState(
+          JSON.stringify(request)
+        );
+
         setDecisionSaveError(null);
 
         return response;
@@ -521,8 +555,27 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return;
     }
 
+    const currentRequest =
+      buildApplyRedactionsRequest(
+        documentId,
+        manualSelections,
+        pageStatuses
+      );
+
+    const currentDecisionState =
+      JSON.stringify(currentRequest);
+
+    if (
+      currentDecisionState ===
+      lastSavedDecisionState
+    ) {
+      return;
+    }
+
     if (autosaveTimeoutRef.current) {
-      clearTimeout(autosaveTimeoutRef.current);
+      clearTimeout(
+        autosaveTimeoutRef.current
+      );
     }
 
     autosaveTimeoutRef.current = setTimeout(() => {
@@ -566,6 +619,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     pageStatuses,
     hasLoadedPersistedDecisions,
     hasDecisionConflict,
+    lastSavedDecisionState,
     saveCurrentDecisions,
   ]);
 
@@ -668,72 +722,91 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     spansToAdd: ManualSpan[],
     redactionGroupId: string
   ) {
-    if (!documentId || spansToAdd.length === 0) return;
-
-    const newSelections: ManualTextDecision[] = spansToAdd.flatMap(
-      (span) => {
-        const item = page.textItems.find(
-          (candidate) => candidate.itemId === span.itemId
-        );
-
-        if (!item) {
-          return [];
-        }
-
-        const sourceText = item.renderText ?? item.text;
-
-        const start = clampRangeValue(
-          span.start,
-          sourceText.length
-        );
-
-        const end = clampRangeValue(
-          span.end,
-          sourceText.length
-        );
-
-        if (end <= start) {
-          return [];
-        }
-
-        const text = sourceText.slice(start, end);
-
-        if (!text.trim()) {
-          return [];
-        }
-
-        return [
-          {
-            id: crypto.randomUUID(),
-            documentId,
-            kind: "text" as const,
-            pageNumber: span.pageNumber,
-            itemId: span.itemId,
-            start,
-            end,
-            text,
-            redactionGroupId,
-          },
-        ];
-      }
-    );
-
-    if (newSelections.length === 0) {
+    if (!documentId || spansToAdd.length === 0) {
       return;
     }
 
-    const newSelectionRanges =
-      getManualDecisionContentRanges(newSelections);
+    setManualSelections((previous) => {
+      const existingRanges =
+        getManualDecisionContentRanges(previous);
 
-    setManualSelections((prev) => {
-      const preservedSelections =
-        removeManualSelectionsWithinRanges(
-          prev,
-          newSelectionRanges
+      const requestedRanges =
+        spansToAdd.flatMap<ContentRange>((span) => {
+          const item = page.textItems.find(
+            (candidate) =>
+              candidate.itemId === span.itemId
+          );
+
+          if (!item) {
+            return [];
+          }
+
+          const sourceText = item.text;
+
+          const start = clampRangeValue(
+            span.start,
+            sourceText.length
+          );
+
+          const end = clampRangeValue(
+            span.end,
+            sourceText.length
+          );
+
+          if (end <= start) {
+            return [];
+          }
+
+          if (
+            !sourceText
+              .slice(start, end)
+              .trim()
+          ) {
+            return [];
+          }
+
+          return [
+            {
+              kind: "text" as const,
+              pageNumber: span.pageNumber,
+              itemId: span.itemId,
+              tableId: null,
+              cellId: null,
+              start,
+              end,
+            },
+          ];
+        });
+
+      const uncoveredRanges =
+        requestedRanges.flatMap((range) =>
+          subtractContentRanges(
+            range,
+            existingRanges
+          )
         );
 
+      if (uncoveredRanges.length === 0) {
+        return previous;
+      }
+
+      const newSelections =
+        buildManualSelectionsFromContentRanges(
+          uncoveredRanges,
+          [page],
+          documentId,
+          () => crypto.randomUUID()
+        ).map((selection) => ({
+          ...selection,
+          redactionGroupId,
+        }));
+
+      if (newSelections.length === 0) {
+        return previous;
+      }
+
       return [
-        ...preservedSelections,
+        ...previous,
         ...newSelections,
       ];
     });
@@ -758,7 +831,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
     const newSelections = cellRanges.flatMap(
       ({ cell, start, end }) => {
-        const sourceText = cell.renderText ?? cell.text;
+        const sourceText = cell.text;
 
         const normalisedStart = clampRangeValue(
           start,
@@ -943,8 +1016,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
     const cellRanges = selectedCells.flatMap(
       (cell, index) => {
-        const sourceText =
-          cell.renderText ?? cell.text;
+        const sourceText = cell.text;
 
         if (!sourceText.trim()) {
           return [];
@@ -1788,6 +1860,9 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           void openFindAndDisclose();
         }}
       />
+
+      <BetaBanner contained={false} />
+
       <FindAndRedactModal
         isOpen={isFindAndRedactOpen}
         pages={searchPages ?? []}
@@ -1814,15 +1889,14 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         onClose={() => setIsQuickHelpOpen(false)}
       />
       {selectedRangeStart === 0 && (
-        <div className="govuk-grid-column-full-width">
+        <div className="jr-review-intro__back">
           <BackLink href="/upload" />
         </div>
       )}
-      <div className="govuk-grid-column-full-width">
-        <h1 className="govuk-heading-xl jr-mark-for-redaction__header">
-          Mark for redaction
-        </h1>
-      </div>
+
+      <h1 className="govuk-heading-xl jr-review-intro__heading">
+        Make redactions
+      </h1>
 
       <HighlightKey />
 

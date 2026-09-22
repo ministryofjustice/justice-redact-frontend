@@ -1,0 +1,238 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: justice-redact-error-page
+  namespace: ${NAMESPACE}
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: justice-redact-error-page
+
+  template:
+    metadata:
+      labels:
+        app: justice-redact-error-page
+
+    spec:
+      automountServiceAccountToken: false
+
+      containers:
+        - name: error-page
+          image: ${IMAGE}
+          imagePullPolicy: Always
+
+          command:
+            - node
+            - -e
+
+          args:
+            - |
+              const http = require("http");
+
+              const FRONTEND_ORIGIN =
+                "http://justice-redact-frontend";
+
+              const STATIC_PREFIXES = [
+                "/_next/static/",
+                "/styles/",
+                "/assets/",
+                "/govuk/",
+                "/moj/",
+              ];
+
+              const STATIC_FILES = new Set([
+                "/favicon.ico",
+              ]);
+
+              function getOriginalPath(request) {
+                const originalUri =
+                  request.headers["x-original-uri"];
+
+                if (
+                  typeof originalUri === "string" &&
+                  originalUri.startsWith("/")
+                ) {
+                  return originalUri;
+                }
+
+                return "/";
+              }
+
+              function isStaticAsset(path) {
+                const pathname =
+                  path.split("?")[0];
+
+                return (
+                  STATIC_FILES.has(pathname) ||
+                  STATIC_PREFIXES.some(
+                    (prefix) =>
+                      pathname.startsWith(prefix)
+                  )
+                );
+              }
+
+              async function fetchFrontend(path) {
+                return fetch(
+                  FRONTEND_ORIGIN + path,
+                  {
+                    redirect: "manual",
+                  }
+                );
+              }
+
+              async function sendFrontendResponse(
+                frontendResponse,
+                response,
+                statusOverride
+              ) {
+                const body = Buffer.from(
+                  await frontendResponse.arrayBuffer()
+                );
+
+                const headers = {};
+
+                for (
+                  const headerName of [
+                    "content-type",
+                    "cache-control",
+                    "etag",
+                    "last-modified",
+                  ]
+                ) {
+                  const value =
+                    frontendResponse.headers.get(
+                      headerName
+                    );
+
+                  if (value) {
+                    headers[headerName] = value;
+                  }
+                }
+
+                response.writeHead(
+                  statusOverride ??
+                    frontendResponse.status,
+                  headers
+                );
+
+                response.end(body);
+              }
+
+              const server = http.createServer(
+                async (request, response) => {
+                  if (request.url === "/health") {
+                    response.writeHead(
+                      200,
+                      {
+                        "Content-Type":
+                          "text/plain; charset=utf-8",
+                      }
+                    );
+
+                    response.end("ok");
+                    return;
+                  }
+
+                  try {
+                    const originalPath =
+                      getOriginalPath(request);
+
+                    if (
+                      isStaticAsset(originalPath)
+                    ) {
+                      const assetResponse =
+                        await fetchFrontend(
+                          originalPath
+                        );
+
+                      await sendFrontendResponse(
+                        assetResponse,
+                        response
+                      );
+
+                      return;
+                    }
+
+                    const pageResponse =
+                      await fetchFrontend(
+                        "/access-denied"
+                      );
+
+                    await sendFrontendResponse(
+                      pageResponse,
+                      response,
+                      403
+                    );
+                  } catch (error) {
+                    console.error(
+                      "Failed to serve access denied page",
+                      error instanceof Error
+                        ? {
+                            name: error.name,
+                            message: error.message,
+                            stack: error.stack,
+                          }
+                        : String(error)
+                    );
+
+                    response.writeHead(
+                      403,
+                      {
+                        "Content-Type":
+                          "text/plain; charset=utf-8",
+                        "Cache-Control": "no-store",
+                      }
+                    );
+
+                    response.end(
+                      "You do not have access to this service."
+                    );
+                  }
+                }
+              );
+
+              server.listen(
+                8080,
+                "0.0.0.0"
+              );
+
+          ports:
+            - containerPort: 8080
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "25m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

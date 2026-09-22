@@ -53,6 +53,11 @@ main {
   padding-top: 0 !important;
 }
 
+/* On the review page, the Beta banner sits below the sticky review controls. */
+.jr-app-body:has(.jr-review-root)>header>.govuk-phase-banner {
+  display: none;
+}
+
 /* Header */
 .moj-header__logo {
   display: flex;
@@ -467,9 +472,16 @@ main {
   cursor: text;
 }
 
-/* Review page */
-.jr-mark-for-redaction__header {
-  padding-top: 50px;
+.jr-review-intro__back {
+  margin-bottom: govuk.govuk-spacing(5);
+}
+
+.jr-review-intro__back .govuk-back-link {
+  margin-bottom: 0;
+}
+
+.jr-review-intro__heading {
+  margin-bottom: govuk.govuk-spacing(5);
 }
 
 .jr-review-page {
@@ -764,7 +776,6 @@ main {
 /* Highlight key */
 .jr-highlight-key {
   box-sizing: border-box;
-  padding: 20px 0 0;
 }
 
 .jr-highlight-key__table {
