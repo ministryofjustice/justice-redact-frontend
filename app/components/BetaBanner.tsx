@@ -1,8 +1,20 @@
 import Link from "next/link";
 
-export default function BetaBanner() {
+type BetaBannerProps = {
+    contained?: boolean;
+};
+
+export default function BetaBanner({
+    contained = true,
+}: BetaBannerProps) {
     return (
-        <div className="govuk-phase-banner govuk-width-container">
+        <div
+            className={
+                contained
+                    ? "govuk-phase-banner govuk-width-container"
+                    : "govuk-phase-banner"
+            }
+        >
             <p className="govuk-phase-banner__content">
                 <strong className="govuk-tag govuk-phase-banner__content__tag">
                     Beta

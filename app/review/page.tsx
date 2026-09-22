@@ -15,7 +15,10 @@ import { ApiError, fetchJson } from "../lib/api";
 import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
 import { useReviewPages } from "./useReviewPages";
-import { loadReviewSearchPages } from "./reviewDataCache";
+import {
+  getCachedReviewSearchPages,
+  loadReviewSearchPages,
+} from "./reviewDataCache";
 import { buildReviewStateFromPersistedDecisions } from "./redactionDecisionPersistence";
 import EndOfDocumentActions from "./components/EndOfDocumentActions";
 import PageContent from "./components/PageContent";
@@ -34,7 +37,6 @@ import {
 import type {
   ManualDecision,
   ManualSpan,
-  ManualTextDecision,
   PageStatus,
   ReviewPageData,
   ReviewTableCell,
@@ -47,6 +49,7 @@ import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import BetaBanner from "../components/BetaBanner";
 
 import {
   buildPartialContentRanges,
@@ -121,7 +124,17 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isFindAndDiscloseOpen, setIsFindAndDiscloseOpen] = useState(false);
   const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
   const [searchPages, setSearchPages] =
-    useState<ReviewPageData[] | null>(null);
+    useState<ReviewPageData[] | null>(() => {
+      if (!documentId) {
+        return null;
+      }
+
+      return (
+        getCachedReviewSearchPages(
+          documentId
+        ) ?? null
+      );
+    });
 
   const [isSearchLoading, setIsSearchLoading] =
     useState(false);
@@ -1847,6 +1860,9 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           void openFindAndDisclose();
         }}
       />
+
+      <BetaBanner contained={false} />
+
       <FindAndRedactModal
         isOpen={isFindAndRedactOpen}
         pages={searchPages ?? []}
@@ -1873,15 +1889,14 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         onClose={() => setIsQuickHelpOpen(false)}
       />
       {selectedRangeStart === 0 && (
-        <div className="govuk-grid-column-full-width">
+        <div className="jr-review-intro__back">
           <BackLink href="/upload" />
         </div>
       )}
-      <div className="govuk-grid-column-full-width">
-        <h1 className="govuk-heading-xl jr-mark-for-redaction__header">
-          Mark for redaction
-        </h1>
-      </div>
+
+      <h1 className="govuk-heading-xl jr-review-intro__heading">
+        Make redactions
+      </h1>
 
       <HighlightKey />
 

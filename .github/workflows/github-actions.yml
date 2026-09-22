@@ -119,6 +119,8 @@ jobs:
           envsubst < ${TEMPLATE_DIR}/service.yml > k8s/service.yml
           envsubst < ${TEMPLATE_DIR}/ingress.yml > k8s/ingress.yml
           envsubst < ${TEMPLATE_DIR}/hpa.yml > k8s/hpa.yml
+          envsubst < ${TEMPLATE_DIR}/error-page-deployment.yml > k8s/error-page-deployment.yml
+          envsubst < ${TEMPLATE_DIR}/error-page-service.yml > k8s/error-page-service.yml
           echo "=== Generated ingress ==="
           cat k8s/ingress.yml
         env:
