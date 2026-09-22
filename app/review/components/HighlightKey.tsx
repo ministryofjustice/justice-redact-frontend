@@ -9,7 +9,7 @@ export default function HighlightKey() {
                 <thead className="govuk-table__head">
                     <tr className="govuk-table__row">
                         <th scope="col" className="govuk-table__header">
-                            Style
+                            Highlight
                         </th>
                         <th scope="col" className="govuk-table__header">
                             Description

@@ -37,7 +37,6 @@ import {
 import type {
   ManualDecision,
   ManualSpan,
-  ManualTextDecision,
   PageStatus,
   ReviewPageData,
   ReviewTableCell,
@@ -50,6 +49,7 @@ import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import BetaBanner from "../components/BetaBanner";
 
 import {
   buildPartialContentRanges,
@@ -1860,6 +1860,9 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           void openFindAndDisclose();
         }}
       />
+
+      <BetaBanner contained={false} />
+
       <FindAndRedactModal
         isOpen={isFindAndRedactOpen}
         pages={searchPages ?? []}
@@ -1892,7 +1895,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       )}
       <div className="govuk-grid-column-full-width">
         <h1 className="govuk-heading-xl jr-mark-for-redaction__header">
-          Mark for redaction
+          Make redactions
         </h1>
       </div>
 

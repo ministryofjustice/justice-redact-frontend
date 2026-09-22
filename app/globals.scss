@@ -53,6 +53,11 @@ main {
   padding-top: 0 !important;
 }
 
+/* On the review page, the Beta banner sits below the sticky review controls. */
+.jr-app-body:has(.jr-review-root)>header>.govuk-phase-banner {
+  display: none;
+}
+
 /* Header */
 .moj-header__logo {
   display: flex;
