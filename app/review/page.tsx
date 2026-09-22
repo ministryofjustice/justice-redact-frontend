@@ -1894,7 +1894,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         </div>
       )}
 
-      <h1 className="jr-review-intro__heading">
+      <h1 className="govuk-heading-xl jr-review-intro__heading">
         Make redactions
       </h1>
 
