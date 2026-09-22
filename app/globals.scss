@@ -473,7 +473,7 @@ main {
 }
 
 .jr-review-intro__back {
-  margin-bottom: govuk.govuk-spacing(3);
+  margin-bottom: govuk.govuk-spacing(5);
 }
 
 .jr-review-intro__back .govuk-back-link {
@@ -481,7 +481,7 @@ main {
 }
 
 .jr-review-intro__heading {
-  margin-bottom: govuk.govuk-spacing(3);
+  margin-bottom: govuk.govuk-spacing(5);
 }
 
 .jr-review-page {
@@ -776,7 +776,6 @@ main {
 /* Highlight key */
 .jr-highlight-key {
   box-sizing: border-box;
-  padding: 20px 0 0;
 }
 
 .jr-highlight-key__table {
