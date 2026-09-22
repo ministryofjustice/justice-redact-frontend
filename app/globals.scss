@@ -472,6 +472,18 @@ main {
   cursor: text;
 }
 
+.jr-review-intro__back {
+  margin-bottom: govuk.govuk-spacing(3);
+}
+
+.jr-review-intro__back .govuk-back-link {
+  margin-bottom: 0;
+}
+
+.jr-review-intro__heading {
+  margin-bottom: govuk.govuk-spacing(3);
+}
+
 .jr-review-page {
   margin: 0 auto;
   background: #ffffff;

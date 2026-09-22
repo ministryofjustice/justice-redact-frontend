@@ -1889,10 +1889,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         onClose={() => setIsQuickHelpOpen(false)}
       />
       {selectedRangeStart === 0 && (
-        <BackLink href="/upload" />
+        <div className="jr-review-intro__back">
+          <BackLink href="/upload" />
+        </div>
       )}
 
-      <h1 className="govuk-heading-xl">
+      <h1 className="govuk-heading-xl jr-review-intro__heading">
         Make redactions
       </h1>
 
