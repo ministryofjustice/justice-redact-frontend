@@ -1,6 +1,6 @@
 export default function HighlightKey() {
     return (
-        <div className="govuk-grid-column-full jr-highlight-key">
+        <div className="jr-highlight-key">
             <table className="govuk-table govuk-!-width-one-third jr-highlight-key__table">
                 <caption className="govuk-table__caption govuk-table__caption--m">
                     Highlighted text
