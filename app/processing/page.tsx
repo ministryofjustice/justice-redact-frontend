@@ -243,46 +243,23 @@ function ProcessingContent() {
                   : "Back"}
               </BackLink>
             </div>
-            <div className="govuk-grid-column-full">
-              <LinearLoadingBar
-                label={
-                  status === "processing"
-                    ? "Document processing"
-                    : `Document status: ${status}`
-                }
-              />
-            </div>
-
             <div className="govuk-grid-column-two-thirds">
               <section aria-labelledby="processing-heading">
                 <h1 className="govuk-heading-xl" id="processing-heading">
-                  Document processing
+                  Your file is being processed
                 </h1>
-
-                <p className="govuk-body">
-                  This will take around 2 minutes for this document.
-                </p>
-
-                <h2 className="govuk-heading-m">What is being processed</h2>
-
-                <p className="govuk-body">
-                  Justice Redact uses AI to try to highlight people&apos;s personal
-                  information and other phrases you might want to redact. It also tries
-                  to identify blank pages.
-                </p>
-
-                <div className="govuk-warning-text">
-                  <span className="govuk-warning-text__icon" aria-hidden="true">
-                    !
-                  </span>
-                  <strong className="govuk-warning-text__text">
-                    <span className="govuk-visually-hidden">Warning</span>
-                    Deciding what to redact is your responsibility. Justice Redact
-                    doesn&apos;t make any decisions for you.
-                  </strong>
+                <div className="govuk-grid-column-full">
+                  <LinearLoadingBar
+                    label={
+                      status === "processing"
+                        ? "Document processing"
+                        : `Document status: ${status}`
+                    }
+                  />
                 </div>
               </section>
             </div>
+
           </>
         )}
       </div>
