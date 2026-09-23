@@ -215,56 +215,54 @@ function ProcessingContent() {
   }
 
   return (
-    <main className="govuk-main-wrapper" id="main-content">
-      <div className="govuk-grid-row">
-        {displayedError ? (
-          <div className="govuk-grid-column-two-thirds">
-            <div
-              className="govuk-error-summary"
-              data-module="govuk-error-summary"
-              aria-labelledby="error-summary-title"
-              role="alert"
-              tabIndex={-1}
-            >
-              <h2 className="govuk-error-summary__title" id="error-summary-title">
-                There is a problem
-              </h2>
+    <div className="govuk-grid-row">
+      {displayedError ? (
+        <div className="govuk-grid-column-two-thirds">
+          <div
+            className="govuk-error-summary"
+            data-module="govuk-error-summary"
+            aria-labelledby="error-summary-title"
+            role="alert"
+            tabIndex={-1}
+          >
+            <h2 className="govuk-error-summary__title" id="error-summary-title">
+              There is a problem
+            </h2>
 
-              <div className="govuk-error-summary__body">
-                <p className="govuk-body">{displayedError}</p>
-              </div>
+            <div className="govuk-error-summary__body">
+              <p className="govuk-body">{displayedError}</p>
             </div>
           </div>
-        ) : (
-          <>
-            <div className="govuk-grid-column-full">
-              <BackLink
-                href="/upload"
-                onBack={handleBackToUpload}
-                disabled={isAbandoning}
-              >
-                {isAbandoning
-                  ? "Stopping processing..."
-                  : "Back"}
-              </BackLink>
-            </div>
-            <div className="govuk-grid-column-two-thirds">
-              <section aria-labelledby="processing-heading">
-                <h1 className="govuk-heading-xl" id="processing-heading">
-                  Your file is being processed
-                </h1>
-                <div className="govuk-grid-column-full">
-                  <DocumentProcessingProgress
-                    progress={processingProgress}
-                  />
-                </div>
-              </section>
-            </div>
+        </div>
+      ) : (
+        <>
+          <div className="govuk-grid-column-full">
+            <BackLink
+              href="/upload"
+              onBack={handleBackToUpload}
+              disabled={isAbandoning}
+            >
+              {isAbandoning
+                ? "Stopping processing..."
+                : "Back"}
+            </BackLink>
+          </div>
+          <div className="govuk-grid-column-two-thirds">
+            <section aria-labelledby="processing-heading">
+              <h1 className="govuk-heading-xl" id="processing-heading">
+                Your file is being processed
+              </h1>
+              <div className="govuk-grid-column-full">
+                <DocumentProcessingProgress
+                  progress={processingProgress}
+                />
+              </div>
+            </section>
+          </div>
 
-          </>
-        )}
-      </div>
-    </main>
+        </>
+      )}
+    </div>
   );
 }
 
