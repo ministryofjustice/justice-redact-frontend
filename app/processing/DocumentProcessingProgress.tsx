@@ -1,8 +1,14 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import {
+    useEffect,
+    useRef,
+    useState,
+    useSyncExternalStore,
+} from "react";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const PROGRESS_STEP_INTERVAL_MS = 50;
 
 export function normaliseProcessingProgress(
     progress: number,
@@ -94,11 +100,36 @@ export default function DocumentProcessingProgress({
     const prefersReducedMotion =
         usePrefersReducedMotion();
 
-    const displayedProgress =
-        getDisplayedProcessingProgress(
-            progress,
-            prefersReducedMotion,
-        );
+    const [animatedProgress, setAnimatedProgress] = useState(0);
+    const targetProgressRef = useRef(progress);
+
+    targetProgressRef.current = progress;
+
+    useEffect(() => {
+        if (prefersReducedMotion) {
+            return;
+        }
+
+        const intervalId = window.setInterval(() => {
+            setAnimatedProgress((currentProgress) => {
+                const targetProgress = targetProgressRef.current;
+
+                if (currentProgress >= targetProgress) {
+                    return currentProgress;
+                }
+
+                return currentProgress + 1;
+            });
+        }, PROGRESS_STEP_INTERVAL_MS);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [prefersReducedMotion]);
+
+    const displayedProgress = prefersReducedMotion
+        ? getProgressMilestone(progress)
+        : animatedProgress;
 
     const announcementProgress =
         getProgressMilestone(progress);
