@@ -247,7 +247,7 @@ function ProcessingContent() {
                   ? "Stopping processing..."
                   : "Back"}
               </BackLink>
-              <h1 className="govuk-heading-xl" id="processing-heading">
+              <h1 id="processing-heading">
                 Your file is being processed
               </h1>
               <div>
