@@ -1,6 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import {
+  Suspense,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   loadReviewData,
@@ -49,12 +54,60 @@ function getProgressAnnouncement(progress: number): number {
   return 0;
 }
 
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeToReducedMotion(
+  onStoreChange: () => void,
+): () => void {
+  const mediaQuery = window.matchMedia(
+    REDUCED_MOTION_QUERY,
+  );
+
+  mediaQuery.addEventListener(
+    "change",
+    onStoreChange,
+  );
+
+  return () => {
+    mediaQuery.removeEventListener(
+      "change",
+      onStoreChange,
+    );
+  };
+}
+
+function getReducedMotionSnapshot(): boolean {
+  return window.matchMedia(
+    REDUCED_MOTION_QUERY,
+  ).matches;
+}
+
+function getReducedMotionServerSnapshot(): boolean {
+  return false;
+}
+
+function usePrefersReducedMotion(): boolean {
+  return useSyncExternalStore(
+    subscribeToReducedMotion,
+    getReducedMotionSnapshot,
+    getReducedMotionServerSnapshot,
+  );
+}
+
 function DocumentProcessingProgress({
   progress,
 }: {
   progress: number;
 }) {
-  const announcementProgress = getProgressAnnouncement(progress);
+  const prefersReducedMotion =
+    usePrefersReducedMotion();
+
+  const displayedProgress = prefersReducedMotion
+    ? getProgressAnnouncement(progress)
+    : progress;
+
+  const announcementProgress =
+    getProgressAnnouncement(progress);
 
   return (
     <div className="jr-processing-progress">
@@ -64,18 +117,18 @@ function DocumentProcessingProgress({
         aria-label="File processing progress"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={progress}
+        aria-valuenow={displayedProgress}
       >
         <span
           className="jr-processing-progress__bar"
           style={{
-            width: `${progress}%`,
+            width: `${displayedProgress}%`,
           }}
         />
       </div>
 
       <h2 className="govuk-heading-m jr-processing-progress__label">
-        Progress {progress}%
+        Progress {displayedProgress}%
       </h2>
 
       <span
