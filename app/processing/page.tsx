@@ -236,23 +236,21 @@ function ProcessingContent() {
         </div>
       ) : (
         <>
-          <div className="govuk-grid-column-full">
-            <BackLink
-              href="/upload"
-              onBack={handleBackToUpload}
-              disabled={isAbandoning}
-            >
-              {isAbandoning
-                ? "Stopping processing..."
-                : "Back"}
-            </BackLink>
-          </div>
           <div className="govuk-grid-column-two-thirds">
             <section aria-labelledby="processing-heading">
+              <BackLink
+                href="/upload"
+                onBack={handleBackToUpload}
+                disabled={isAbandoning}
+              >
+                {isAbandoning
+                  ? "Stopping processing..."
+                  : "Back"}
+              </BackLink>
               <h1 className="govuk-heading-xl" id="processing-heading">
                 Your file is being processed
               </h1>
-              <div className="govuk-grid-column-full">
+              <div>
                 <DocumentProcessingProgress
                   progress={processingProgress}
                 />
