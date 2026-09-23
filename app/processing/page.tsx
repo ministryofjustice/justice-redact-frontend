@@ -15,15 +15,76 @@ type DocumentStatusResponse = {
   documentId: string;
   filename: string;
   status: string;
+  processingProgress: number;
 };
 
-function LinearLoadingBar({ label = "Loading" }: { label?: string }) {
+function normaliseProcessingProgress(progress: number): number {
+  if (!Number.isFinite(progress)) {
+    return 0;
+  }
+
+  return Math.min(
+    100,
+    Math.max(0, Math.floor(progress)),
+  );
+}
+
+function getProgressAnnouncement(progress: number): number {
+  if (progress >= 100) {
+    return 100;
+  }
+
+  if (progress >= 75) {
+    return 75;
+  }
+
+  if (progress >= 50) {
+    return 50;
+  }
+
+  if (progress >= 25) {
+    return 25;
+  }
+
+  return 0;
+}
+
+function DocumentProcessingProgress({
+  progress,
+}: {
+  progress: number;
+}) {
+  const announcementProgress = getProgressAnnouncement(progress);
+
   return (
-    <div className="jr-linear-loading" role="status" aria-live="polite" aria-label={label}>
-      <div className="jr-linear-loading__track" aria-hidden="true">
-        <span className="jr-linear-loading__bar jr-linear-loading__bar--primary" />
+    <div className="jr-processing-progress">
+      <div
+        className="jr-processing-progress__track"
+        role="progressbar"
+        aria-label="File processing progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress}
+      >
+        <span
+          className="jr-processing-progress__bar"
+          style={{
+            width: `${progress}%`,
+          }}
+        />
       </div>
-      <span className="govuk-visually-hidden">{label}</span>
+
+      <h2 className="govuk-heading-m jr-processing-progress__label">
+        Progress {progress}%
+      </h2>
+
+      <span
+        className="govuk-visually-hidden"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        Progress {announcementProgress}%
+      </span>
     </div>
   );
 }
@@ -39,6 +100,7 @@ function ProcessingContent() {
   } = useWorkflowGuard("processing", documentId);
 
   const [status, setStatus] = useState("processing");
+  const [processingProgress, setProcessingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isAbandoning, setIsAbandoning] = useState(false);
 
@@ -109,9 +171,23 @@ function ProcessingContent() {
         if (!isActive) return;
 
         setStatus(data.status);
+
+        const nextProgress = normaliseProcessingProgress(
+          data.processingProgress,
+        );
+
+        setProcessingProgress((currentProgress) =>
+          Math.max(
+            currentProgress,
+            nextProgress,
+          ),
+        );
+
         setError(null);
 
         if (data.status === "ready_for_review") {
+          setProcessingProgress(100);
+
           const [
             reviewDataResult,
             reviewSearchResult,
@@ -249,12 +325,8 @@ function ProcessingContent() {
                   Your file is being processed
                 </h1>
                 <div className="govuk-grid-column-full">
-                  <LinearLoadingBar
-                    label={
-                      status === "processing"
-                        ? "Document processing"
-                        : `Document status: ${status}`
-                    }
+                  <DocumentProcessingProgress
+                    progress={processingProgress}
                   />
                 </div>
               </section>
