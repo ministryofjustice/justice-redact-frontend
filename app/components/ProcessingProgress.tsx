@@ -92,18 +92,29 @@ function usePrefersReducedMotion(): boolean {
     );
 }
 
-export default function DocumentProcessingProgress({
-    progress,
-}: {
+type ProcessingProgressProps = {
     progress: number;
-}) {
+    ariaLabel: string;
+};
+
+export default function ProcessingProgress({
+    progress,
+    ariaLabel,
+}: ProcessingProgressProps) {
     const prefersReducedMotion =
         usePrefersReducedMotion();
 
-    const [animatedProgress, setAnimatedProgress] = useState(0);
-    const targetProgressRef = useRef(progress);
+    const normalisedProgress =
+        normaliseProcessingProgress(progress);
 
-    targetProgressRef.current = progress;
+    const [animatedProgress, setAnimatedProgress] =
+        useState(normalisedProgress);
+
+    const targetProgressRef = useRef(
+        normalisedProgress,
+    );
+
+    targetProgressRef.current = normalisedProgress;
 
     useEffect(() => {
         if (prefersReducedMotion) {
@@ -112,7 +123,8 @@ export default function DocumentProcessingProgress({
 
         const intervalId = window.setInterval(() => {
             setAnimatedProgress((currentProgress) => {
-                const targetProgress = targetProgressRef.current;
+                const targetProgress =
+                    targetProgressRef.current;
 
                 if (currentProgress >= targetProgress) {
                     return currentProgress;
@@ -128,18 +140,18 @@ export default function DocumentProcessingProgress({
     }, [prefersReducedMotion]);
 
     const displayedProgress = prefersReducedMotion
-        ? getProgressMilestone(progress)
+        ? getProgressMilestone(normalisedProgress)
         : animatedProgress;
 
     const announcementProgress =
-        getProgressMilestone(progress);
+        getProgressMilestone(normalisedProgress);
 
     return (
         <div className="jr-processing-progress">
             <div
                 className="jr-processing-progress__track"
                 role="progressbar"
-                aria-label="File processing progress"
+                aria-label={ariaLabel}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={displayedProgress}

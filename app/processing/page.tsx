@@ -6,9 +6,9 @@ import {
   loadReviewData,
   loadReviewSearchPages,
 } from "../review/reviewDataCache";
-import DocumentProcessingProgress, {
+import ProcessingProgress, {
   normaliseProcessingProgress,
-} from "./DocumentProcessingProgress";
+} from "../components/ProcessingProgress";
 import { ApiError, fetchJson } from "../lib/api";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
@@ -251,8 +251,9 @@ function ProcessingContent() {
                 Your file is being processed
               </h1>
               <div>
-                <DocumentProcessingProgress
+                <ProcessingProgress
                   progress={processingProgress}
+                  ariaLabel="File processing progress"
                 />
               </div>
             </section>

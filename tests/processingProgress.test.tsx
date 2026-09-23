@@ -1,11 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import DocumentProcessingProgress, {
+import ProcessingProgress, {
     getDisplayedProcessingProgress,
     getProgressMilestone,
     normaliseProcessingProgress,
-} from "../app/processing/DocumentProcessingProgress";
+} from "../app/components/ProcessingProgress";
 
 describe("normaliseProcessingProgress", () => {
     it("keeps valid integer progress values unchanged", () => {
@@ -76,10 +76,13 @@ describe("getDisplayedProcessingProgress", () => {
     });
 });
 
-describe("DocumentProcessingProgress", () => {
+describe("ProcessingProgress", () => {
     it("renders a determinate accessible progressbar", () => {
         const markup = renderToStaticMarkup(
-            <DocumentProcessingProgress progress={57} />,
+            <ProcessingProgress
+                progress={57}
+                ariaLabel="File processing progress"
+            />,
         );
 
         expect(markup).toContain('role="progressbar"');
@@ -95,7 +98,10 @@ describe("DocumentProcessingProgress", () => {
 
     it("renders the milestone live-region announcement", () => {
         const markup = renderToStaticMarkup(
-            <DocumentProcessingProgress progress={57} />,
+            <ProcessingProgress
+                progress={57}
+                ariaLabel="File processing progress"
+            />,
         );
 
         expect(markup).toContain('aria-live="polite"');
