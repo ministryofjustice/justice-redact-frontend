@@ -99,7 +99,6 @@ function ProcessingContent() {
     errorVariant: workflowErrorVariant,
   } = useWorkflowGuard("processing", documentId);
 
-  const [status, setStatus] = useState("processing");
   const [processingProgress, setProcessingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isAbandoning, setIsAbandoning] = useState(false);
@@ -169,8 +168,6 @@ function ProcessingContent() {
         );
 
         if (!isActive) return;
-
-        setStatus(data.status);
 
         const nextProgress = normaliseProcessingProgress(
           data.processingProgress,
