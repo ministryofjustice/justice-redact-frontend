@@ -236,7 +236,7 @@ function ProcessingContent() {
         </div>
       ) : (
         <>
-          <div className="govuk-grid-column-two-thirds">
+          <div className="govuk-grid-column-full">
             <section aria-labelledby="processing-heading">
               <BackLink
                 href="/upload"
@@ -250,7 +250,7 @@ function ProcessingContent() {
               <h1 className="govuk-heading-xl" id="processing-heading">
                 Your file is being processed
               </h1>
-              <div>
+              <div className="govuk-grid-column-full">
                 <ProcessingProgress
                   progress={processingProgress}
                   ariaLabel="File processing progress"

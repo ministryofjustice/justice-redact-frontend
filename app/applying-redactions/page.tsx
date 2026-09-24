@@ -238,34 +238,34 @@ function ApplyingRedactionsContent() {
     }
 
     return (
-        <main className="govuk-main-wrapper" id="main-content">
-            <div className="govuk-grid-row">
-                {displayedError ? (
-                    <div className="govuk-grid-column-two-thirds">
-                        <section aria-labelledby="apply-redactions-error-title">
-                            <div
-                                className="govuk-error-summary"
-                                data-module="govuk-error-summary"
-                                aria-labelledby="apply-redactions-error-title"
-                                role="alert"
-                                tabIndex={-1}
+        <div className="govuk-grid-row">
+            {displayedError ? (
+                <div className="govuk-grid-column-two-thirds">
+                    <section aria-labelledby="apply-redactions-error-title">
+                        <div
+                            className="govuk-error-summary"
+                            data-module="govuk-error-summary"
+                            aria-labelledby="apply-redactions-error-title"
+                            role="alert"
+                            tabIndex={-1}
+                        >
+                            <h2
+                                className="govuk-error-summary__title"
+                                id="apply-redactions-error-title"
                             >
-                                <h2
-                                    className="govuk-error-summary__title"
-                                    id="apply-redactions-error-title"
-                                >
-                                    There is a problem
-                                </h2>
+                                There is a problem
+                            </h2>
 
-                                <div className="govuk-error-summary__body">
-                                    <p className="govuk-body">{displayedError}</p>
-                                </div>
+                            <div className="govuk-error-summary__body">
+                                <p className="govuk-body">{displayedError}</p>
                             </div>
-                        </section>
-                    </div>
-                ) : (
-                    <>
-                        <div className="govuk-grid-column-full">
+                        </div>
+                    </section>
+                </div>
+            ) : (
+                <>
+                    <div className="govuk-grid-column-full">
+                        <section aria-labelledby="applying-redactions-heading">
                             <BackLink
                                 href={
                                     documentId
@@ -281,32 +281,23 @@ function ApplyingRedactionsContent() {
                                     ? "Returning to review..."
                                     : "Back"}
                             </BackLink>
-                        </div>
-                        <div className="govuk-grid-column-two-thirds">
-                            <section aria-labelledby="applying-redactions-heading">
-                                <h1
-                                    className="govuk-heading-xl"
-                                    id="applying-redactions-heading"
-                                >
-                                    Your redactions are being applied
-                                </h1>
-
-                                {/* <p className="govuk-body">
-                                    This might take around 2 minutes for this document.
-                                </p> */}
-                            </section>
-                        </div>
-                        <div className="govuk-grid-column-full">
-                            <ProcessingProgress
-                                progress={processingProgress}
-                                ariaLabel="Applying redactions progress"
-                            />
-                        </div>
-
-                    </>
-                )}
-            </div>
-        </main>
+                            <h1
+                                className="govuk-heading-xl"
+                                id="applying-redactions-heading"
+                            >
+                                Your redactions are being applied
+                            </h1>
+                            <div className="govuk-grid-column-full">
+                                <ProcessingProgress
+                                    progress={processingProgress}
+                                    ariaLabel="Applying redactions progress"
+                                />
+                            </div>
+                        </section>
+                    </div>
+                </>
+            )}
+        </div>
     );
 }
 
