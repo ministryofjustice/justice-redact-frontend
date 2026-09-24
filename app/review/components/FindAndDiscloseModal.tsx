@@ -4,6 +4,7 @@ import {
     type FormEvent,
     useEffect,
     useId,
+    useLayoutEffect,
     useRef,
     useState,
 } from "react";
@@ -61,9 +62,18 @@ export default function FindAndDiscloseModal({
     const errorSummaryRef = useRef<HTMLDivElement>(null);
     const successBannerRef = useRef<HTMLDivElement>(null);
     const firstResultCheckboxRef = useRef<HTMLInputElement>(null);
+    const resultsHeadingRef =
+        useRef<HTMLHeadingElement>(null);
+    const resultsPaneRef =
+        useRef<HTMLDivElement>(null);
 
     const isShowingResults = submittedSearchTerm !== null;
     const isShowingSuccess = highlightedCount !== null;
+
+    const isShowingContentDenseResults =
+        isShowingResults &&
+        !isShowingSuccess &&
+        results.length > 0;
 
     useEffect(() => {
         if (!isOpen) {
@@ -92,6 +102,118 @@ export default function FindAndDiscloseModal({
             successBannerRef.current?.focus();
         });
     }, [isShowingSuccess]);
+
+    useEffect(() => {
+        if (!isShowingResults || isShowingSuccess) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            resultsHeadingRef.current?.focus();
+        });
+    }, [isShowingResults, isShowingSuccess]);
+
+    useLayoutEffect(() => {
+        if (!isShowingContentDenseResults) {
+            return;
+        }
+
+        const resultsPaneElement = resultsPaneRef.current;
+
+        if (!resultsPaneElement) {
+            return;
+        }
+
+        const modalElement =
+            resultsPaneElement.closest<HTMLElement>(
+                ".jr-modal--content-dense"
+            );
+
+        if (!modalElement) {
+            return;
+        }
+
+        const resultRows = Array.from(
+            resultsPaneElement.querySelectorAll<HTMLElement>(
+                ".jr-find-and-redact-result"
+            )
+        ).slice(0, 2);
+
+        if (resultRows.length === 0) {
+            modalElement.style.removeProperty(
+                "--jr-content-dense-min-height"
+            );
+            return;
+        }
+
+        const updateMinimumHeight = () => {
+            const modalHeight =
+                modalElement.getBoundingClientRect().height;
+
+            const resultsPaneHeight =
+                resultsPaneElement.getBoundingClientRect().height;
+
+            const rowsHeight = resultRows.reduce(
+                (height, row) =>
+                    height + row.getBoundingClientRect().height,
+                0
+            );
+
+            const resultsPaneStyles =
+                window.getComputedStyle(resultsPaneElement);
+
+            const borderHeight =
+                parseFloat(resultsPaneStyles.borderTopWidth) +
+                parseFloat(resultsPaneStyles.borderBottomWidth);
+
+            const nonResultsHeight =
+                modalHeight - resultsPaneHeight;
+
+            const minimumModalHeight = Math.ceil(
+                nonResultsHeight +
+                rowsHeight +
+                borderHeight
+            );
+
+            modalElement.style.setProperty(
+                "--jr-content-dense-min-height",
+                `${minimumModalHeight}px`
+            );
+        };
+
+        updateMinimumHeight();
+
+        window.addEventListener(
+            "resize",
+            updateMinimumHeight
+        );
+
+        const resizeObserver =
+            typeof ResizeObserver !== "undefined"
+                ? new ResizeObserver(updateMinimumHeight)
+                : null;
+
+        resultRows.forEach((row) => {
+            resizeObserver?.observe(row);
+        });
+
+        return () => {
+            resizeObserver?.disconnect();
+
+            window.removeEventListener(
+                "resize",
+                updateMinimumHeight
+            );
+
+            modalElement.style.removeProperty(
+                "--jr-content-dense-min-height"
+            );
+        };
+    }, [
+        isShowingContentDenseResults,
+        results.length,
+        resultsError,
+    ]);
 
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -197,9 +319,14 @@ export default function FindAndDiscloseModal({
             initialFocusRef={inputRef}
             renderTitle={false}
             variant={
-                isShowingResults && !isShowingSuccess
+                isShowingContentDenseResults
                     ? "content-dense"
                     : "standard"
+            }
+            ariaLabelledBy={
+                isShowingResults && !isShowingSuccess
+                    ? resultsHeadingId
+                    : undefined
             }
         >
             {isShowingSuccess ? (
@@ -382,20 +509,19 @@ export default function FindAndDiscloseModal({
                         </div>
                     )}
 
-                    <h2 className="govuk-heading-l">
+                    <p className="govuk-caption-l jr-find-results-caption">
                         Find and remove redactions
-                    </h2>
+                    </p>
 
                     <div className="jr-find-results-heading-row">
-                        <h3
+                        <h2
+                            ref={resultsHeadingRef}
                             id={resultsHeadingId}
-                            className="govuk-heading-m jr-find-results-heading"
+                            className="govuk-heading-l jr-find-results-heading"
+                            tabIndex={-1}
                         >
-                            {/* {results.length}{" "}
-                            {results.length === 1 ? "result " : "results "} found
-                            for ‘{submittedSearchTerm}’ */}
-                            {results.length > 0 && "Select what redactions you want to remove"}
-                        </h3>
+                            Select what redactions you want to remove
+                        </h2>
 
                         {results.length > 0 && (
                             <div className="jr-find-results-selection-actions">
@@ -447,6 +573,7 @@ export default function FindAndDiscloseModal({
                         )}
 
                         <div
+                            ref={resultsPaneRef}
                             id="find-and-redact-results"
                             className="moj-scrollable-pane jr-find-and-redact-results"
                             role="region"
