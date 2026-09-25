@@ -1521,7 +1521,18 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     });
   }
 
+  function removeRedactionsForPage(pageNumber: number) {
+    setManualSelections((previous) =>
+      previous.filter(
+        (selection) =>
+          selection.pageNumber !== pageNumber
+      )
+    );
+  }
+
   function markPageDeleted(pageNumber: number) {
+    removeRedactionsForPage(pageNumber);
+
     setPageStatuses((prev) => ({
       ...prev,
       [pageNumber]: "deleted",
@@ -1529,6 +1540,8 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   }
 
   function markPageExempted(pageNumber: number) {
+    removeRedactionsForPage(pageNumber);
+
     setPageStatuses((prev) => ({
       ...prev,
       [pageNumber]: "exempted",
