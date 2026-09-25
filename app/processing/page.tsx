@@ -6,6 +6,9 @@ import {
   loadReviewData,
   loadReviewSearchPages,
 } from "../review/reviewDataCache";
+import ProcessingProgress, {
+  normaliseProcessingProgress,
+} from "../components/ProcessingProgress";
 import { ApiError, fetchJson } from "../lib/api";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
@@ -15,18 +18,8 @@ type DocumentStatusResponse = {
   documentId: string;
   filename: string;
   status: string;
+  processingProgress: number;
 };
-
-function LinearLoadingBar({ label = "Loading" }: { label?: string }) {
-  return (
-    <div className="jr-linear-loading" role="status" aria-live="polite" aria-label={label}>
-      <div className="jr-linear-loading__track" aria-hidden="true">
-        <span className="jr-linear-loading__bar jr-linear-loading__bar--primary" />
-      </div>
-      <span className="govuk-visually-hidden">{label}</span>
-    </div>
-  );
-}
 
 function ProcessingContent() {
   const router = useRouter();
@@ -38,7 +31,7 @@ function ProcessingContent() {
     errorVariant: workflowErrorVariant,
   } = useWorkflowGuard("processing", documentId);
 
-  const [status, setStatus] = useState("processing");
+  const [processingProgress, setProcessingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isAbandoning, setIsAbandoning] = useState(false);
 
@@ -108,10 +101,22 @@ function ProcessingContent() {
 
         if (!isActive) return;
 
-        setStatus(data.status);
+        const nextProgress = normaliseProcessingProgress(
+          data.processingProgress,
+        );
+
+        setProcessingProgress((currentProgress) =>
+          Math.max(
+            currentProgress,
+            nextProgress,
+          ),
+        );
+
         setError(null);
 
         if (data.status === "ready_for_review") {
+          setProcessingProgress(100);
+
           const [
             reviewDataResult,
             reviewSearchResult,
@@ -210,29 +215,29 @@ function ProcessingContent() {
   }
 
   return (
-    <main className="govuk-main-wrapper" id="main-content">
-      <div className="govuk-grid-row">
-        {displayedError ? (
-          <div className="govuk-grid-column-two-thirds">
-            <div
-              className="govuk-error-summary"
-              data-module="govuk-error-summary"
-              aria-labelledby="error-summary-title"
-              role="alert"
-              tabIndex={-1}
-            >
-              <h2 className="govuk-error-summary__title" id="error-summary-title">
-                There is a problem
-              </h2>
+    <div className="govuk-grid-row">
+      {displayedError ? (
+        <div className="govuk-grid-column-two-thirds">
+          <div
+            className="govuk-error-summary"
+            data-module="govuk-error-summary"
+            aria-labelledby="error-summary-title"
+            role="alert"
+            tabIndex={-1}
+          >
+            <h2 className="govuk-error-summary__title" id="error-summary-title">
+              There is a problem
+            </h2>
 
-              <div className="govuk-error-summary__body">
-                <p className="govuk-body">{displayedError}</p>
-              </div>
+            <div className="govuk-error-summary__body">
+              <p className="govuk-body">{displayedError}</p>
             </div>
           </div>
-        ) : (
-          <>
-            <div className="govuk-grid-column-full">
+        </div>
+      ) : (
+        <>
+          <div className="govuk-grid-column-full">
+            <section aria-labelledby="processing-heading">
               <BackLink
                 href="/upload"
                 onBack={handleBackToUpload}
@@ -242,51 +247,21 @@ function ProcessingContent() {
                   ? "Stopping processing..."
                   : "Back"}
               </BackLink>
-            </div>
-            <div className="govuk-grid-column-full">
-              <LinearLoadingBar
-                label={
-                  status === "processing"
-                    ? "Document processing"
-                    : `Document status: ${status}`
-                }
-              />
-            </div>
+              <h1 className="govuk-heading-xl" id="processing-heading">
+                Your file is being processed
+              </h1>
+              <div className="govuk-grid-column-full">
+                <ProcessingProgress
+                  progress={processingProgress}
+                  ariaLabel="File processing progress"
+                />
+              </div>
+            </section>
+          </div>
 
-            <div className="govuk-grid-column-two-thirds">
-              <section aria-labelledby="processing-heading">
-                <h1 className="govuk-heading-xl" id="processing-heading">
-                  Document processing
-                </h1>
-
-                <p className="govuk-body">
-                  This will take around 2 minutes for this document.
-                </p>
-
-                <h2 className="govuk-heading-m">What is being processed</h2>
-
-                <p className="govuk-body">
-                  Justice Redact uses AI to try to highlight people&apos;s personal
-                  information and other phrases you might want to redact. It also tries
-                  to identify blank pages.
-                </p>
-
-                <div className="govuk-warning-text">
-                  <span className="govuk-warning-text__icon" aria-hidden="true">
-                    !
-                  </span>
-                  <strong className="govuk-warning-text__text">
-                    <span className="govuk-visually-hidden">Warning</span>
-                    Deciding what to redact is your responsibility. Justice Redact
-                    doesn&apos;t make any decisions for you.
-                  </strong>
-                </div>
-              </section>
-            </div>
-          </>
-        )}
-      </div>
-    </main>
+        </>
+      )}
+    </div>
   );
 }
 
