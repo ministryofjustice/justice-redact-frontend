@@ -23,6 +23,7 @@ type ModalProps = {
     initialFocusRef?: RefObject<HTMLElement | null>;
     contentClassName?: string;
     renderTitle?: boolean;
+    ariaLabelledBy?: string;
 };
 
 const FOCUSABLE_SELECTOR = [
@@ -45,6 +46,7 @@ export default function Modal({
     initialFocusRef,
     contentClassName,
     renderTitle = true,
+    ariaLabelledBy,
 }: ModalProps) {
     const [isMounted, setIsMounted] = useState(false);
     const titleId = useId();
@@ -200,7 +202,7 @@ export default function Modal({
                 className={modalClasses}
                 role="dialog"
                 aria-modal="true"
-                aria-labelledby={titleId}
+                aria-labelledby={ariaLabelledBy ?? titleId}
                 tabIndex={-1}
                 onKeyDown={handleDialogKeyDown}
             >
@@ -224,15 +226,14 @@ export default function Modal({
                         >
                             {title}
                         </h2>
-                    ) : (
+                    ) : !ariaLabelledBy ? (
                         <span
                             id={titleId}
                             className="govuk-visually-hidden"
                         >
                             {title}
                         </span>
-                    )}
-
+                    ) : null}
                     {children}
                 </div>
             </div>

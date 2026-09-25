@@ -105,95 +105,93 @@ function SubjectDetailsContent() {
     }
 
     return (
-        <main className="govuk-main-wrapper" id="main-content">
-            <div className="govuk-grid-row">
-                <div className="govuk-grid-column-two-thirds">
-                    <BackLink
-                        href="/upload"
-                        onBack={handleBackToUpload}
-                        disabled={isAbandoning || isSubmitting}
+        <div className="govuk-grid-row">
+            <div className="govuk-grid-column-two-thirds">
+                <BackLink
+                    href="/upload"
+                    onBack={handleBackToUpload}
+                    disabled={isAbandoning || isSubmitting}
+                >
+                    {isAbandoning
+                        ? "Returning to upload..."
+                        : "Back"}
+                </BackLink>
+
+                {error && (
+                    <div
+                        className="govuk-error-summary"
+                        data-module="govuk-error-summary"
+                        aria-labelledby="error-summary-title"
+                        role="alert"
+                        tabIndex={-1}
                     >
-                        {isAbandoning
-                            ? "Returning to upload..."
-                            : "Back"}
-                    </BackLink>
+                        <h2 className="govuk-error-summary__title" id="error-summary-title">
+                            There is a problem
+                        </h2>
 
-                    {error && (
-                        <div
-                            className="govuk-error-summary"
-                            data-module="govuk-error-summary"
-                            aria-labelledby="error-summary-title"
-                            role="alert"
-                            tabIndex={-1}
-                        >
-                            <h2 className="govuk-error-summary__title" id="error-summary-title">
-                                There is a problem
-                            </h2>
-
-                            <div className="govuk-error-summary__body">
-                                <ul className="govuk-list govuk-error-summary__list">
-                                    <li>
-                                        <a href="#subject-details-error">{error}</a>
-                                    </li>
-                                </ul>
-                            </div>
+                        <div className="govuk-error-summary__body">
+                            <ul className="govuk-list govuk-error-summary__list">
+                                <li>
+                                    <a href="#subject-details-error">{error}</a>
+                                </li>
+                            </ul>
                         </div>
+                    </div>
+                )}
+
+                <h1 className="govuk-heading-xl">Phrases to allow</h1>
+
+                <form
+                    noValidate
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        handleContinue();
+                    }}
+                >
+                    {error && (
+                        <p id="subject-details-error" className="govuk-error-message">
+                            <span className="govuk-visually-hidden">Error:</span> {error}
+                        </p>
                     )}
 
-                    <h1 className="govuk-heading-xl">Phrases to allow</h1>
+                    <div className="govuk-form-group">
+                        <label className="govuk-label govuk-label--m" htmlFor="subject-name">
+                            Subject name
+                        </label>
+                        <input
+                            className="govuk-input"
+                            id="subject-name"
+                            name="subjectName"
+                            type="text"
+                            value={subjectName}
+                            onChange={(e) => setSubjectName(e.target.value)}
+                        />
+                    </div>
 
-                    <form
-                        noValidate
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            handleContinue();
-                        }}
+                    <div className="govuk-form-group">
+                        <label className="govuk-label govuk-label--m" htmlFor="subject-prison-number">
+                            Subject prison number
+                        </label>
+                        <input
+                            className="govuk-input"
+                            id="subject-prison-number"
+                            name="subjectPrisonNumber"
+                            type="text"
+                            value={subjectPrisonNumber}
+                            onChange={(e) => setSubjectPrisonNumber(e.target.value)}
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        className="govuk-button"
+                        disabled={isSubmitting}
                     >
-                        {error && (
-                            <p id="subject-details-error" className="govuk-error-message">
-                                <span className="govuk-visually-hidden">Error:</span> {error}
-                            </p>
-                        )}
-
-                        <div className="govuk-form-group">
-                            <label className="govuk-label govuk-label--m" htmlFor="subject-name">
-                                Subject name
-                            </label>
-                            <input
-                                className="govuk-input"
-                                id="subject-name"
-                                name="subjectName"
-                                type="text"
-                                value={subjectName}
-                                onChange={(e) => setSubjectName(e.target.value)}
-                            />
-                        </div>
-
-                        <div className="govuk-form-group">
-                            <label className="govuk-label govuk-label--m" htmlFor="subject-prison-number">
-                                Subject prison number
-                            </label>
-                            <input
-                                className="govuk-input"
-                                id="subject-prison-number"
-                                name="subjectPrisonNumber"
-                                type="text"
-                                value={subjectPrisonNumber}
-                                onChange={(e) => setSubjectPrisonNumber(e.target.value)}
-                            />
-                        </div>
-
-                        <button
-                            type="submit"
-                            className="govuk-button"
-                            disabled={isSubmitting}
-                        >
-                            {isSubmitting ? "Starting processing..." : "Continue"}
-                        </button>
-                    </form>
-                </div>
+                        {isSubmitting ? "Starting processing..." : "Continue"}
+                    </button>
+                </form>
             </div>
-        </main>
+        </div>
     );
 }
 

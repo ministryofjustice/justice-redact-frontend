@@ -6,11 +6,15 @@ import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 import BackLink from "../components/BackLink";
 import { ApiError, fetchJson } from "../lib/api";
+import ProcessingProgress, {
+    normaliseProcessingProgress,
+} from "../components/ProcessingProgress";
 
-type DocumentStatusResponse = {
+type RedactionRunStatusResponse = {
     documentId: string;
-    filename: string;
+    runId: string;
     status: string;
+    processingProgress: number;
 };
 
 function LinearLoadingBar({ label = "Loading" }: { label?: string }) {
@@ -44,7 +48,8 @@ function ApplyingRedactionsContent() {
         runId,
     );
 
-    const [status, setStatus] = useState("applying_redactions");
+    const [processingProgress, setProcessingProgress] =
+        useState(0);
     const [error, setError] = useState<string | null>(null);
 
     const [isCancelling, setIsCancelling] = useState(false);
@@ -122,31 +127,55 @@ function ApplyingRedactionsContent() {
             controller = new AbortController();
 
             try {
-                const data = await fetchJson<DocumentStatusResponse>(
-                    `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/status`,
+                const data = await fetchJson<RedactionRunStatusResponse>(
+                    `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                        currentDocumentId,
+                    )}/redaction-runs/${encodeURIComponent(
+                        currentRunId,
+                    )}/status`,
                     {
                         cache: "no-store",
                         signal: controller.signal,
-                    }
+                    },
                 );
 
                 if (!isActive) return;
                 if (cancellationRequestedRef.current) return;
 
-                setStatus(data.status);
+                const nextProgress = normaliseProcessingProgress(
+                    data.processingProgress,
+                );
+
+                setProcessingProgress((currentProgress) =>
+                    Math.max(
+                        currentProgress,
+                        nextProgress,
+                    ),
+                );
+
                 setError(null);
 
-                if (data.status === "redaction_complete") {
+                if (data.status === "completed") {
+                    setProcessingProgress(100);
+
                     router.push(
                         `/export?documentId=${encodeURIComponent(
                             currentDocumentId,
-                        )}&runId=${encodeURIComponent(currentRunId)}`,
+                        )}&runId=${encodeURIComponent(
+                            currentRunId,
+                        )}`,
                     );
+
                     return;
                 }
 
-                if (data.status === "redaction_failed") {
+                if (data.status === "failed") {
                     setError("Failed to apply redactions.");
+                    return;
+                }
+
+                if (data.status === "cancelled") {
+                    setError("This redaction run was cancelled.");
                     return;
                 }
 
@@ -209,34 +238,34 @@ function ApplyingRedactionsContent() {
     }
 
     return (
-        <main className="govuk-main-wrapper" id="main-content">
-            <div className="govuk-grid-row">
-                {displayedError ? (
-                    <div className="govuk-grid-column-two-thirds">
-                        <section aria-labelledby="apply-redactions-error-title">
-                            <div
-                                className="govuk-error-summary"
-                                data-module="govuk-error-summary"
-                                aria-labelledby="apply-redactions-error-title"
-                                role="alert"
-                                tabIndex={-1}
+        <div className="govuk-grid-row">
+            {displayedError ? (
+                <div className="govuk-grid-column-two-thirds">
+                    <section aria-labelledby="apply-redactions-error-title">
+                        <div
+                            className="govuk-error-summary"
+                            data-module="govuk-error-summary"
+                            aria-labelledby="apply-redactions-error-title"
+                            role="alert"
+                            tabIndex={-1}
+                        >
+                            <h2
+                                className="govuk-error-summary__title"
+                                id="apply-redactions-error-title"
                             >
-                                <h2
-                                    className="govuk-error-summary__title"
-                                    id="apply-redactions-error-title"
-                                >
-                                    There is a problem
-                                </h2>
+                                There is a problem
+                            </h2>
 
-                                <div className="govuk-error-summary__body">
-                                    <p className="govuk-body">{displayedError}</p>
-                                </div>
+                            <div className="govuk-error-summary__body">
+                                <p className="govuk-body">{displayedError}</p>
                             </div>
-                        </section>
-                    </div>
-                ) : (
-                    <>
-                        <div className="govuk-grid-column-full">
+                        </div>
+                    </section>
+                </div>
+            ) : (
+                <>
+                    <div className="govuk-grid-column-full">
+                        <section aria-labelledby="applying-redactions-heading">
                             <BackLink
                                 href={
                                     documentId
@@ -252,35 +281,23 @@ function ApplyingRedactionsContent() {
                                     ? "Returning to review..."
                                     : "Back"}
                             </BackLink>
-                        </div>
-                        <div className="govuk-grid-column-two-thirds">
-                            <section aria-labelledby="applying-redactions-heading">
-                                <h1
-                                    className="govuk-heading-xl"
-                                    id="applying-redactions-heading"
-                                >
-                                    Your redactions are being applied
-                                </h1>
-
-                                {/* <p className="govuk-body">
-                                    This might take around 2 minutes for this document.
-                                </p> */}
-                            </section>
-                        </div>
-                        <div className="govuk-grid-column-full">
-                            <LinearLoadingBar
-                                label={
-                                    status === "applying_redactions"
-                                        ? "Applying redactions"
-                                        : `Redaction status: ${status}`
-                                }
-                            />
-                        </div>
-
-                    </>
-                )}
-            </div>
-        </main>
+                            <h1
+                                className="govuk-heading-xl"
+                                id="applying-redactions-heading"
+                            >
+                                Your redactions are being applied
+                            </h1>
+                            <div className="govuk-grid-column-full">
+                                <ProcessingProgress
+                                    progress={processingProgress}
+                                    ariaLabel="Applying redactions progress"
+                                />
+                            </div>
+                        </section>
+                    </div>
+                </>
+            )}
+        </div>
     );
 }
 
