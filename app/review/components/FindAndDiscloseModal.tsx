@@ -575,7 +575,7 @@ export default function FindAndDiscloseModal({
                         <div
                             ref={resultsPaneRef}
                             id="find-and-redact-results"
-                            className="moj-scrollable-pane jr-find-and-redact-results"
+                            className="jr-find-and-redact-results"
                             role="region"
                             aria-labelledby={resultsHeadingId}
                             aria-describedby={
@@ -653,14 +653,25 @@ export default function FindAndDiscloseModal({
 
                     <div className="govuk-button-group govuk-!-margin-top-4">
                         {results.length > 0 ? (
-                            <button
-                                type="button"
-                                className="govuk-button"
-                                data-module="govuk-button"
-                                onClick={handleUndoSelected}
-                            >
-                                Remove
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    className="govuk-button"
+                                    data-module="govuk-button"
+                                    onClick={handleUndoSelected}
+                                >
+                                    Remove
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="govuk-button govuk-button--secondary"
+                                    data-module="govuk-button"
+                                    onClick={handleSearchAgain}
+                                >
+                                    Go back
+                                </button>
+                            </>
                         ) : (
                             <button
                                 type="button"

@@ -960,7 +960,7 @@ export default function FindAndPartiallyRedactModal({
                             </p>
                         )}
                         <div
-                            className="moj-scrollable-pane jr-find-and-redact-results"
+                            className="jr-find-and-redact-results"
                             ref={resultsPaneRef}
                             role="region"
                             aria-labelledby={resultsHeadingId}
