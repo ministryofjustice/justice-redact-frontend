@@ -164,8 +164,8 @@ export default function ModeToggleGroup({
                                     ]
                                         .filter(Boolean)
                                         .join(" ")}
-                                    role="menuitem"
-                                    aria-pressed={isActive}
+                                    role="menuitemradio"
+                                    aria-checked={isActive}
                                     onClick={() => handleModeChange(mode.value)}
                                     ref={(element) => {
                                         menuItemRefs.current[index] = element;

@@ -7,7 +7,7 @@ import {
     useEffect,
     useId,
     useRef,
-    useState,
+    useSyncExternalStore
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -36,6 +36,8 @@ const FOCUSABLE_SELECTOR = [
     '[tabindex]:not([tabindex="-1"])',
 ].join(",");
 
+const emptySubscribe = () => () => { };
+
 export default function Modal({
     isOpen,
     title,
@@ -48,17 +50,18 @@ export default function Modal({
     renderTitle = true,
     ariaLabelledBy,
 }: ModalProps) {
-    const [isMounted, setIsMounted] = useState(false);
+    const isMounted = useSyncExternalStore(
+        emptySubscribe,
+        () => true,
+        () => false
+    );
+
     const titleId = useId();
 
     const backdropRef = useRef<HTMLDivElement>(null);
     const dialogRef = useRef<HTMLDivElement>(null);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
     const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
-
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
 
     useEffect(() => {
         if (!isOpen) return;

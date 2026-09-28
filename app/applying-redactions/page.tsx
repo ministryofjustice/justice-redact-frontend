@@ -17,22 +17,6 @@ type RedactionRunStatusResponse = {
     processingProgress: number;
 };
 
-function LinearLoadingBar({ label = "Loading" }: { label?: string }) {
-    return (
-        <div
-            className="jr-linear-loading"
-            role="status"
-            aria-live="polite"
-            aria-label={label}
-        >
-            <div className="jr-linear-loading__track" aria-hidden="true">
-                <span className="jr-linear-loading__bar jr-linear-loading__bar--primary" />
-            </div>
-            <span className="govuk-visually-hidden">{label}</span>
-        </div>
-    );
-}
-
 function ApplyingRedactionsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();

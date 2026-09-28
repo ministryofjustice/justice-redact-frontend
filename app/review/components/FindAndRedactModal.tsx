@@ -78,18 +78,6 @@ export default function FindAndRedactModal({
         results.length > 0;
 
     useEffect(() => {
-        if (!isOpen) {
-            setSearchTerm("");
-            setSubmittedSearchTerm(null);
-            setResults([]);
-            setSelectedResultIds(new Set());
-            setHighlightedCount(null);
-            setError(null);
-            setResultsError(null);
-        }
-    }, [isOpen]);
-
-    useEffect(() => {
         if (!error && !resultsError) return;
 
         window.requestAnimationFrame(() => {
