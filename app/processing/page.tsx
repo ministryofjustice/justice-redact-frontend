@@ -9,7 +9,7 @@ import {
 import ProcessingProgress, {
   normaliseProcessingProgress,
 } from "../components/ProcessingProgress";
-import { ApiError, fetchJson } from "../lib/api";
+import { fetchJson } from "../lib/api";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 import BackLink from "../components/BackLink";
@@ -34,8 +34,6 @@ function ProcessingContent() {
   const [processingProgress, setProcessingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isAbandoning, setIsAbandoning] = useState(false);
-
-  const displayedError = !documentId ? "Missing document ID." : error;
 
   async function handleBackToUpload() {
     if (!documentId || isAbandoning) {
@@ -161,24 +159,20 @@ function ProcessingContent() {
       } catch (err) {
         if (!isActive) return;
 
-        if (err instanceof DOMException && err.name === "AbortError") {
+        if (
+          err instanceof DOMException &&
+          err.name === "AbortError"
+        ) {
           return;
         }
 
-        if (err instanceof ApiError && err.retryable) {
-          console.warn("Temporary status polling failure", {
-            status: err.status,
-            message: err.message,
-          });
-
-          scheduleNextPoll();
-          return;
-        }
+        console.error(
+          "Document status polling failed",
+          err,
+        );
 
         setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to check the document status.",
+          "Unable to check the document status.",
         );
       }
     }
@@ -214,53 +208,42 @@ function ProcessingContent() {
     );
   }
 
+  if (!documentId || error) {
+    return (
+      <ServiceErrorPage
+        variant={500}
+        documentId={documentId}
+      />
+    );
+  }
+
   return (
     <div className="govuk-grid-row">
-      {displayedError ? (
-        <div className="govuk-grid-column-two-thirds">
-          <div
-            className="govuk-error-summary"
-            data-module="govuk-error-summary"
-            aria-labelledby="error-summary-title"
-            role="alert"
-            tabIndex={-1}
+      <div className="govuk-grid-column-two-thirds">
+        <section aria-labelledby="processing-heading">
+          <BackLink
+            href="/upload"
+            onBack={handleBackToUpload}
+            disabled={isAbandoning}
           >
-            <h2 className="govuk-error-summary__title" id="error-summary-title">
-              There is a problem
-            </h2>
+            {isAbandoning
+              ? "Stopping processing..."
+              : "Back"}
+          </BackLink>
 
-            <div className="govuk-error-summary__body">
-              <p className="govuk-body">{displayedError}</p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="govuk-grid-column-two-thirds">
-          <section aria-labelledby="processing-heading">
-            <BackLink
-              href="/upload"
-              onBack={handleBackToUpload}
-              disabled={isAbandoning}
-            >
-              {isAbandoning
-                ? "Stopping processing..."
-                : "Back"}
-            </BackLink>
+          <h1
+            className="govuk-heading-xl"
+            id="processing-heading"
+          >
+            Your file is being processed
+          </h1>
 
-            <h1
-              className="govuk-heading-xl"
-              id="processing-heading"
-            >
-              Your file is being processed
-            </h1>
-
-            <ProcessingProgress
-              progress={processingProgress}
-              ariaLabel="File processing progress"
-            />
-          </section>
-        </div>
-      )}
+          <ProcessingProgress
+            progress={processingProgress}
+            ariaLabel="File processing progress"
+          />
+        </section>
+      </div>
     </div>
   );
 }
