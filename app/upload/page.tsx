@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../lib/api";
-import BackLink from "../components/BackLink";
 
 const NO_FILE_ERROR =
   "Select a PDF file";
@@ -513,9 +512,6 @@ export default function UploadPage() {
     <div className="jr-upload-page">
       <div className="govuk-grid-row">
         <div className="govuk-grid-column-two-thirds">
-          {(validationError || technicalError) && (
-            <BackLink href="/" />
-          )}
 
           {technicalError && (
             <div
@@ -654,8 +650,8 @@ export default function UploadPage() {
           >
             <div
               className={`govuk-form-group${validationError
-                  ? " govuk-form-group--error"
-                  : ""
+                ? " govuk-form-group--error"
+                : ""
                 }`}
             >
               <label
@@ -684,8 +680,8 @@ export default function UploadPage() {
                 <input
                   ref={inputRef}
                   className={`govuk-file-upload${validationError
-                      ? " govuk-file-upload--error"
-                      : ""
+                    ? " govuk-file-upload--error"
+                    : ""
                     }`}
                   id="file-upload-1"
                   name="fileUpload1"
