@@ -1,3 +1,4 @@
+import Link from "next/link";
 
 type BetaBannerProps = {
     contained?: boolean;
@@ -20,19 +21,25 @@ export default function BetaBanner({
                 </strong>
 
                 <span className="govuk-phase-banner__text">
-                    This is a new service – your{" "}
                     <a
                         href="https://www.smartsurvey.co.uk/t/JusticeRedactBeta/"
                         className="govuk-link govuk-link--no-visited-state"
                         target="_blank"
                         rel="noopener noreferrer"
                     >
-                        feedback
+                        Give us feedback and report issues
                         <span className="govuk-visually-hidden">
                             {" "} (opens in a new tab)
                         </span>
                     </a>{" "}
-                    will help us to improve it.
+                    to help us improve this service. If you need help,{" "}
+                    <Link
+                        href="/contact"
+                        className="govuk-link govuk-link--no-visited-state"
+                    >
+                        contact the Justice Redact team
+                    </Link>
+                    .
                 </span>
             </p>
         </div>
