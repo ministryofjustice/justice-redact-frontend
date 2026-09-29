@@ -241,45 +241,45 @@ function ApplyingRedactionsContent() {
                             </h2>
 
                             <div className="govuk-error-summary__body">
-                                <p className="govuk-body">{displayedError}</p>
+                                <p className="govuk-body">
+                                    {displayedError}
+                                </p>
                             </div>
                         </div>
                     </section>
                 </div>
             ) : (
-                <>
-                    <div className="govuk-grid-column-full">
-                        <section aria-labelledby="applying-redactions-heading">
-                            <BackLink
-                                href={
-                                    documentId
-                                        ? `/review?documentId=${encodeURIComponent(
-                                            documentId
-                                        )}`
-                                        : "/upload"
-                                }
-                                onBack={handleBackToReview}
-                                disabled={isCancelling}
-                            >
-                                {isCancelling
-                                    ? "Returning to review..."
-                                    : "Back"}
-                            </BackLink>
-                            <h1
-                                className="govuk-heading-xl"
-                                id="applying-redactions-heading"
-                            >
-                                Your redactions are being applied
-                            </h1>
-                            <div className="govuk-grid-column-full">
-                                <ProcessingProgress
-                                    progress={processingProgress}
-                                    ariaLabel="Applying redactions progress"
-                                />
-                            </div>
-                        </section>
-                    </div>
-                </>
+                <div className="govuk-grid-column-two-thirds">
+                    <section aria-labelledby="applying-redactions-heading">
+                        <BackLink
+                            href={
+                                documentId
+                                    ? `/review?documentId=${encodeURIComponent(
+                                        documentId,
+                                    )}`
+                                    : "/upload"
+                            }
+                            onBack={handleBackToReview}
+                            disabled={isCancelling}
+                        >
+                            {isCancelling
+                                ? "Returning to review..."
+                                : "Back"}
+                        </BackLink>
+
+                        <h1
+                            className="govuk-heading-xl"
+                            id="applying-redactions-heading"
+                        >
+                            Your redactions are being applied
+                        </h1>
+
+                        <ProcessingProgress
+                            progress={processingProgress}
+                            ariaLabel="Applying redactions progress"
+                        />
+                    </section>
+                </div>
             )}
         </div>
     );

@@ -235,31 +235,31 @@ function ProcessingContent() {
           </div>
         </div>
       ) : (
-        <>
-          <div className="govuk-grid-column-full">
-            <section aria-labelledby="processing-heading">
-              <BackLink
-                href="/upload"
-                onBack={handleBackToUpload}
-                disabled={isAbandoning}
-              >
-                {isAbandoning
-                  ? "Stopping processing..."
-                  : "Back"}
-              </BackLink>
-              <h1 className="govuk-heading-xl" id="processing-heading">
-                Your file is being processed
-              </h1>
-              <div className="govuk-grid-column-full">
-                <ProcessingProgress
-                  progress={processingProgress}
-                  ariaLabel="File processing progress"
-                />
-              </div>
-            </section>
-          </div>
+        <div className="govuk-grid-column-two-thirds">
+          <section aria-labelledby="processing-heading">
+            <BackLink
+              href="/upload"
+              onBack={handleBackToUpload}
+              disabled={isAbandoning}
+            >
+              {isAbandoning
+                ? "Stopping processing..."
+                : "Back"}
+            </BackLink>
 
-        </>
+            <h1
+              className="govuk-heading-xl"
+              id="processing-heading"
+            >
+              Your file is being processed
+            </h1>
+
+            <ProcessingProgress
+              progress={processingProgress}
+              ariaLabel="File processing progress"
+            />
+          </section>
+        </div>
       )}
     </div>
   );
