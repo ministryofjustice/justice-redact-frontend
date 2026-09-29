@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 
 import { ApiError, fetchJson } from "../lib/api";
 import ServiceErrorPage from "./ServiceErrorPage";
+import {
+    initialiseGovuk,
+} from "./GovukInit";
 
 type CurrentUserResponse = {
     userId: string;
@@ -65,6 +68,29 @@ export default function RequireAuthentication({
             isActive = false;
         };
     }, []);
+
+    useEffect(() => {
+        if (
+            isChecking ||
+            hasServiceError
+        ) {
+            return;
+        }
+
+        const mainContent =
+            document.getElementById(
+                "main-content",
+            );
+
+        if (mainContent) {
+            void initialiseGovuk(
+                mainContent,
+            );
+        }
+    }, [
+        isChecking,
+        hasServiceError,
+    ]);
 
     if (isChecking) {
         return null;

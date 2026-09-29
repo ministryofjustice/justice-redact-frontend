@@ -952,6 +952,27 @@ main {
   }
 }
 
+.jr-upload-api-alert {
+  width: 100%;
+  margin-bottom: 30px;
+}
+
+.jr-upload-page .jr-upload-responsibilities {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.jr-upload-page .jr-upload-responsibilities .govuk-warning-text__icon {
+  position: static;
+  flex: 0 0 auto;
+}
+
+.jr-upload-page .jr-upload-responsibilities .govuk-list {
+  margin-left: 20px;
+}
+
 /* Upload page */
 .jr-upload-page .govuk-inset-text {
   background-color: #e8f4f8;
