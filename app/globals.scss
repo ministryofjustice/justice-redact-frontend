@@ -311,12 +311,12 @@ main {
 }
 
 .jr-modal__link-button {
+  @include govuk.govuk-font(19);
+
   padding: 0;
   border: 0;
   background: transparent;
   color: govuk.govuk-colour("blue");
-  font: inherit;
-  font-size: 19px;
   text-decoration: underline;
   cursor: pointer;
 }

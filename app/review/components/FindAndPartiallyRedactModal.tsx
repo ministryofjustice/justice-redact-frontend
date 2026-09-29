@@ -3,6 +3,7 @@
 import {
     type FormEvent,
     type MouseEvent,
+    useCallback,
     useEffect,
     useId,
     useLayoutEffect,
@@ -123,6 +124,7 @@ export default function FindAndPartiallyRedactModal({
         setSearchTerm("");
         setSubmittedSearchTerm(null);
         setSelectedRange(null);
+        closePartialRedactionRemoveMenu();
         setResults([]);
         setSelectedResultIds(new Set());
         setHighlightedCount(null);
@@ -132,11 +134,10 @@ export default function FindAndPartiallyRedactModal({
         setResultsError(null);
     }
 
-    useEffect(() => {
-        if (!isOpen) {
-            resetState();
-        }
-    }, [isOpen]);
+    const closePartialRedactionRemoveMenu = useCallback(() => {
+        setPartialRedactionHover(false);
+        setPartialRedactionRemoveMenu(null);
+    }, []);
 
     useEffect(() => {
         if (!error && !selectionError && !resultsError) {
@@ -249,13 +250,7 @@ export default function FindAndPartiallyRedactModal({
                 handleViewportChange
             );
         };
-    }, [partialRedactionRemoveMenu]);
-
-    useEffect(() => {
-        if (!selectedRange) {
-            closePartialRedactionRemoveMenu();
-        }
-    }, [selectedRange]);
+    }, [partialRedactionRemoveMenu, closePartialRedactionRemoveMenu]);
 
     useLayoutEffect(() => {
         if (!isShowingContentDenseResults) {
@@ -483,11 +478,6 @@ export default function FindAndPartiallyRedactModal({
             });
     }
 
-    function closePartialRedactionRemoveMenu() {
-        setPartialRedactionHover(false);
-        setPartialRedactionRemoveMenu(null);
-    }
-
     function handlePartialRedactionMouseOver(
         event: MouseEvent<HTMLDivElement>
     ) {
@@ -591,6 +581,7 @@ export default function FindAndPartiallyRedactModal({
         setSelectionError(null);
         setResultsError(null);
         setSelectedRange(null);
+        closePartialRedactionRemoveMenu();
         setResults([]);
         setSelectedResultIds(new Set());
         setIsShowingResults(false);
@@ -663,17 +654,6 @@ export default function FindAndPartiallyRedactModal({
         }
 
         setSelectionError(null);
-
-        const normalisedSelectedRange = {
-            start: mapOriginalOffsetToNormalisedOffset(
-                submittedSearchTerm,
-                selectedRange.start
-            ),
-            end: mapOriginalOffsetToNormalisedOffset(
-                submittedSearchTerm,
-                selectedRange.end
-            ),
-        };
 
         const searchResults = findInDocument(
             pages,
@@ -778,6 +758,7 @@ export default function FindAndPartiallyRedactModal({
     function handleSearchAgain() {
         setSubmittedSearchTerm(null);
         setSelectedRange(null);
+        closePartialRedactionRemoveMenu();
         setResults([]);
         setSelectedResultIds(new Set());
         setHighlightedCount(null);

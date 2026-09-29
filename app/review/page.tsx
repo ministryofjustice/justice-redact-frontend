@@ -337,19 +337,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   });
 
   useEffect(() => {
-    if (!isRedactMode && redactionRemoveMenu) {
-      setManualRedactionHover(
-        redactionRemoveMenu.manualId,
-        redactionRemoveMenu.redactionGroupId,
-        false
-      );
-
-      setRedactionRemoveMenu(null);
-      redactionRemoveTriggerRef.current = null;
-    }
-  }, [isRedactMode, redactionRemoveMenu]);
-
-  useEffect(() => {
     if (!redactionRemoveMenu) {
       return;
     }
@@ -1375,6 +1362,14 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       });
   }
 
+  function handleReviewModeChange(nextMode: ReviewMode) {
+    if (nextMode !== "redact") {
+      closeRedactionRemoveMenu();
+    }
+
+    setReviewMode(nextMode);
+  }
+
   function closeRedactionRemoveMenu(
     restoreFocus = false
   ) {
@@ -1861,7 +1856,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       <ReviewControlsHeader
         filename={data?.filename || "Document"}
         reviewMode={reviewMode}
-        onReviewModeChange={setReviewMode}
+        onReviewModeChange={handleReviewModeChange}
         onQuickHelp={() => setIsQuickHelpOpen(true)}
         onFindAndRedact={() => {
           void openFindAndRedact();

@@ -1,4 +1,5 @@
 import "./globals.scss";
+import "@ministryofjustice/frontend/moj/moj-frontend.min.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import MojCrest from "./components/MojCrest";
@@ -18,10 +19,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="govuk-template js-enabled">
-      <head>
-        <link rel="stylesheet" href="/styles/govuk-frontend.min.css" />
-        <link rel="stylesheet" href="/styles/moj-frontend.min.css" />
-      </head>
 
       <body className="govuk-template__body govuk-frontend-supported jr-app-body">
         <GovukInit />
