@@ -43,7 +43,7 @@ export default function RootLayout({
 
                   <Link
                     className="moj-header__link moj-header__link--service-name"
-                    href="/"
+                    href="/before-you-start"
                   >
                     Justice Redact
                   </Link>
