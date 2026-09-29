@@ -185,7 +185,10 @@ export default function StartPage() {
                         <div className="govuk-error-summary__body">
                             <ul className="govuk-list govuk-error-summary__list">
                                 <li>
-                                    <a href="#email">
+                                    <a
+                                        href="#email"
+                                        className="govuk-error-summary__link"
+                                    >
                                         {emailError}
                                     </a>
                                 </li>

@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 export default function AccessDeniedPage() {
     return (
         <div className="govuk-grid-row">
@@ -9,19 +7,11 @@ export default function AccessDeniedPage() {
                 </h1>
 
                 <p className="govuk-body">
-                    Justice Redact is currently available only to
-                    people taking part in the Private Beta.
+                    Justice Redact is currently being tested with a small group of vetters.
                 </p>
 
                 <p className="govuk-body">
-                    If you think you should have access, contact the
-                    Justice Redact team.
-                </p>
-
-                <p className="govuk-body">
-                    <Link href="/" className="govuk-link">
-                        Try another email address
-                    </Link>
+                    You&apos;ll hear from your operational managers when it&apos;s more widely available.
                 </p>
             </div>
         </div>

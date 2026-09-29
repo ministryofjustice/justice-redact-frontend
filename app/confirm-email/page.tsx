@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { ApiError, fetchJson } from "../lib/api";
+import {
+    clearVerificationEmail,
+} from "../lib/verificationEmail";
 
 type VerifyEmailResponse = {
     userId: string;
@@ -14,7 +17,7 @@ type VerifyEmailResponse = {
 
 type ConfirmationState =
     | "checking"
-    | "no-token"
+    | "did-not-work"
     | "not-recognised"
     | "service-error";
 
@@ -34,7 +37,7 @@ export default function ConfirmEmailPage() {
             const token = params.get("token");
 
             if (!token) {
-                setState("no-token");
+                setState("did-not-work");
                 return;
             }
 
@@ -63,6 +66,8 @@ export default function ConfirmEmailPage() {
                     "/confirm-email",
                 );
 
+                clearVerificationEmail();
+
                 router.replace("/upload");
             } catch (error) {
                 if (!isActive) {
@@ -73,8 +78,21 @@ export default function ConfirmEmailPage() {
                     error instanceof ApiError &&
                     error.status === 400
                 ) {
-                    setState("not-recognised");
-                    return;
+                    if (
+                        error.message ===
+                        "The confirmation link did not work"
+                    ) {
+                        setState("did-not-work");
+                        return;
+                    }
+
+                    if (
+                        error.message ===
+                        "The confirmation link was not recognised"
+                    ) {
+                        setState("not-recognised");
+                        return;
+                    }
                 }
 
                 setState("service-error");
@@ -88,7 +106,7 @@ export default function ConfirmEmailPage() {
         };
     }, [router]);
 
-    if (state === "no-token") {
+    if (state === "did-not-work") {
         return (
             <div className="govuk-grid-row">
                 <div className="govuk-grid-column-two-thirds">
@@ -185,27 +203,5 @@ export default function ConfirmEmailPage() {
         );
     }
 
-    return (
-        <div className="govuk-grid-row">
-            <div className="govuk-grid-column-two-thirds">
-                <h1 className="govuk-heading-xl">
-                    Your confirmation link was not recognised
-                </h1>
-
-                <p className="govuk-body">
-                    Go back to Justice Redact and request a new
-                    confirmation email.
-                </p>
-
-                <p className="govuk-body">
-                    You must open the confirmation link in the same
-                    browser you used to request it.
-                </p>
-
-                <Link href="/" className="govuk-button">
-                    Try again
-                </Link>
-            </div>
-        </div>
-    );
+    return null;
 }
