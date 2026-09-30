@@ -27,7 +27,6 @@ import ReviewPageHeader from "./components/ReviewPageHeader";
 import ReviewPagination from "./components/ReviewPagination";
 import ReviewStatusMessages from "./components/ReviewStatusMessages";
 import QuickHelpModal from "./components/QuickHelpModal";
-import BackLink from "../components/BackLink";
 import { clampRangeValue } from "./textRendering";
 import HighlightKey from "./components/HighlightKey";
 import {
@@ -1896,11 +1895,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         isOpen={isQuickHelpOpen}
         onClose={() => setIsQuickHelpOpen(false)}
       />
-      {selectedRangeStart === 0 && (
-        <div className="jr-review-intro__back">
-          <BackLink href="/upload" />
-        </div>
-      )}
 
       <h1 className="govuk-heading-xl jr-review-intro__heading">
         Make redactions

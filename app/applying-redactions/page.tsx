@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 import BackLink from "../components/BackLink";
-import { ApiError, fetchJson } from "../lib/api";
+import { fetchJson } from "../lib/api";
 import ProcessingProgress, {
     normaliseProcessingProgress,
 } from "../components/ProcessingProgress";
@@ -38,12 +38,6 @@ function ApplyingRedactionsContent() {
 
     const [isCancelling, setIsCancelling] = useState(false);
     const cancellationRequestedRef = useRef(false);
-
-    const displayedError = !documentId
-        ? "Missing document ID."
-        : !runId
-            ? "Missing redaction run ID."
-            : error;
 
     async function handleBackToReview() {
         if (!documentId || !runId || isCancelling) {
@@ -167,24 +161,20 @@ function ApplyingRedactionsContent() {
             } catch (err) {
                 if (!isActive) return;
 
-                if (err instanceof DOMException && err.name === "AbortError") {
+                if (
+                    err instanceof DOMException &&
+                    err.name === "AbortError"
+                ) {
                     return;
                 }
 
-                if (err instanceof ApiError && err.retryable) {
-                    console.warn("Temporary redaction status polling failure", {
-                        status: err.status,
-                        message: err.message,
-                    });
-
-                    scheduleNextPoll();
-                    return;
-                }
+                console.error(
+                    "Redaction status polling failed",
+                    err,
+                );
 
                 setError(
-                    err instanceof Error
-                        ? err.message
-                        : "Unable to check the redaction status."
+                    "Unable to check the redaction status.",
                 );
             }
         }
@@ -221,66 +211,52 @@ function ApplyingRedactionsContent() {
         );
     }
 
+    if (
+        !documentId ||
+        !runId ||
+        error
+    ) {
+        return (
+            <ServiceErrorPage
+                variant={500}
+                documentId={documentId}
+            />
+        );
+    }
+
     return (
         <div className="govuk-grid-row">
-            {displayedError ? (
-                <div className="govuk-grid-column-two-thirds">
-                    <section aria-labelledby="apply-redactions-error-title">
-                        <div
-                            className="govuk-error-summary"
-                            data-module="govuk-error-summary"
-                            aria-labelledby="apply-redactions-error-title"
-                            role="alert"
-                            tabIndex={-1}
-                        >
-                            <h2
-                                className="govuk-error-summary__title"
-                                id="apply-redactions-error-title"
-                            >
-                                There is a problem
-                            </h2>
+            <div className="govuk-grid-column-two-thirds">
+                <section aria-labelledby="applying-redactions-heading">
+                    <BackLink
+                        href={
+                            documentId
+                                ? `/review?documentId=${encodeURIComponent(
+                                    documentId,
+                                )}`
+                                : "/upload"
+                        }
+                        onBack={handleBackToReview}
+                        disabled={isCancelling}
+                    >
+                        {isCancelling
+                            ? "Returning to review..."
+                            : "Back"}
+                    </BackLink>
 
-                            <div className="govuk-error-summary__body">
-                                <p className="govuk-body">{displayedError}</p>
-                            </div>
-                        </div>
-                    </section>
-                </div>
-            ) : (
-                <>
-                    <div className="govuk-grid-column-full">
-                        <section aria-labelledby="applying-redactions-heading">
-                            <BackLink
-                                href={
-                                    documentId
-                                        ? `/review?documentId=${encodeURIComponent(
-                                            documentId
-                                        )}`
-                                        : "/upload"
-                                }
-                                onBack={handleBackToReview}
-                                disabled={isCancelling}
-                            >
-                                {isCancelling
-                                    ? "Returning to review..."
-                                    : "Back"}
-                            </BackLink>
-                            <h1
-                                className="govuk-heading-xl"
-                                id="applying-redactions-heading"
-                            >
-                                Your redactions are being applied
-                            </h1>
-                            <div className="govuk-grid-column-full">
-                                <ProcessingProgress
-                                    progress={processingProgress}
-                                    ariaLabel="Applying redactions progress"
-                                />
-                            </div>
-                        </section>
-                    </div>
-                </>
-            )}
+                    <h1
+                        className="govuk-heading-xl"
+                        id="applying-redactions-heading"
+                    >
+                        Your redactions are being applied
+                    </h1>
+
+                    <ProcessingProgress
+                        progress={processingProgress}
+                        ariaLabel="Applying redactions progress"
+                    />
+                </section>
+            </div>
         </div>
     );
 }

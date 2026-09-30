@@ -28,6 +28,9 @@ import {
     getVerificationEmail,
     setVerificationEmail,
 } from "../app/lib/verificationEmail";
+import {
+    setAuthReturnPath,
+} from "../app/lib/authReturnPath";
 
 const router = vi.hoisted(() => ({
     push: vi.fn(),
@@ -69,6 +72,7 @@ beforeEach(() => {
     router.replace.mockReset();
 
     window.sessionStorage.clear();
+    window.localStorage.clear();
 
     window.history.replaceState(
         {},
@@ -164,18 +168,14 @@ describe("authentication start page", () => {
         ).toContain("govuk-input--error");
     });
 
-    it("redirects a user without Private Beta access to access denied", async () => {
+    it("sends a valid Justice email to the check email page", async () => {
         mockedFetchJson
             .mockRejectedValueOnce(
                 unauthorizedError(),
             )
-            .mockRejectedValueOnce(
-                new ApiError(
-                    "Access denied.",
-                    403,
-                    false,
-                ),
-            );
+            .mockResolvedValueOnce({
+                status: "verification_email_sent",
+            });
 
         render(<StartPage />);
 
@@ -192,8 +192,7 @@ describe("authentication start page", () => {
             ),
             {
                 target: {
-                    value:
-                        "vetter@justice.gov.uk",
+                    value: "vetter@justice.gov.uk",
                 },
             },
         );
@@ -211,9 +210,19 @@ describe("authentication start page", () => {
             expect(
                 router.push,
             ).toHaveBeenCalledWith(
-                "/access-denied",
+                "/check-email",
             );
         });
+
+        expect(
+            getVerificationEmail(),
+        ).toBe("vetter@justice.gov.uk");
+
+        expect(
+            router.push,
+        ).not.toHaveBeenCalledWith(
+            "/access-denied",
+        );
     });
 });
 
@@ -242,6 +251,77 @@ describe("confirmation link", () => {
             expect(
                 router.replace,
             ).toHaveBeenCalledWith("/upload");
+        });
+
+        expect(
+            getVerificationEmail(),
+        ).toBeNull();
+
+        expect(
+            window.location.hash,
+        ).toBe("");
+    });
+
+    it("returns to the saved document after successful verification", async () => {
+        setVerificationEmail(
+            "vetter@justice.gov.uk",
+        );
+
+        setAuthReturnPath(
+            "/review?documentId=document-123",
+        );
+
+        window.history.replaceState(
+            {},
+            "",
+            "/confirm-email#token=email-secret",
+        );
+
+        mockedFetchJson.mockResolvedValueOnce({
+            userId: "user-123",
+            email: "vetter@justice.gov.uk",
+            expiresAt:
+                "2026-10-05T00:00:00+00:00",
+        });
+
+        render(<ConfirmEmailPage />);
+
+        await waitFor(() => {
+            expect(
+                router.replace,
+            ).toHaveBeenCalledWith(
+                "/review?documentId=document-123",
+            );
+        });
+    });
+
+    it("redirects a verified user without Private Beta access to access denied", async () => {
+        setVerificationEmail(
+            "vetter@justice.gov.uk",
+        );
+
+        window.history.replaceState(
+            {},
+            "",
+            "/confirm-email#token=email-secret",
+        );
+
+        mockedFetchJson.mockRejectedValueOnce(
+            new ApiError(
+                "You cannot use Justice Redact yet",
+                403,
+                false,
+            ),
+        );
+
+        render(<ConfirmEmailPage />);
+
+        await waitFor(() => {
+            expect(
+                router.replace,
+            ).toHaveBeenCalledWith(
+                "/access-denied",
+            );
         });
 
         expect(

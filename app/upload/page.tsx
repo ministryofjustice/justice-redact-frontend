@@ -3,12 +3,21 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../lib/api";
-import BackLink from "../components/BackLink";
 
-const FILE_ERROR =
-  "The selected file must be a NOMIS or DPS file in PDF format";
+const NO_FILE_ERROR =
+  "Select a PDF file";
 
-const BODY_TEXT_ERROR = "Select a document that contains body text";
+const FILE_TYPE_ERROR =
+  "The selected file must be a PDF";
+
+const BODY_TEXT_SUMMARY_ERROR =
+  "The selected file must contain text";
+
+const BODY_TEXT_INLINE_ERROR =
+  "Select a file that contains text";
+
+const UPLOAD_ERROR =
+  "There was a problem uploading the file. Try again.";
 
 const MINIMUM_BODY_CHARACTERS = 50;
 const MAX_VALIDATION_PAGES = 20;
@@ -27,16 +36,30 @@ type UploadDocumentResponse = {
   status: string;
 };
 
+type ValidationError = {
+  summary: string;
+  inline: string;
+};
+
 export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const isSubmittingRef = useRef(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [
+    validationError,
+    setValidationError,
+  ] = useState<ValidationError | null>(null);
+
+  const [
+    technicalError,
+    setTechnicalError,
+  ] = useState<string | null>(null);
 
   function handleFileChange() {
-    setError(null);
+    setValidationError(null);
+    setTechnicalError(null);
   }
 
   function resetSubmittingState() {
@@ -373,13 +396,28 @@ export default function UploadPage() {
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);
-    setError(null);
+    setValidationError(null);
+    setTechnicalError(null);
 
     const files = inputRef.current?.files;
     const file = files?.[0];
 
-    if (!file || files.length !== 1 || !isPdf(file)) {
-      setError(FILE_ERROR);
+    if (!file || files.length !== 1) {
+      setValidationError({
+        summary: NO_FILE_ERROR,
+        inline: NO_FILE_ERROR,
+      });
+
+      resetSubmittingState();
+      return;
+    }
+
+    if (!isPdf(file)) {
+      setValidationError({
+        summary: FILE_TYPE_ERROR,
+        inline: FILE_TYPE_ERROR,
+      });
+
       resetSubmittingState();
       return;
     }
@@ -391,13 +429,21 @@ export default function UploadPage() {
       console.log("PDF analysis", analysis);
     } catch (err) {
       console.error("PDF analysis failed", err);
-      setError("The selected file could not be checked – try again");
+      setTechnicalError(
+        "The selected file could not be checked – try again",
+      );
       resetSubmittingState();
       return;
     }
 
     if (!analysis.hasBodyText) {
-      setError(BODY_TEXT_ERROR);
+      setValidationError({
+        summary:
+          BODY_TEXT_SUMMARY_ERROR,
+        inline:
+          BODY_TEXT_INLINE_ERROR,
+      });
+
       resetSubmittingState();
       return;
     }
@@ -429,10 +475,8 @@ export default function UploadPage() {
     } catch (err) {
       console.error("Document upload failed", err);
 
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to upload document."
+      setTechnicalError(
+        UPLOAD_ERROR,
       );
 
       resetSubmittingState();
@@ -465,79 +509,159 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="govuk-grid-row">
-      <div className="govuk-grid-column-two-thirds">
-        <BackLink href="/" />
+    <div className="jr-upload-page">
+      <div className="govuk-grid-row">
+        <div className="govuk-grid-column-two-thirds">
 
-        {error && (
-          <div
-            className="govuk-error-summary"
-            data-module="govuk-error-summary"
-            aria-labelledby="error-summary-title"
-            role="alert"
-            tabIndex={-1}
-          >
-            <h2
-              className="govuk-error-summary__title"
-              id="error-summary-title"
+          {technicalError && (
+            <div
+              role="alert"
+              className="moj-alert moj-alert--error jr-upload-api-alert"
+              aria-label={`error: ${technicalError}`}
+              data-module="moj-alert"
             >
-              There is a problem
-            </h2>
+              <div>
+                <svg
+                  className="moj-alert__icon"
+                  role="presentation"
+                  focusable="false"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 30 30"
+                  height="30"
+                  width="30"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M20.1777 2.5H9.82233L2.5 9.82233V20.1777L9.82233 27.5H20.1777L27.5 20.1777V9.82233L20.1777 2.5ZM10.9155 8.87769L15.0001 12.9623L19.0847 8.87771L21.1224 10.9154L17.0378 15L21.1224 19.0846L19.0847 21.1222L15.0001 17.0376L10.9155 21.1223L8.87782 19.0846L12.9624 15L8.87783 10.9153L10.9155 8.87769Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </div>
 
-            <div className="govuk-error-summary__body">
-              <ul className="govuk-list govuk-error-summary__list">
+              <div className="moj-alert__content">
+                {technicalError}
+              </div>
+            </div>
+          )}
+
+          {validationError && (
+            <div
+              className="govuk-error-summary"
+              data-module="govuk-error-summary"
+              aria-labelledby="error-summary-title"
+              role="alert"
+              tabIndex={-1}
+            >
+              <h2
+                className="govuk-error-summary__title"
+                id="error-summary-title"
+              >
+                There is a problem
+              </h2>
+
+              <div className="govuk-error-summary__body">
+                <ul className="govuk-list govuk-error-summary__list">
+                  <li>
+                    <a
+                      href="#file-upload-1"
+                      className="govuk-error-summary__link"
+                    >
+                      {validationError.summary}
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          <h1 className="govuk-heading-xl">
+            {validationError
+              ? "Upload a document"
+              : "Upload a file"}
+          </h1>
+
+          <p className="govuk-body-l">
+            Justice Redact uses artificial intelligence (AI) to suggest what to
+            pay attention to when you&apos;re redacting a file.
+          </p>
+
+          <h2 className="govuk-heading-m">
+            Your responsibilities
+          </h2>
+
+          <p className="govuk-body">
+            The AI only looks for indicators of what might need to be redacted.
+            Also, it can miss things and make mistakes. This means you might have
+            to redact more or less than the AI suggestions show.
+          </p>
+
+          <div className="jr-upload-responsibilities">
+            <span
+              className="govuk-warning-text__icon"
+              aria-hidden="true"
+            >
+              !
+            </span>
+
+            <div>
+              <p className="govuk-body govuk-!-margin-bottom-1">
+                <strong>
+                  You&apos;re responsible for:
+                </strong>
+              </p>
+
+              <ul className="govuk-list govuk-list--bullet govuk-!-font-weight-bold govuk-!-margin-bottom-0">
                 <li>
-                  <a href="#file-upload-1">{error}</a>
+                  the final decision on what to redact and disclose
+                </li>
+                <li>
+                  applying relevant legislation and policies when redacting, for
+                  example the Data Protection Act 2018
                 </li>
               </ul>
             </div>
           </div>
-        )}
 
-        <h1 className="govuk-heading-xl">
-          Upload a document
-        </h1>
+          <h2 className="govuk-heading-m govuk-!-margin-top-6">
+            What you can upload
+          </h2>
 
-        <aside
-          className="govuk-inset-text guidance-panel"
-          aria-label="Upload guidance"
-        >
           <p className="govuk-body">
-            Only NOMIS and DPS documents can be processed at the moment.
+            You can only upload unvetted NOMIS files or DPS case notes.
           </p>
-        </aside>
 
-        <form
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleUpload();
-          }}
-        >
-          <section aria-labelledby="upload-file-heading">
+          <h2 className="govuk-heading-m">
+            If your file is already vetted
+          </h2>
+
+          <p className="govuk-body">
+            You cannot upload vetted documents. Instead, use Adobe Acrobat to make
+            changes to the document - you&apos;ll need to sanitise the document
+            when exporting it.
+          </p>
+
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleUpload();
+            }}
+          >
             <div
-              className={`govuk-form-group${error ? " govuk-form-group--error" : ""
+              className={`govuk-form-group${validationError
+                ? " govuk-form-group--error"
+                : ""
                 }`}
             >
-              <h2 className="govuk-label-wrapper">
-                <label
-                  className="govuk-label govuk-label--m"
-                  htmlFor="file-upload-1"
-                  id="upload-file-heading"
-                >
-                  Upload a file
-                </label>
-              </h2>
-
-              <div
-                id="file-upload-1-hint"
-                className="govuk-hint"
+              <label
+                className="govuk-label"
+                htmlFor="file-upload-1"
               >
-                Only NOMIS and DPS documents can be processed at the
-                moment
-              </div>
+                Upload a file
+              </label>
 
-              {error && (
+              {validationError && (
                 <p
                   id="file-upload-1-error"
                   className="govuk-error-message"
@@ -545,17 +669,19 @@ export default function UploadPage() {
                   <span className="govuk-visually-hidden">
                     Error:
                   </span>{" "}
-                  {error}
+                  {validationError.inline}
                 </p>
               )}
 
               <div
-                className="govuk-drop-zone"
+                className="govuk-file-upload-wrapper"
                 data-module="govuk-file-upload"
               >
                 <input
                   ref={inputRef}
-                  className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""
+                  className={`govuk-file-upload${validationError
+                    ? " govuk-file-upload--error"
+                    : ""
                     }`}
                   id="file-upload-1"
                   name="fileUpload1"
@@ -563,26 +689,28 @@ export default function UploadPage() {
                   accept=".pdf,application/pdf"
                   disabled={isSubmitting}
                   aria-describedby={
-                    error
-                      ? "file-upload-1-hint file-upload-1-error"
-                      : "file-upload-1-hint"
+                    validationError
+                      ? "file-upload-1-error"
+                      : undefined
                   }
                   onChange={handleFileChange}
                 />
               </div>
             </div>
-          </section>
 
-          <button
-            type="submit"
-            className="govuk-button"
-            data-module="govuk-button"
-            disabled={isSubmitting}
-            aria-disabled={isSubmitting}
-          >
-            {isSubmitting ? "Checking document…" : "Continue"}
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="govuk-button"
+              data-module="govuk-button"
+              disabled={isSubmitting}
+              aria-disabled={isSubmitting}
+            >
+              {isSubmitting
+                ? "Checking document…"
+                : "Upload and continue"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

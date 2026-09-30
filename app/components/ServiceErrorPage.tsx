@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export type ServiceErrorVariant = 400 | 403 | 404 | 500 | 503;
 
 type ServiceErrorPageProps = {
@@ -75,16 +77,32 @@ const ERROR_CONTENT: Record<
     },
 
     500: {
-        heading: "Sorry, there is a problem with the service",
+        heading: "Sorry, there is a problem",
         body: (
             <>
                 <p className="govuk-body">
-                    Try reloading the page. You can do this by pressing F5 on a PC or
-                    cmd + R on a mac.
+                    Try reloading the page. You can do this by pressing F5.
                 </p>
 
                 <p className="govuk-body">
-                    If the page still does not load, try again later.
+                    If the page still does not load, try to{" "}
+                    <Link
+                        href="/upload"
+                        className="govuk-link"
+                    >
+                        upload the file again
+                    </Link>
+                    .
+                </p>
+
+                <p className="govuk-body">
+                    <Link
+                        href="/contact"
+                        className="govuk-link"
+                    >
+                        Contact the Justice Redact team
+                    </Link>{" "}
+                    if you need help.
                 </p>
             </>
         ),
@@ -114,11 +132,13 @@ export default function ServiceErrorPage({
 
                 {content.body}
 
-                {variant !== 403 && variant !== 503 && (
-                    <p className="govuk-body">
-                        Contact the Justice Redact team
-                    </p>
-                )}
+                {variant !== 403 &&
+                    variant !== 500 &&
+                    variant !== 503 && (
+                        <p className="govuk-body">
+                            Contact the Justice Redact team
+                        </p>
+                    )}
             </div>
         </div>
     );
