@@ -1,6 +1,13 @@
 import Link from "next/link";
 
-export type ServiceErrorVariant = 400 | 403 | 404 | 500 | 503;
+export type ServiceErrorVariant =
+    | 400
+    | 403
+    | 404
+    | 500
+    | 503
+    | "resume-link-not-recognised"
+    | "resume-link-expired";
 
 type ServiceErrorPageProps = {
     variant: ServiceErrorVariant;
@@ -118,6 +125,37 @@ const ERROR_CONTENT: Record<
             </>
         ),
     },
+
+    "resume-link-not-recognised": {
+        heading: "Your link was not recognised",
+        body: (
+            <>
+                <p className="govuk-body">
+                    Go back to the email and select the link again.
+                </p>
+
+                <p className="govuk-body">
+                    You need to open the link in the same browser you&apos;re on now.
+                </p>
+            </>
+        ),
+    },
+
+    "resume-link-expired": {
+        heading: "Your link has expired",
+        body: (
+            <>
+                <p className="govuk-body">
+                    You cannot edit this file because the link you selected is more than 30 days old.
+                </p>
+
+                <p className="govuk-body">
+                    Instead, use Adobe Acrobat to make changes to the document - you&apos;ll need to
+                    sanitise the document when exporting it.
+                </p>
+            </>
+        ),
+    },
 };
 
 export default function ServiceErrorPage({
@@ -134,7 +172,9 @@ export default function ServiceErrorPage({
 
                 {variant !== 403 &&
                     variant !== 500 &&
-                    variant !== 503 && (
+                    variant !== 503 &&
+                    variant !== "resume-link-not-recognised" &&
+                    variant !== "resume-link-expired" && (
                         <p className="govuk-body">
                             Contact the Justice Redact team
                         </p>
