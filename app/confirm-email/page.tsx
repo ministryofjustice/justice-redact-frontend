@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 
 import { ApiError, fetchJson } from "../lib/api";
 import {
+    consumeAuthReturnPath,
+} from "../lib/authReturnPath";
+import {
     clearVerificationEmail,
 } from "../lib/verificationEmail";
 
@@ -68,7 +71,12 @@ export default function ConfirmEmailPage() {
 
                 clearVerificationEmail();
 
-                router.replace("/upload");
+                const returnPath =
+                    consumeAuthReturnPath();
+
+                router.replace(
+                    returnPath ?? "/upload",
+                );
             } catch (error) {
                 if (!isActive) {
                     return;

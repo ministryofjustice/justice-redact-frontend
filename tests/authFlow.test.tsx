@@ -28,6 +28,9 @@ import {
     getVerificationEmail,
     setVerificationEmail,
 } from "../app/lib/verificationEmail";
+import {
+    setAuthReturnPath,
+} from "../app/lib/authReturnPath";
 
 const router = vi.hoisted(() => ({
     push: vi.fn(),
@@ -69,6 +72,7 @@ beforeEach(() => {
     router.replace.mockReset();
 
     window.sessionStorage.clear();
+    window.localStorage.clear();
 
     window.history.replaceState(
         {},
@@ -256,6 +260,39 @@ describe("confirmation link", () => {
         expect(
             window.location.hash,
         ).toBe("");
+    });
+
+    it("returns to the saved document after successful verification", async () => {
+        setVerificationEmail(
+            "vetter@justice.gov.uk",
+        );
+
+        setAuthReturnPath(
+            "/review?documentId=document-123",
+        );
+
+        window.history.replaceState(
+            {},
+            "",
+            "/confirm-email#token=email-secret",
+        );
+
+        mockedFetchJson.mockResolvedValueOnce({
+            userId: "user-123",
+            email: "vetter@justice.gov.uk",
+            expiresAt:
+                "2026-10-05T00:00:00+00:00",
+        });
+
+        render(<ConfirmEmailPage />);
+
+        await waitFor(() => {
+            expect(
+                router.replace,
+            ).toHaveBeenCalledWith(
+                "/review?documentId=document-123",
+            );
+        });
     });
 
     it("redirects a verified user without Private Beta access to access denied", async () => {

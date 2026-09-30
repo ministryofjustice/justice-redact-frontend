@@ -8,6 +8,9 @@ import ServiceErrorPage from "./ServiceErrorPage";
 import {
     initialiseGovuk,
 } from "./GovukInit";
+import {
+    setAuthReturnPath,
+} from "../lib/authReturnPath";
 
 type CurrentUserResponse = {
     userId: string;
@@ -53,6 +56,10 @@ export default function RequireAuthentication({
                     error instanceof ApiError &&
                     error.status === 401
                 ) {
+                    setAuthReturnPath(
+                        `${window.location.pathname}${window.location.search}`,
+                    );
+
                     window.location.replace("/");
                     return;
                 }
