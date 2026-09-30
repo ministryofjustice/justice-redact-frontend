@@ -123,14 +123,6 @@ export default function StartPage() {
                 return;
             }
 
-            if (
-                error instanceof ApiError &&
-                error.status === 403
-            ) {
-                router.push("/access-denied");
-                return;
-            }
-
             setServiceError(
                 "There is a problem with the service. Try again later.",
             );

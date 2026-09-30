@@ -95,6 +95,22 @@ export default function ConfirmEmailPage() {
                     }
                 }
 
+                if (
+                    error instanceof ApiError &&
+                    error.status === 403
+                ) {
+                    window.history.replaceState(
+                        null,
+                        "",
+                        "/confirm-email",
+                    );
+
+                    clearVerificationEmail();
+
+                    router.replace("/access-denied");
+                    return;
+                }
+
                 setState("service-error");
             }
         }
