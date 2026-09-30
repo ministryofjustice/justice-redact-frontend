@@ -158,7 +158,7 @@ spec:
 
                     const pageResponse =
                       await fetchFrontend(
-                        "/access-denied"
+                        "/service-access-denied"
                       );
 
                     await sendFrontendResponse(
