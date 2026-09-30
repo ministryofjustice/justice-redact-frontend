@@ -1,4 +1,4 @@
-const AUTH_RETURN_PATH_KEY =
+const AUTH_RETURN_PATH_ITEM =
     "justice-redact-auth-return-path";
 
 export function setAuthReturnPath(
@@ -13,7 +13,7 @@ export function setAuthReturnPath(
     }
 
     window.localStorage.setItem(
-        AUTH_RETURN_PATH_KEY,
+        AUTH_RETURN_PATH_ITEM,
         safePath,
     );
 }
@@ -22,11 +22,11 @@ export function consumeAuthReturnPath():
     string | null {
     const storedPath =
         window.localStorage.getItem(
-            AUTH_RETURN_PATH_KEY,
+            AUTH_RETURN_PATH_ITEM,
         );
 
     window.localStorage.removeItem(
-        AUTH_RETURN_PATH_KEY,
+        AUTH_RETURN_PATH_ITEM,
     );
 
     if (!storedPath) {
