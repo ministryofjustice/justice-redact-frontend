@@ -114,7 +114,9 @@ export default function ProcessingProgress({
         normalisedProgress,
     );
 
-    targetProgressRef.current = normalisedProgress;
+    useEffect(() => {
+        targetProgressRef.current = normalisedProgress;
+    }, [normalisedProgress]);
 
     useEffect(() => {
         if (prefersReducedMotion) {

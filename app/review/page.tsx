@@ -27,9 +27,9 @@ import ReviewPageHeader from "./components/ReviewPageHeader";
 import ReviewPagination from "./components/ReviewPagination";
 import ReviewStatusMessages from "./components/ReviewStatusMessages";
 import QuickHelpModal from "./components/QuickHelpModal";
-import BackLink from "../components/BackLink";
 import { clampRangeValue } from "./textRendering";
 import HighlightKey from "./components/HighlightKey";
+import ApplyRedactionsFailureAlert from "./components/ApplyRedactionsFailureAlert";
 import {
   getClosestElementWithAttribute,
   getTextOffsetWithinItem,
@@ -49,6 +49,9 @@ import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import {
+  consumeApplyRedactionsFailure,
+} from "../lib/applyRedactionsFailure";
 import BetaBanner from "../components/BetaBanner";
 
 import {
@@ -118,6 +121,14 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [reviewMode, setReviewMode] = useState<ReviewMode>("redact");
   const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
   const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
+  const [showApplyRedactionsFailure, setShowApplyRedactionsFailure] =
+    useState(() => {
+      if (!documentId) {
+        return false;
+      }
+
+      return consumeApplyRedactionsFailure(documentId);
+    });
   const [pageStatuses, setPageStatuses] = useState<Record<number, PageStatus>>({});
   const [isQuickHelpOpen, setIsQuickHelpOpen] = useState(false);
   const [isFindAndRedactOpen, setIsFindAndRedactOpen] = useState(false);
@@ -189,6 +200,17 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   const isPreviewMode = reviewMode === "preview";
   const isRedactMode = reviewMode === "redact";
+
+  useEffect(() => {
+    if (!showApplyRedactionsFailure) {
+      return;
+    }
+
+    window.scrollTo({
+      top: 0,
+      behavior: "auto",
+    });
+  }, [showApplyRedactionsFailure]);
 
   const ensureSearchPages =
     useCallback(async () => {
@@ -335,19 +357,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       );
     };
   });
-
-  useEffect(() => {
-    if (!isRedactMode && redactionRemoveMenu) {
-      setManualRedactionHover(
-        redactionRemoveMenu.manualId,
-        redactionRemoveMenu.redactionGroupId,
-        false
-      );
-
-      setRedactionRemoveMenu(null);
-      redactionRemoveTriggerRef.current = null;
-    }
-  }, [isRedactMode, redactionRemoveMenu]);
 
   useEffect(() => {
     if (!redactionRemoveMenu) {
@@ -536,9 +545,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           error,
         );
 
-        setDecisionSaveError(
-          "Your latest redaction changes could not be saved. Try making the change again.",
-        );
+        setDecisionSaveError(null);
 
         throw error;
       }
@@ -647,6 +654,18 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     return manualSelections.filter((selection) => selection.documentId === documentId);
   }
 
+  function showApplyFailureAlert() {
+    setApplyRedactionsError(null);
+    setDecisionSaveError(null);
+    setShowApplyRedactionsFailure(true);
+    setIsApplyingRedactions(false);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "auto",
+    });
+  }
+
   async function handleApplyRedactions() {
     if (!data || !documentId) return;
 
@@ -665,6 +684,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     try {
       setIsApplyingRedactions(true);
       setApplyRedactionsError(null);
+      setShowApplyRedactionsFailure(false);
 
       if (autosaveTimeoutRef.current) {
         clearTimeout(autosaveTimeoutRef.current);
@@ -707,13 +727,8 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       router.push(
         `/applying-redactions?documentId=${data.documentId}&runId=${applyResponse.runId}`
       );
-    } catch (err) {
-      setApplyRedactionsError(
-        err instanceof Error
-          ? err.message
-          : "Failed to apply redactions."
-      );
-      setIsApplyingRedactions(false);
+    } catch {
+      showApplyFailureAlert();
     }
   }
 
@@ -1375,6 +1390,14 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       });
   }
 
+  function handleReviewModeChange(nextMode: ReviewMode) {
+    if (nextMode !== "redact") {
+      closeRedactionRemoveMenu();
+    }
+
+    setReviewMode(nextMode);
+  }
+
   function closeRedactionRemoveMenu(
     restoreFocus = false
   ) {
@@ -1861,7 +1884,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       <ReviewControlsHeader
         filename={data?.filename || "Document"}
         reviewMode={reviewMode}
-        onReviewModeChange={setReviewMode}
+        onReviewModeChange={handleReviewModeChange}
         onQuickHelp={() => setIsQuickHelpOpen(true)}
         onFindAndRedact={() => {
           void openFindAndRedact();
@@ -1875,6 +1898,10 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       />
 
       <BetaBanner contained={false} />
+
+      {showApplyRedactionsFailure && (
+        <ApplyRedactionsFailureAlert />
+      )}
 
       <FindAndRedactModal
         isOpen={isFindAndRedactOpen}
@@ -1901,13 +1928,18 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         isOpen={isQuickHelpOpen}
         onClose={() => setIsQuickHelpOpen(false)}
       />
-      {selectedRangeStart === 0 && (
-        <div className="jr-review-intro__back">
-          <BackLink href="/upload" />
-        </div>
-      )}
 
-      <h1 className="govuk-heading-xl jr-review-intro__heading">
+      <h1
+        className={[
+          "govuk-heading-xl",
+          "jr-review-intro__heading",
+          showApplyRedactionsFailure
+            ? "jr-review-intro__heading--after-alert"
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         Make redactions
       </h1>
 

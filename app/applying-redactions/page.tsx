@@ -1,11 +1,20 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import {
+    Suspense,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 import BackLink from "../components/BackLink";
 import { ApiError, fetchJson } from "../lib/api";
+import {
+    setApplyRedactionsFailure,
+} from "../lib/applyRedactionsFailure";
 import ProcessingProgress, {
     normaliseProcessingProgress,
 } from "../components/ProcessingProgress";
@@ -16,22 +25,6 @@ type RedactionRunStatusResponse = {
     status: string;
     processingProgress: number;
 };
-
-function LinearLoadingBar({ label = "Loading" }: { label?: string }) {
-    return (
-        <div
-            className="jr-linear-loading"
-            role="status"
-            aria-live="polite"
-            aria-label={label}
-        >
-            <div className="jr-linear-loading__track" aria-hidden="true">
-                <span className="jr-linear-loading__bar jr-linear-loading__bar--primary" />
-            </div>
-            <span className="govuk-visually-hidden">{label}</span>
-        </div>
-    );
-}
 
 function ApplyingRedactionsContent() {
     const router = useRouter();
@@ -55,11 +48,17 @@ function ApplyingRedactionsContent() {
     const [isCancelling, setIsCancelling] = useState(false);
     const cancellationRequestedRef = useRef(false);
 
-    const displayedError = !documentId
-        ? "Missing document ID."
-        : !runId
-            ? "Missing redaction run ID."
-            : error;
+    const returnToReviewWithApplyFailure = useCallback(() => {
+        if (!documentId) {
+            return;
+        }
+
+        setApplyRedactionsFailure(documentId);
+
+        router.replace(
+            `/review?documentId=${encodeURIComponent(documentId)}`,
+        );
+    }, [documentId, router]);
 
     async function handleBackToReview() {
         if (!documentId || !runId || isCancelling) {
@@ -170,12 +169,16 @@ function ApplyingRedactionsContent() {
                 }
 
                 if (data.status === "failed") {
-                    setError("Failed to apply redactions.");
+                    returnToReviewWithApplyFailure();
                     return;
                 }
 
                 if (data.status === "cancelled") {
-                    setError("This redaction run was cancelled.");
+                    router.replace(
+                        `/review?documentId=${encodeURIComponent(
+                            currentDocumentId,
+                        )}`,
+                    );
                     return;
                 }
 
@@ -183,25 +186,110 @@ function ApplyingRedactionsContent() {
             } catch (err) {
                 if (!isActive) return;
 
-                if (err instanceof DOMException && err.name === "AbortError") {
+                if (
+                    err instanceof DOMException &&
+                    err.name === "AbortError"
+                ) {
                     return;
                 }
 
-                if (err instanceof ApiError && err.retryable) {
-                    console.warn("Temporary redaction status polling failure", {
-                        status: err.status,
-                        message: err.message,
-                    });
-
-                    scheduleNextPoll();
+                if (
+                    err instanceof ApiError &&
+                    err.status === 401
+                ) {
                     return;
                 }
 
-                setError(
-                    err instanceof Error
-                        ? err.message
-                        : "Unable to check the redaction status."
+                console.error(
+                    "Redaction status polling failed",
+                    err,
                 );
+
+                try {
+                    await fetchJson(
+                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                            currentDocumentId,
+                        )}/redaction-runs/${encodeURIComponent(
+                            currentRunId,
+                        )}/cancel`,
+                        {
+                            method: "POST",
+                        },
+                    );
+
+                    if (!isActive) return;
+
+                    returnToReviewWithApplyFailure();
+                } catch (cancelError) {
+                    if (!isActive) return;
+
+                    if (
+                        cancelError instanceof ApiError &&
+                        cancelError.status === 401
+                    ) {
+                        return;
+                    }
+
+                    try {
+                        const workflow = await fetchJson<{
+                            documentId: string;
+                            status: string;
+                            preferredPage: string;
+                            currentRedactionRunId: string | null;
+                            allowedPages: string[];
+                        }>(
+                            `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                                currentDocumentId,
+                            )}/workflow`,
+                            {
+                                cache: "no-store",
+                            },
+                        );
+
+                        if (!isActive) return;
+
+                        if (workflow.status === "redaction_complete") {
+                            router.replace(
+                                `/export?documentId=${encodeURIComponent(
+                                    currentDocumentId,
+                                )}&runId=${encodeURIComponent(
+                                    currentRunId,
+                                )}`,
+                            );
+                            return;
+                        }
+
+                        if (
+                            workflow.status === "redaction_failed" ||
+                            workflow.status === "ready_for_review"
+                        ) {
+                            setApplyRedactionsFailure(
+                                currentDocumentId,
+                            );
+
+                            router.replace(
+                                `/review?documentId=${encodeURIComponent(
+                                    currentDocumentId,
+                                )}`,
+                            );
+
+                            return;
+                        }
+
+                        scheduleNextPoll();
+                    } catch (workflowError) {
+                        if (!isActive) return;
+
+                        if (
+                            workflowError instanceof ApiError &&
+                            workflowError.status === 401
+                        ) {
+                            return;
+                        }
+
+                        scheduleNextPoll();
+                    }
+                }
             }
         }
 
@@ -222,6 +310,7 @@ function ApplyingRedactionsContent() {
         isCheckingWorkflow,
         workflowErrorVariant,
         router,
+        returnToReviewWithApplyFailure,
     ]);
 
     if (isCheckingWorkflow) {
@@ -237,66 +326,52 @@ function ApplyingRedactionsContent() {
         );
     }
 
+    if (
+        !documentId ||
+        !runId ||
+        error
+    ) {
+        return (
+            <ServiceErrorPage
+                variant={500}
+                documentId={documentId}
+            />
+        );
+    }
+
     return (
         <div className="govuk-grid-row">
-            {displayedError ? (
-                <div className="govuk-grid-column-two-thirds">
-                    <section aria-labelledby="apply-redactions-error-title">
-                        <div
-                            className="govuk-error-summary"
-                            data-module="govuk-error-summary"
-                            aria-labelledby="apply-redactions-error-title"
-                            role="alert"
-                            tabIndex={-1}
-                        >
-                            <h2
-                                className="govuk-error-summary__title"
-                                id="apply-redactions-error-title"
-                            >
-                                There is a problem
-                            </h2>
+            <div className="govuk-grid-column-two-thirds">
+                <section aria-labelledby="applying-redactions-heading">
+                    <BackLink
+                        href={
+                            documentId
+                                ? `/review?documentId=${encodeURIComponent(
+                                    documentId,
+                                )}`
+                                : "/upload"
+                        }
+                        onBack={handleBackToReview}
+                        disabled={isCancelling}
+                    >
+                        {isCancelling
+                            ? "Returning to review..."
+                            : "Back"}
+                    </BackLink>
 
-                            <div className="govuk-error-summary__body">
-                                <p className="govuk-body">{displayedError}</p>
-                            </div>
-                        </div>
-                    </section>
-                </div>
-            ) : (
-                <>
-                    <div className="govuk-grid-column-full">
-                        <section aria-labelledby="applying-redactions-heading">
-                            <BackLink
-                                href={
-                                    documentId
-                                        ? `/review?documentId=${encodeURIComponent(
-                                            documentId
-                                        )}`
-                                        : "/upload"
-                                }
-                                onBack={handleBackToReview}
-                                disabled={isCancelling}
-                            >
-                                {isCancelling
-                                    ? "Returning to review..."
-                                    : "Back"}
-                            </BackLink>
-                            <h1
-                                className="govuk-heading-xl"
-                                id="applying-redactions-heading"
-                            >
-                                Your redactions are being applied
-                            </h1>
-                            <div className="govuk-grid-column-full">
-                                <ProcessingProgress
-                                    progress={processingProgress}
-                                    ariaLabel="Applying redactions progress"
-                                />
-                            </div>
-                        </section>
-                    </div>
-                </>
-            )}
+                    <h1
+                        className="govuk-heading-xl"
+                        id="applying-redactions-heading"
+                    >
+                        Your redactions are being applied
+                    </h1>
+
+                    <ProcessingProgress
+                        progress={processingProgress}
+                        ariaLabel="Applying redactions progress"
+                    />
+                </section>
+            </div>
         </div>
     );
 }

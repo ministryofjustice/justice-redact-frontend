@@ -9,7 +9,6 @@ import type {
 } from "./types";
 
 import {
-    getCachedReviewPages,
     loadReviewPages,
 } from "./reviewDataCache";
 
@@ -76,27 +75,6 @@ export function useReviewPages(
         }
 
         let isActive = true;
-
-        const cached =
-            getCachedReviewPages(
-                documentId,
-                pageStart,
-                pageEnd
-            );
-
-        if (cached) {
-            setLoaded({
-                key: requestKey,
-                pages: cached,
-            });
-
-            setErrorState({
-                key: null,
-                message: null,
-            });
-
-            return;
-        }
 
         async function loadPages() {
             try {

@@ -1,4 +1,13 @@
-export type ServiceErrorVariant = 400 | 403 | 404 | 500 | 503;
+import Link from "next/link";
+
+export type ServiceErrorVariant =
+    | 400
+    | 403
+    | 404
+    | 500
+    | 503
+    | "resume-link-not-recognised"
+    | "resume-link-expired";
 
 type ServiceErrorPageProps = {
     variant: ServiceErrorVariant;
@@ -43,9 +52,9 @@ const ERROR_CONTENT: Record<
                 <p className="govuk-body">
                     <a
                         className="govuk-link"
-                        href="mailto:JusticeRedactTeam@justice.gov.uk"
+                        href="https://teams.cloud.microsoft/l/channel/19%3AnSrrtaG6WkBXdq_gtdyfV5Jo-zTIEA1vs7cEN01EaCM1%40thread.tacv2/Justice%20Redact%20Support?groupId=63036662-7757-4a70-a99d-382575f72b11&tenantId=c6874728-71e6-41fe-a9e1-2e8c36776ad8"
                     >
-                        Contact the Justice Redact team
+                        Contact the Justice Redact team on Microsoft Teams
                     </a>{" "}
                     if you need help.
                 </p>
@@ -75,16 +84,32 @@ const ERROR_CONTENT: Record<
     },
 
     500: {
-        heading: "Sorry, there is a problem with the service",
+        heading: "Sorry, there is a problem",
         body: (
             <>
                 <p className="govuk-body">
-                    Try reloading the page. You can do this by pressing F5 on a PC or
-                    cmd + R on a mac.
+                    Try reloading the page. You can do this by pressing F5.
                 </p>
 
                 <p className="govuk-body">
-                    If the page still does not load, try again later.
+                    If the page still does not load, try to{" "}
+                    <Link
+                        href="/upload"
+                        className="govuk-link"
+                    >
+                        upload the file again
+                    </Link>
+                    .
+                </p>
+
+                <p className="govuk-body">
+                    <Link
+                        href="/contact"
+                        className="govuk-link"
+                    >
+                        Contact the Justice Redact team
+                    </Link>{" "}
+                    if you need help.
                 </p>
             </>
         ),
@@ -96,6 +121,37 @@ const ERROR_CONTENT: Record<
             <>
                 <p className="govuk-body">
                     Try again soon.
+                </p>
+            </>
+        ),
+    },
+
+    "resume-link-not-recognised": {
+        heading: "Your link was not recognised",
+        body: (
+            <>
+                <p className="govuk-body">
+                    Go back to the email and select the link again.
+                </p>
+
+                <p className="govuk-body">
+                    You need to open the link in the same browser you&apos;re on now.
+                </p>
+            </>
+        ),
+    },
+
+    "resume-link-expired": {
+        heading: "Your link has expired",
+        body: (
+            <>
+                <p className="govuk-body">
+                    You cannot edit this file because the link you selected is more than 30 days old.
+                </p>
+
+                <p className="govuk-body">
+                    Instead, use Adobe Acrobat to make changes to the document - you&apos;ll need to
+                    sanitise the document when exporting it.
                 </p>
             </>
         ),
@@ -114,11 +170,15 @@ export default function ServiceErrorPage({
 
                 {content.body}
 
-                {variant !== 403 && variant !== 503 && (
-                    <p className="govuk-body">
-                        Contact the Justice Redact team
-                    </p>
-                )}
+                {variant !== 403 &&
+                    variant !== 500 &&
+                    variant !== 503 &&
+                    variant !== "resume-link-not-recognised" &&
+                    variant !== "resume-link-expired" && (
+                        <p className="govuk-body">
+                            Contact the Justice Redact team
+                        </p>
+                    )}
             </div>
         </div>
     );

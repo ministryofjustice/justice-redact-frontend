@@ -1,7 +1,11 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import {
+    useRouter,
+    useSearchParams,
+} from "next/navigation";
+
 import { fetchJson } from "../lib/api";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
@@ -16,18 +20,34 @@ function SubjectDetailsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const documentId = searchParams.get("documentId");
+    const documentId =
+        searchParams.get("documentId");
 
     const {
         isChecking: isCheckingWorkflow,
         errorVariant: workflowErrorVariant,
-    } = useWorkflowGuard("subject-details", documentId);
+    } = useWorkflowGuard(
+        "subject-details",
+        documentId,
+    );
 
-    const [subjectName, setSubjectName] = useState("");
-    const [subjectPrisonNumber, setSubjectPrisonNumber] = useState("");
-    const [error, setError] = useState<string | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isAbandoning, setIsAbandoning] = useState(false);
+    const [subjectName, setSubjectName] =
+        useState("");
+
+    const [
+        subjectPrisonNumber,
+        setSubjectPrisonNumber,
+    ] = useState("");
+
+    const [error, setError] =
+        useState<string | null>(null);
+
+    const [isSubmitting, setIsSubmitting] =
+        useState(false);
+
+    const [isAbandoning, setIsAbandoning] =
+        useState(false);
+
     const otherPhrases = "";
 
     if (isCheckingWorkflow) {
@@ -44,7 +64,10 @@ function SubjectDetailsContent() {
     }
 
     async function handleBackToUpload() {
-        if (!documentId || isAbandoning) {
+        if (
+            !documentId ||
+            isAbandoning
+        ) {
             return;
         }
 
@@ -54,11 +77,11 @@ function SubjectDetailsContent() {
 
             await fetchJson(
                 `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
-                    documentId
+                    documentId,
                 )}/abandon`,
                 {
                     method: "POST",
-                }
+                },
             );
 
             router.push("/upload");
@@ -66,15 +89,18 @@ function SubjectDetailsContent() {
             setError(
                 err instanceof Error
                     ? err.message
-                    : "Unable to return to upload. Try again."
+                    : "Unable to return to upload. Try again.",
             );
+
             setIsAbandoning(false);
         }
     }
 
     async function handleContinue() {
         if (!documentId) {
-            setError("Missing document ID.");
+            setError(
+                "Missing document ID.",
+            );
             return;
         }
 
@@ -83,23 +109,35 @@ function SubjectDetailsContent() {
             setError(null);
 
             await fetchJson<ProcessDocumentResponse>(
-                `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/process`,
+                `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                    documentId,
+                )}/process`,
                 {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json",
+                        "Content-Type":
+                            "application/json",
                     },
                     body: JSON.stringify({
                         subjectName,
                         subjectPrisonNumber,
                         otherPhrases,
                     }),
-                }
+                },
             );
 
-            router.push(`/processing?documentId=${documentId}`);
+            router.push(
+                `/processing?documentId=${encodeURIComponent(
+                    documentId,
+                )}`,
+            );
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Something went wrong.");
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Something went wrong.",
+            );
+
             setIsSubmitting(false);
         }
     }
@@ -110,7 +148,10 @@ function SubjectDetailsContent() {
                 <BackLink
                     href="/upload"
                     onBack={handleBackToUpload}
-                    disabled={isAbandoning || isSubmitting}
+                    disabled={
+                        isAbandoning ||
+                        isSubmitting
+                    }
                 >
                     {isAbandoning
                         ? "Returning to upload..."
@@ -125,69 +166,117 @@ function SubjectDetailsContent() {
                         role="alert"
                         tabIndex={-1}
                     >
-                        <h2 className="govuk-error-summary__title" id="error-summary-title">
+                        <h2
+                            className="govuk-error-summary__title"
+                            id="error-summary-title"
+                        >
                             There is a problem
                         </h2>
 
                         <div className="govuk-error-summary__body">
                             <ul className="govuk-list govuk-error-summary__list">
                                 <li>
-                                    <a href="#subject-details-error">{error}</a>
+                                    <a
+                                        href="#subject-details-error"
+                                        className="govuk-error-summary__link"
+                                    >
+                                        {error}
+                                    </a>
                                 </li>
                             </ul>
                         </div>
                     </div>
                 )}
 
-                <h1 className="govuk-heading-xl">Phrases to allow</h1>
+                <h1 className="govuk-heading-xl">
+                    Enter the person&apos;s details
+                </h1>
+
+                <p className="govuk-body">
+                    These details will not be included in the AI suggestions.
+                </p>
+
+                <p className="govuk-body">
+                    Justice Redact only reviews the file you uploaded. It does
+                    not review any other information or systems.
+                </p>
 
                 <form
                     noValidate
                     onSubmit={(event) => {
                         event.preventDefault();
-                        handleContinue();
+                        void handleContinue();
                     }}
                 >
                     {error && (
-                        <p id="subject-details-error" className="govuk-error-message">
-                            <span className="govuk-visually-hidden">Error:</span> {error}
+                        <p
+                            id="subject-details-error"
+                            className="govuk-error-message"
+                        >
+                            <span className="govuk-visually-hidden">
+                                Error:
+                            </span>{" "}
+                            {error}
                         </p>
                     )}
 
                     <div className="govuk-form-group">
-                        <label className="govuk-label govuk-label--m" htmlFor="subject-name">
-                            Subject name
+                        <label
+                            className="govuk-label govuk-label--m"
+                            htmlFor="subject-name"
+                        >
+                            Full name (optional)
                         </label>
+
                         <input
                             className="govuk-input"
                             id="subject-name"
                             name="subjectName"
                             type="text"
+                            autoComplete="name"
                             value={subjectName}
-                            onChange={(e) => setSubjectName(e.target.value)}
+                            onChange={(event) =>
+                                setSubjectName(
+                                    event.target.value,
+                                )
+                            }
                         />
                     </div>
 
                     <div className="govuk-form-group">
-                        <label className="govuk-label govuk-label--m" htmlFor="subject-prison-number">
-                            Subject prison number
+                        <label
+                            className="govuk-label govuk-label--m"
+                            htmlFor="subject-prison-number"
+                        >
+                            Prison number (optional)
                         </label>
+
                         <input
                             className="govuk-input"
                             id="subject-prison-number"
                             name="subjectPrisonNumber"
                             type="text"
-                            value={subjectPrisonNumber}
-                            onChange={(e) => setSubjectPrisonNumber(e.target.value)}
+                            value={
+                                subjectPrisonNumber
+                            }
+                            onChange={(event) =>
+                                setSubjectPrisonNumber(
+                                    event.target.value,
+                                )
+                            }
                         />
                     </div>
 
                     <button
                         type="submit"
                         className="govuk-button"
+                        data-module="govuk-button"
                         disabled={isSubmitting}
+                        aria-disabled={isSubmitting}
                     >
-                        {isSubmitting ? "Starting processing..." : "Continue"}
+                        {isSubmitting
+                            ? "Starting processing..."
+                            : "Continue"}
                     </button>
                 </form>
             </div>

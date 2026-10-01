@@ -1,3 +1,7 @@
+import {
+    setAuthReturnPath,
+} from "./authReturnPath";
+
 export class ApiError extends Error {
     constructor(
         message: string,
@@ -49,11 +53,20 @@ async function readErrorBody(response: Response): Promise<unknown> {
     }
 }
 
+export type FetchJsonInit = RequestInit & {
+    redirectOnUnauthorized?: boolean;
+};
+
 export async function fetchJson<T>(
     input: RequestInfo | URL,
-    init?: RequestInit,
+    init?: FetchJsonInit,
 ): Promise<T> {
-    const headers = new Headers(init?.headers);
+    const {
+        redirectOnUnauthorized = true,
+        ...requestInit
+    } = init ?? {};
+
+    const headers = new Headers(requestInit.headers);
 
     if (!headers.has("Accept")) {
         headers.set("Accept", "application/json");
@@ -63,7 +76,8 @@ export async function fetchJson<T>(
 
     try {
         response = await fetch(input, {
-            ...init,
+            ...requestInit,
+            credentials: requestInit.credentials ?? "include",
             headers,
         });
     } catch (error) {
@@ -76,6 +90,18 @@ export async function fetchJson<T>(
             null,
             true,
         );
+    }
+
+    if (
+        response.status === 401 &&
+        redirectOnUnauthorized &&
+        typeof window !== "undefined"
+    ) {
+        setAuthReturnPath(
+            `${window.location.pathname}${window.location.search}`,
+        );
+
+        window.location.replace("/");
     }
 
     if (!response.ok) {
