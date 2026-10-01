@@ -2,7 +2,7 @@ export default function ApplyRedactionsFailureAlert() {
     return (
         <div
             role="region"
-            className="moj-alert moj-alert--error moj-alert--with-heading"
+            className="moj-alert moj-alert--error moj-alert--with-heading jr-review-apply-error-alert"
             aria-label="error: There was a problem applying redactions"
             data-module="moj-alert"
         >

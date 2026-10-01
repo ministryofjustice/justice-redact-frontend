@@ -596,7 +596,7 @@ export default function UploadPage() {
             to redact more or less than the AI suggestions show.
           </p>
 
-          <div className="jr-upload-responsibilities">
+          <div className="govuk-warning-text">
             <span
               className="govuk-warning-text__icon"
               aria-hidden="true"
@@ -604,17 +604,20 @@ export default function UploadPage() {
               !
             </span>
 
-            <div>
-              <p className="govuk-body govuk-!-margin-bottom-1">
-                <strong>
-                  You&apos;re responsible for:
-                </strong>
+            <div className="govuk-warning-text__text">
+              <span className="govuk-visually-hidden">
+                Warning
+              </span>
+
+              <p className="govuk-body govuk-!-font-weight-bold govuk-!-margin-bottom-1">
+                You&apos;re responsible for:
               </p>
 
               <ul className="govuk-list govuk-list--bullet govuk-!-font-weight-bold govuk-!-margin-bottom-0">
                 <li>
                   the final decision on what to redact and disclose
                 </li>
+
                 <li>
                   applying relevant legislation and policies when redacting, for
                   example the Data Protection Act 2018

@@ -545,9 +545,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           error,
         );
 
-        setDecisionSaveError(
-          "Your latest redaction changes could not be saved. Try making the change again.",
-        );
+        setDecisionSaveError(null);
 
         throw error;
       }
@@ -658,6 +656,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   function showApplyFailureAlert() {
     setApplyRedactionsError(null);
+    setDecisionSaveError(null);
     setShowApplyRedactionsFailure(true);
     setIsApplyingRedactions(false);
 
