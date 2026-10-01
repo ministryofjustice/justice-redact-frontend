@@ -52,9 +52,9 @@ const ERROR_CONTENT: Record<
                 <p className="govuk-body">
                     <a
                         className="govuk-link"
-                        href="mailto:JusticeRedactTeam@justice.gov.uk"
+                        href="https://teams.cloud.microsoft/l/channel/19%3AnSrrtaG6WkBXdq_gtdyfV5Jo-zTIEA1vs7cEN01EaCM1%40thread.tacv2/Justice%20Redact%20Support?groupId=63036662-7757-4a70-a99d-382575f72b11&tenantId=c6874728-71e6-41fe-a9e1-2e8c36776ad8"
                     >
-                        Contact the Justice Redact team
+                        Contact the Justice Redact team on Microsoft Teams
                     </a>{" "}
                     if you need help.
                 </p>
