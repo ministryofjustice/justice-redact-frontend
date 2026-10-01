@@ -542,7 +542,12 @@ main {
 }
 
 .jr-review-intro__heading {
+  margin-top: govuk.govuk-spacing(5);
   margin-bottom: govuk.govuk-spacing(5);
+}
+
+.jr-review-intro__heading--after-alert {
+  margin-top: 0;
 }
 
 .jr-review-page {

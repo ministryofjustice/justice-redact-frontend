@@ -1929,7 +1929,17 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         onClose={() => setIsQuickHelpOpen(false)}
       />
 
-      <h1 className="govuk-heading-xl jr-review-intro__heading">
+      <h1
+        className={[
+          "govuk-heading-xl",
+          "jr-review-intro__heading",
+          showApplyRedactionsFailure
+            ? "jr-review-intro__heading--after-alert"
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         Make redactions
       </h1>
 
