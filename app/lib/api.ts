@@ -1,3 +1,7 @@
+import {
+    setAuthReturnPath,
+} from "./authReturnPath";
+
 export class ApiError extends Error {
     constructor(
         message: string,
@@ -93,6 +97,10 @@ export async function fetchJson<T>(
         redirectOnUnauthorized &&
         typeof window !== "undefined"
     ) {
+        setAuthReturnPath(
+            `${window.location.pathname}${window.location.search}`,
+        );
+
         window.location.replace("/");
     }
 

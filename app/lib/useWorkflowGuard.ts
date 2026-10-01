@@ -19,7 +19,10 @@ type WorkflowGuardResult = {
     isStaleRevision: boolean;
 };
 
-function getErrorVariant(error: unknown): ServiceErrorVariant {
+function getErrorVariant(
+    error: unknown,
+    currentPage: WorkflowPage,
+): ServiceErrorVariant {
     if (!(error instanceof ApiError)) {
         return 500;
     }
@@ -33,7 +36,15 @@ function getErrorVariant(error: unknown): ServiceErrorVariant {
     }
 
     if (error.status === 404) {
+        if (currentPage === "review") {
+            return "resume-link-not-recognised";
+        }
+
         return 404;
+    }
+
+    if (error.status === 410) {
+        return "resume-link-expired";
     }
 
     if (
@@ -160,7 +171,9 @@ export function useWorkflowGuard(
                 }
 
                 setWorkflow(null);
-                setErrorVariant(getErrorVariant(error));
+                setErrorVariant(
+                    getErrorVariant(error, currentPage),
+                );
                 setIsChecking(false);
             }
         }

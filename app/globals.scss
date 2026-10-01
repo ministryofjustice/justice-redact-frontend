@@ -436,12 +436,20 @@ main {
 }
 
 .jr-find-and-redact-result .govuk-checkboxes__item {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
   width: 100%;
   margin-bottom: 0;
 }
 
+.jr-find-and-redact-result .govuk-checkboxes__input {
+  flex: 0 0 auto;
+}
+
 .jr-find-and-redact-result__label {
-  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: none;
   white-space: pre-line;
 }
@@ -522,8 +530,24 @@ main {
   margin-bottom: 0;
 }
 
+.jr-review-apply-error-alert {
+  margin-top: 30px;
+}
+
+.jr-review-apply-error-alert .govuk-link,
+.jr-review-apply-error-alert .govuk-link:visited,
+.jr-review-apply-error-alert .govuk-link:hover,
+.jr-review-apply-error-alert .govuk-link:active {
+  color: govuk.govuk-colour("black");
+}
+
 .jr-review-intro__heading {
+  margin-top: govuk.govuk-spacing(5);
   margin-bottom: govuk.govuk-spacing(5);
+}
+
+.jr-review-intro__heading--after-alert {
+  margin-top: 0;
 }
 
 .jr-review-page {
@@ -955,22 +979,6 @@ main {
 .jr-upload-api-alert {
   width: 100%;
   margin-bottom: 30px;
-}
-
-.jr-upload-page .jr-upload-responsibilities {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.jr-upload-page .jr-upload-responsibilities .govuk-warning-text__icon {
-  position: static;
-  flex: 0 0 auto;
-}
-
-.jr-upload-page .jr-upload-responsibilities .govuk-list {
-  margin-left: 20px;
 }
 
 /* Upload page */
