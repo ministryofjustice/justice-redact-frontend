@@ -538,7 +538,7 @@ main {
 .jr-review-apply-error-alert .govuk-link:visited,
 .jr-review-apply-error-alert .govuk-link:hover,
 .jr-review-apply-error-alert .govuk-link:active {
-  color: inherit;
+  color: govuk.govuk-colour("black");
 }
 
 .jr-review-intro__heading {
