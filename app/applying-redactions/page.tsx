@@ -230,15 +230,65 @@ function ApplyingRedactionsContent() {
                         return;
                     }
 
-                    setApplyRedactionsFailure(
-                        currentDocumentId,
-                    );
+                    try {
+                        const workflow = await fetchJson<{
+                            documentId: string;
+                            status: string;
+                            preferredPage: string;
+                            currentRedactionRunId: string | null;
+                            allowedPages: string[];
+                        }>(
+                            `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                                currentDocumentId,
+                            )}/workflow`,
+                            {
+                                cache: "no-store",
+                            },
+                        );
 
-                    router.replace(
-                        `/review?documentId=${encodeURIComponent(
-                            currentDocumentId,
-                        )}`,
-                    );
+                        if (!isActive) return;
+
+                        if (workflow.status === "redaction_complete") {
+                            router.replace(
+                                `/export?documentId=${encodeURIComponent(
+                                    currentDocumentId,
+                                )}&runId=${encodeURIComponent(
+                                    currentRunId,
+                                )}`,
+                            );
+                            return;
+                        }
+
+                        if (
+                            workflow.status === "redaction_failed" ||
+                            workflow.status === "ready_for_review"
+                        ) {
+                            setApplyRedactionsFailure(
+                                currentDocumentId,
+                            );
+
+                            router.replace(
+                                `/review?documentId=${encodeURIComponent(
+                                    currentDocumentId,
+                                )}`,
+                            );
+
+                            return;
+                        }
+
+                        scheduleNextPoll();
+                    } catch (workflowError) {
+                        if (!isActive) return;
+
+                        if (
+                            workflowError instanceof ApiError &&
+                            workflowError.status === 401
+                        ) {
+                            return;
+                        }
+
+                        scheduleNextPoll();
+                    }
                 }
             }
         }
