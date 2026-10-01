@@ -196,19 +196,7 @@ export default function ConfirmEmailPage() {
     }
 
     if (state === "checking") {
-        return (
-            <div className="govuk-grid-row">
-                <div className="govuk-grid-column-two-thirds">
-                    <h1 className="govuk-heading-xl">
-                        Confirming your email address
-                    </h1>
-
-                    <p className="govuk-body">
-                        Please wait.
-                    </p>
-                </div>
-            </div>
-        );
+        return null;
     }
 
     if (state === "service-error") {

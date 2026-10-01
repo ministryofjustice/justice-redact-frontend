@@ -436,12 +436,20 @@ main {
 }
 
 .jr-find-and-redact-result .govuk-checkboxes__item {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
   width: 100%;
   margin-bottom: 0;
 }
 
+.jr-find-and-redact-result .govuk-checkboxes__input {
+  flex: 0 0 auto;
+}
+
 .jr-find-and-redact-result__label {
-  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: none;
   white-space: pre-line;
 }
