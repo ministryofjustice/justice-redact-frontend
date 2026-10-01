@@ -48,6 +48,9 @@ import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import {
+  consumeApplyRedactionsFailure,
+} from "../lib/applyRedactionsFailure";
 import BetaBanner from "../components/BetaBanner";
 
 import {
@@ -117,6 +120,14 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [reviewMode, setReviewMode] = useState<ReviewMode>("redact");
   const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
   const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
+  const [showApplyRedactionsFailure, setShowApplyRedactionsFailure] =
+    useState(() => {
+      if (!documentId) {
+        return false;
+      }
+
+      return consumeApplyRedactionsFailure(documentId);
+    });
   const [pageStatuses, setPageStatuses] = useState<Record<number, PageStatus>>({});
   const [isQuickHelpOpen, setIsQuickHelpOpen] = useState(false);
   const [isFindAndRedactOpen, setIsFindAndRedactOpen] = useState(false);
@@ -188,6 +199,17 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   const isPreviewMode = reviewMode === "preview";
   const isRedactMode = reviewMode === "redact";
+
+  useEffect(() => {
+    if (!showApplyRedactionsFailure) {
+      return;
+    }
+
+    window.scrollTo({
+      top: 0,
+      behavior: "auto",
+    });
+  }, [showApplyRedactionsFailure]);
 
   const ensureSearchPages =
     useCallback(async () => {
@@ -633,6 +655,17 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     return manualSelections.filter((selection) => selection.documentId === documentId);
   }
 
+  function showApplyFailureAlert() {
+    setApplyRedactionsError(null);
+    setShowApplyRedactionsFailure(true);
+    setIsApplyingRedactions(false);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "auto",
+    });
+  }
+
   async function handleApplyRedactions() {
     if (!data || !documentId) return;
 
@@ -651,6 +684,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     try {
       setIsApplyingRedactions(true);
       setApplyRedactionsError(null);
+      setShowApplyRedactionsFailure(false);
 
       if (autosaveTimeoutRef.current) {
         clearTimeout(autosaveTimeoutRef.current);
@@ -693,13 +727,8 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       router.push(
         `/applying-redactions?documentId=${data.documentId}&runId=${applyResponse.runId}`
       );
-    } catch (err) {
-      setApplyRedactionsError(
-        err instanceof Error
-          ? err.message
-          : "Failed to apply redactions."
-      );
-      setIsApplyingRedactions(false);
+    } catch {
+      showApplyFailureAlert();
     }
   }
 
@@ -1869,6 +1898,58 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       />
 
       <BetaBanner contained={false} />
+
+      {showApplyRedactionsFailure && (
+        <div
+          role="region"
+          className="moj-alert moj-alert--error moj-alert--with-heading"
+          aria-label="error: There was a problem applying redactions"
+          data-module="moj-alert"
+        >
+          <div>
+            <svg
+              className="moj-alert__icon"
+              role="presentation"
+              focusable="false"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 30 30"
+              height="30"
+              width="30"
+            >
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M20.1777 2.5H9.82233L2.5 9.82233V20.1777L9.82233 27.5H20.1777L27.5 20.1777V9.82233L20.1777 2.5ZM10.9155 8.87769L15.0001 12.9623L19.0847 8.87771L21.1224 10.9154L17.0378 15L21.1224 19.0846L19.0847 21.1222L15.0001 17.0376L10.9155 21.1223L8.87782 19.0846L12.9624 15L8.87783 10.9153L10.9155 8.87769Z"
+                fill="currentColor"
+              />
+            </svg>
+          </div>
+
+          <div className="moj-alert__content">
+            <h2 className="moj-alert__heading">
+              There was a problem applying redactions
+            </h2>
+            Try again or{" "}
+            <a
+              href="/contact"
+              className="govuk-link"
+            >
+              contact the Justice Redact team
+            </a>{" "}
+            if you need help.
+          </div>
+
+          <div className="moj-alert__action">
+            <button
+              type="button"
+              className="moj-alert__dismiss"
+              hidden
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       <FindAndRedactModal
         isOpen={isFindAndRedactOpen}

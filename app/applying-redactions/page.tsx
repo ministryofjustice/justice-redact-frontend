@@ -1,11 +1,20 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import {
+    Suspense,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 import BackLink from "../components/BackLink";
-import { fetchJson } from "../lib/api";
+import { ApiError, fetchJson } from "../lib/api";
+import {
+    setApplyRedactionsFailure,
+} from "../lib/applyRedactionsFailure";
 import ProcessingProgress, {
     normaliseProcessingProgress,
 } from "../components/ProcessingProgress";
@@ -38,6 +47,18 @@ function ApplyingRedactionsContent() {
 
     const [isCancelling, setIsCancelling] = useState(false);
     const cancellationRequestedRef = useRef(false);
+
+    const returnToReviewWithApplyFailure = useCallback(() => {
+        if (!documentId) {
+            return;
+        }
+
+        setApplyRedactionsFailure(documentId);
+
+        router.replace(
+            `/review?documentId=${encodeURIComponent(documentId)}`,
+        );
+    }, [documentId, router]);
 
     async function handleBackToReview() {
         if (!documentId || !runId || isCancelling) {
@@ -148,12 +169,16 @@ function ApplyingRedactionsContent() {
                 }
 
                 if (data.status === "failed") {
-                    setError("Failed to apply redactions.");
+                    returnToReviewWithApplyFailure();
                     return;
                 }
 
                 if (data.status === "cancelled") {
-                    setError("This redaction run was cancelled.");
+                    router.replace(
+                        `/review?documentId=${encodeURIComponent(
+                            currentDocumentId,
+                        )}`,
+                    );
                     return;
                 }
 
@@ -168,14 +193,53 @@ function ApplyingRedactionsContent() {
                     return;
                 }
 
+                if (
+                    err instanceof ApiError &&
+                    err.status === 401
+                ) {
+                    return;
+                }
+
                 console.error(
                     "Redaction status polling failed",
                     err,
                 );
 
-                setError(
-                    "Unable to check the redaction status.",
-                );
+                try {
+                    await fetchJson(
+                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                            currentDocumentId,
+                        )}/redaction-runs/${encodeURIComponent(
+                            currentRunId,
+                        )}/cancel`,
+                        {
+                            method: "POST",
+                        },
+                    );
+
+                    if (!isActive) return;
+
+                    returnToReviewWithApplyFailure();
+                } catch (cancelError) {
+                    if (!isActive) return;
+
+                    if (
+                        cancelError instanceof ApiError &&
+                        cancelError.status === 401
+                    ) {
+                        return;
+                    }
+
+                    setApplyRedactionsFailure(
+                        currentDocumentId,
+                    );
+
+                    router.replace(
+                        `/review?documentId=${encodeURIComponent(
+                            currentDocumentId,
+                        )}`,
+                    );
+                }
             }
         }
 
@@ -196,6 +260,7 @@ function ApplyingRedactionsContent() {
         isCheckingWorkflow,
         workflowErrorVariant,
         router,
+        returnToReviewWithApplyFailure,
     ]);
 
     if (isCheckingWorkflow) {
