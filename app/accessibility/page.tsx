@@ -1,3 +1,9 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "Accessibility statement for Justice Redact",
+};
+
 export default function AccessibilityPage() {
     return (
         <div className="govuk-grid-row">

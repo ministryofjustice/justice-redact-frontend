@@ -576,9 +576,7 @@ export default function UploadPage() {
           )}
 
           <h1 className="govuk-heading-xl">
-            {validationError
-              ? "Upload a document"
-              : "Upload a file"}
+            Upload a file
           </h1>
 
           <p className="govuk-body-l">

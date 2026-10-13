@@ -1,3 +1,9 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "Contact the Justice Redact team",
+};
+
 export default function ContactPage() {
     return (
         <div className="govuk-grid-row">
