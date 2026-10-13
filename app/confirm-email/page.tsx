@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import PageTitle from "../components/PageTitle";
 import { useRouter } from "next/navigation";
 
 import { ApiError, fetchJson } from "../lib/api";
@@ -133,6 +134,8 @@ export default function ConfirmEmailPage() {
     if (state === "did-not-work") {
         return (
             <div className="govuk-grid-row">
+                <PageTitle title="Your confirmation link did not work" />
+
                 <div className="govuk-grid-column-two-thirds">
                     <h1 className="govuk-heading-xl">
                         Your confirmation link did not work
@@ -166,6 +169,8 @@ export default function ConfirmEmailPage() {
     if (state === "not-recognised") {
         return (
             <div className="govuk-grid-row">
+                <PageTitle title="Your confirmation link was not recognised" />
+
                 <div className="govuk-grid-column-two-thirds">
                     <h1 className="govuk-heading-xl">
                         Your confirmation link was not recognised
@@ -202,6 +207,8 @@ export default function ConfirmEmailPage() {
     if (state === "service-error") {
         return (
             <div className="govuk-grid-row">
+                <PageTitle title="Sorry, there is a problem with the service" />
+
                 <div className="govuk-grid-column-two-thirds">
                     <h1 className="govuk-heading-xl">
                         Sorry, there is a problem with the service
