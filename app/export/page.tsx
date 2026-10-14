@@ -18,6 +18,7 @@ import {
 
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import { usePageTitle } from "../components/PageTitle";
 import BackLink from "../components/BackLink";
 
 type PageCounts = {
@@ -111,6 +112,14 @@ function ExportContent() {
 
     const [error, setError] =
         useState<string | null>(null);
+
+    usePageTitle(
+        "Redactions applied",
+        Boolean(error),
+        !isCheckingWorkflow &&
+        !workflowErrorVariant &&
+        !isStaleRevision,
+    );
 
     useEffect(() => {
         if (
