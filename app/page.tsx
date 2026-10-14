@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePageTitle } from "./components/PageTitle";
 
 import { ApiError, fetchJson } from "./lib/api";
 
@@ -35,6 +36,11 @@ export default function StartPage() {
         useState(true);
     const [isSubmitting, setIsSubmitting] =
         useState(false);
+
+    usePageTitle(
+        "Start using Justice Redact",
+        Boolean(emailError || serviceError),
+    );
 
     useEffect(() => {
         let isActive = true;

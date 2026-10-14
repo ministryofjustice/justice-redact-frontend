@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePageTitle } from "../components/PageTitle";
 import { fetchJson } from "../lib/api";
 
 const NO_FILE_ERROR =
@@ -56,6 +57,11 @@ export default function UploadPage() {
     technicalError,
     setTechnicalError,
   ] = useState<string | null>(null);
+
+  usePageTitle(
+    "Upload a file",
+    Boolean(validationError || technicalError),
+  );
 
   function handleFileChange() {
     setValidationError(null);
