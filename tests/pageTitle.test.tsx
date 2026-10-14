@@ -45,4 +45,17 @@ describe("PageTitle", () => {
             "Your link has expired - Justice Redact",
         );
     });
+
+    it("front loads the browser title with Error when the page has an error", () => {
+        render(
+            <PageTitle
+                title="Upload a file"
+                hasError
+            />,
+        );
+
+        expect(document.title).toBe(
+            "Error: Upload a file - Justice Redact",
+        );
+    });
 });

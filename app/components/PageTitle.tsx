@@ -4,14 +4,18 @@ import { useEffect } from "react";
 
 type PageTitleProps = {
     title: string;
+    hasError?: boolean;
 };
 
 export default function PageTitle({
     title,
+    hasError = false,
 }: PageTitleProps) {
     useEffect(() => {
-        document.title = `${title} - Justice Redact`;
-    }, [title]);
+        const prefix = hasError ? "Error: " : "";
+
+        document.title = `${prefix}${title} - Justice Redact`;
+    }, [hasError, title]);
 
     return null;
 }

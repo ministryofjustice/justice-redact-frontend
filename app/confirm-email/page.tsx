@@ -134,7 +134,10 @@ export default function ConfirmEmailPage() {
     if (state === "did-not-work") {
         return (
             <div className="govuk-grid-row">
-                <PageTitle title="Your confirmation link did not work" />
+                <PageTitle
+                    title="Your confirmation link did not work"
+                    hasError
+                />
 
                 <div className="govuk-grid-column-two-thirds">
                     <h1 className="govuk-heading-xl">
@@ -169,7 +172,10 @@ export default function ConfirmEmailPage() {
     if (state === "not-recognised") {
         return (
             <div className="govuk-grid-row">
-                <PageTitle title="Your confirmation link was not recognised" />
+                <PageTitle
+                    title="Your confirmation link was not recognised"
+                    hasError
+                />
 
                 <div className="govuk-grid-column-two-thirds">
                     <h1 className="govuk-heading-xl">
@@ -207,7 +213,10 @@ export default function ConfirmEmailPage() {
     if (state === "service-error") {
         return (
             <div className="govuk-grid-row">
-                <PageTitle title="Sorry, there is a problem with the service" />
+                <PageTitle
+                    title="Sorry, there is a problem with the service"
+                    hasError
+                />
 
                 <div className="govuk-grid-column-two-thirds">
                     <h1 className="govuk-heading-xl">

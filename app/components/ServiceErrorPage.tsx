@@ -166,7 +166,10 @@ export default function ServiceErrorPage({
 
     return (
         <div className="govuk-grid-row">
-            <PageTitle title={content.heading} />
+            <PageTitle
+                title={content.heading}
+                hasError
+            />
 
             <div className="govuk-grid-column-two-thirds">
                 <h1 className="govuk-heading-xl">{content.heading}</h1>
