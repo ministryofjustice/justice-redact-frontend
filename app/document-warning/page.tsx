@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { fetchJson } from "../lib/api";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import { usePageTitle } from "../components/PageTitle";
 import type { WorkflowResponse } from "../lib/workflowNavigation";
 
 function DocumentWarningContent() {
@@ -22,6 +23,12 @@ function DocumentWarningContent() {
         isChecking: isCheckingWorkflow,
         errorVariant: workflowErrorVariant,
     } = useWorkflowGuard("document-warning", documentId);
+
+    usePageTitle(
+        "This document cannot be processed",
+        Boolean(errorMessage),
+        !isCheckingWorkflow && !workflowErrorVariant,
+    );
 
     if (isCheckingWorkflow) {
         return null;

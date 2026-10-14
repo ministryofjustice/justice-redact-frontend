@@ -7,6 +7,7 @@ import {
     useSyncExternalStore,
 } from "react";
 import { useRouter } from "next/navigation";
+import { usePageTitle } from "../components/PageTitle";
 
 import { fetchJson } from "../lib/api";
 
@@ -28,6 +29,11 @@ export default function ResendEmailPage() {
         useState(false);
     const [hasServiceError, setHasServiceError] =
         useState(false);
+
+    usePageTitle(
+        "Check your email account",
+        hasServiceError,
+    );
 
     useEffect(() => {
         if (!email) {

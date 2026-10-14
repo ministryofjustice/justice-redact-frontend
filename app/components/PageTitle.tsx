@@ -10,12 +10,17 @@ type PageTitleProps = {
 export function usePageTitle(
     title: string,
     hasError = false,
+    enabled = true,
 ) {
     useEffect(() => {
+        if (!enabled) {
+            return;
+        }
+
         const prefix = hasError ? "Error: " : "";
 
         document.title = `${prefix}${title} - Justice Redact`;
-    }, [hasError, title]);
+    }, [enabled, hasError, title]);
 }
 
 export default function PageTitle({

@@ -9,6 +9,7 @@ import {
 import { fetchJson } from "../lib/api";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import { usePageTitle } from "../components/PageTitle";
 import BackLink from "../components/BackLink";
 
 type ProcessDocumentResponse = {
@@ -47,6 +48,12 @@ function SubjectDetailsContent() {
 
     const [isAbandoning, setIsAbandoning] =
         useState(false);
+
+    usePageTitle(
+        "Enter the person's details",
+        Boolean(error),
+        !isCheckingWorkflow && !workflowErrorVariant,
+    );
 
     const otherPhrases = "";
 
