@@ -58,4 +58,28 @@ describe("PageTitle", () => {
             "Error: Upload a file - Justice Redact",
         );
     });
+
+    it("removes the Error prefix when the error clears", () => {
+        const { rerender } = render(
+            <PageTitle
+                title="Upload a file"
+                hasError
+            />,
+        );
+
+        expect(document.title).toBe(
+            "Error: Upload a file - Justice Redact",
+        );
+
+        rerender(
+            <PageTitle
+                title="Upload a file"
+                hasError={false}
+            />,
+        );
+
+        expect(document.title).toBe(
+            "Upload a file - Justice Redact",
+        );
+    });
 });
