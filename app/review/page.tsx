@@ -15,6 +15,7 @@ import { ApiError, fetchJson } from "../lib/api";
 import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
 import { useReviewPages } from "./useReviewPages";
+import { usePageTitle } from "../components/PageTitle";
 import {
   getCachedReviewSearchPages,
   loadReviewSearchPages,
@@ -134,6 +135,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const [isFindAndRedactOpen, setIsFindAndRedactOpen] = useState(false);
   const [isFindAndDiscloseOpen, setIsFindAndDiscloseOpen] = useState(false);
   const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
+  const [hasFindAndRedactError, setHasFindAndRedactError] =
+    useState(false);
+  const [hasFindAndPartiallyRedactError, setHasFindAndPartiallyRedactError] =
+    useState(false);
+  const [hasFindAndDiscloseError, setHasFindAndDiscloseError] =
+    useState(false);
   const [searchPages, setSearchPages] =
     useState<ReviewPageData[] | null>(() => {
       if (!documentId) {
@@ -196,6 +203,21 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     requestedPageStart,
     requestedPageEnd,
     Boolean(data)
+  );
+
+  usePageTitle(
+    "Make redactions",
+    Boolean(
+      showApplyRedactionsFailure ||
+      error ||
+      pagesError ||
+      searchError ||
+      decisionSaveError ||
+      applyRedactionsError ||
+      hasFindAndRedactError ||
+      hasFindAndPartiallyRedactError ||
+      hasFindAndDiscloseError
+    ),
   );
 
   const isPreviewMode = reviewMode === "preview";
@@ -1908,6 +1930,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         pages={searchPages ?? []}
         manualSelections={manualSelections}
         onClose={() => setIsFindAndRedactOpen(false)}
+        onErrorChange={setHasFindAndRedactError}
         onHighlightSelected={handleHighlightSelected}
       />
       <FindAndPartiallyRedactModal
@@ -1915,6 +1938,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         pages={searchPages ?? []}
         manualSelections={manualSelections}
         onClose={() => setIsFindAndPartiallyRedactOpen(false)}
+        onErrorChange={setHasFindAndPartiallyRedactError}
         onHighlightSelected={handleFindAndPartiallyRedact}
       />
       <FindAndDiscloseModal
@@ -1922,6 +1946,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         pages={searchPages ?? []}
         manualSelections={manualSelections}
         onClose={() => setIsFindAndDiscloseOpen(false)}
+        onErrorChange={setHasFindAndDiscloseError}
         onUndoSelected={handleUndoSelected}
       />
       <QuickHelpModal

@@ -28,6 +28,7 @@ type FindAndRedactModalProps = {
     pages: ReviewPageData[];
     manualSelections: ManualDecision[];
     onClose: () => void;
+    onErrorChange: (hasError: boolean) => void;
     onHighlightSelected: (
         results: FindInDocumentResult[]
     ) => number;
@@ -41,6 +42,7 @@ export default function FindAndRedactModal({
     pages,
     manualSelections,
     onClose,
+    onErrorChange,
     onHighlightSelected,
 }: FindAndRedactModalProps) {
     const [searchTerm, setSearchTerm] = useState("");
@@ -55,6 +57,17 @@ export default function FindAndRedactModal({
     );
     const [error, setError] = useState<string | null>(null);
     const [resultsError, setResultsError] = useState<string | null>(null);
+
+    useEffect(() => {
+        onErrorChange(
+            isOpen && Boolean(error || resultsError)
+        );
+    }, [
+        error,
+        isOpen,
+        onErrorChange,
+        resultsError,
+    ]);
 
     const inputId = useId();
     const resultsHeadingId = useId();
