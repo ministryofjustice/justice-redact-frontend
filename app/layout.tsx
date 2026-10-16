@@ -8,8 +8,10 @@ import GovukFooter from "./components/GovukFooter";
 import BetaBanner from "./components/BetaBanner";
 
 export const metadata: Metadata = {
-  title: "Justice Redact",
-  description: "Show and tell demo",
+  title: {
+    default: "Start using Justice Redact - Justice Redact",
+    template: "%s - Justice Redact",
+  },
 };
 
 export default function RootLayout({
@@ -43,7 +45,7 @@ export default function RootLayout({
 
                   <Link
                     className="moj-header__link moj-header__link--service-name"
-                    href="/before-you-start"
+                    href="/"
                   >
                     Justice Redact
                   </Link>

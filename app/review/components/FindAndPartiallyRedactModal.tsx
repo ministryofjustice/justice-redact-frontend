@@ -37,6 +37,7 @@ type FindAndPartiallyRedactModalProps = {
     pages: ReviewPageData[];
     manualSelections: ManualDecision[];
     onClose: () => void;
+    onErrorChange: (hasError: boolean) => void;
 
     onHighlightSelected: (
         results: FindInDocumentResult[],
@@ -64,6 +65,7 @@ export default function FindAndPartiallyRedactModal({
     pages,
     manualSelections,
     onClose,
+    onErrorChange,
     onHighlightSelected,
 }: FindAndPartiallyRedactModalProps) {
     const [searchTerm, setSearchTerm] = useState("");
@@ -82,6 +84,24 @@ export default function FindAndPartiallyRedactModal({
         useState<string | null>(null);
     const [resultsError, setResultsError] =
         useState<string | null>(null);
+
+    useEffect(() => {
+        onErrorChange(
+            isOpen &&
+            Boolean(
+                error ||
+                selectionError ||
+                resultsError
+            )
+        );
+    }, [
+        error,
+        isOpen,
+        onErrorChange,
+        resultsError,
+        selectionError,
+    ]);
+
     const [highlightedCount, setHighlightedCount] =
         useState<number | null>(null);
     const [partialRedactionRemoveMenu, setPartialRedactionRemoveMenu] =

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import PageTitle from "../components/PageTitle";
 import { useRouter } from "next/navigation";
 
 import { ApiError, fetchJson } from "../lib/api";
@@ -11,6 +12,7 @@ import {
 import {
     clearVerificationEmail,
 } from "../lib/verificationEmail";
+import ErrorPageHeading from "../components/ErrorPageHeading";
 
 type VerifyEmailResponse = {
     userId: string;
@@ -133,10 +135,15 @@ export default function ConfirmEmailPage() {
     if (state === "did-not-work") {
         return (
             <div className="govuk-grid-row">
+                <PageTitle
+                    title="Your confirmation link did not work"
+                    hasError
+                />
+
                 <div className="govuk-grid-column-two-thirds">
-                    <h1 className="govuk-heading-xl">
+                    <ErrorPageHeading>
                         Your confirmation link did not work
-                    </h1>
+                    </ErrorPageHeading>
 
                     <p className="govuk-body">
                         Select the link in the email you received to start using Justice Redact.
@@ -166,10 +173,15 @@ export default function ConfirmEmailPage() {
     if (state === "not-recognised") {
         return (
             <div className="govuk-grid-row">
+                <PageTitle
+                    title="Your confirmation link was not recognised"
+                    hasError
+                />
+
                 <div className="govuk-grid-column-two-thirds">
-                    <h1 className="govuk-heading-xl">
+                    <ErrorPageHeading>
                         Your confirmation link was not recognised
-                    </h1>
+                    </ErrorPageHeading>
 
                     <p className="govuk-body">
                         Go back to the email and select the link again.
@@ -202,10 +214,15 @@ export default function ConfirmEmailPage() {
     if (state === "service-error") {
         return (
             <div className="govuk-grid-row">
+                <PageTitle
+                    title="Sorry, there is a problem with the service"
+                    hasError
+                />
+
                 <div className="govuk-grid-column-two-thirds">
-                    <h1 className="govuk-heading-xl">
+                    <ErrorPageHeading>
                         Sorry, there is a problem with the service
-                    </h1>
+                    </ErrorPageHeading>
 
                     <p className="govuk-body">
                         Try again later.

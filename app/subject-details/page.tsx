@@ -1,6 +1,11 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import {
+    Suspense,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 import {
     useRouter,
     useSearchParams,
@@ -9,6 +14,7 @@ import {
 import { fetchJson } from "../lib/api";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import { usePageTitle } from "../components/PageTitle";
 import BackLink from "../components/BackLink";
 
 type ProcessDocumentResponse = {
@@ -47,6 +53,33 @@ function SubjectDetailsContent() {
 
     const [isAbandoning, setIsAbandoning] =
         useState(false);
+
+    const errorSummaryRef =
+        useRef<HTMLDivElement>(null);
+
+    usePageTitle(
+        "Enter the person's details",
+        Boolean(error),
+        !isCheckingWorkflow && !workflowErrorVariant,
+    );
+
+    useEffect(() => {
+        if (
+            !error ||
+            isCheckingWorkflow ||
+            workflowErrorVariant
+        ) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            errorSummaryRef.current?.focus();
+        });
+    }, [
+        error,
+        isCheckingWorkflow,
+        workflowErrorVariant,
+    ]);
 
     const otherPhrases = "";
 
@@ -160,6 +193,7 @@ function SubjectDetailsContent() {
 
                 {error && (
                     <div
+                        ref={errorSummaryRef}
                         className="govuk-error-summary"
                         data-module="govuk-error-summary"
                         aria-labelledby="error-summary-title"

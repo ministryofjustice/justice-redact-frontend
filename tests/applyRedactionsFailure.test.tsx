@@ -4,6 +4,7 @@ import {
     cleanup,
     render,
     screen,
+    waitFor,
 } from "@testing-library/react";
 import {
     afterEach,
@@ -28,14 +29,18 @@ afterEach(() => {
 });
 
 describe("Apply Redactions failure alert", () => {
-    it("renders the designed MOJ error alert", () => {
+    it("renders and focuses the designed MOJ error alert", async () => {
         render(<ApplyRedactionsFailureAlert />);
 
-        expect(
-            screen.getByRole("region", {
-                name: "error: There was a problem applying redactions",
-            }),
-        ).toBeTruthy();
+        const alert = screen.getByRole("region", {
+            name: "error: There was a problem applying redactions",
+        });
+
+        expect(alert).toBeTruthy();
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(alert);
+        });
 
         expect(
             screen.getByRole("heading", {

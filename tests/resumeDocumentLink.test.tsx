@@ -108,15 +108,18 @@ describe("resume document links", () => {
             />,
         );
 
-        expect(
-            await screen.findByRole(
-                "heading",
-                {
-                    name:
-                        "Your link was not recognised",
-                },
-            ),
-        ).toBeTruthy();
+        const heading = await screen.findByRole(
+            "heading",
+            {
+                name: "Your link was not recognised",
+            },
+        );
+
+        expect(heading).toBeTruthy();
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(heading);
+        });
 
         expect(
             screen.getByText(

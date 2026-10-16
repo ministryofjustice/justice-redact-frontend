@@ -25,6 +25,7 @@ type FindAndDiscloseModalProps = {
     pages: ReviewPageData[];
     manualSelections: ManualDecision[];
     onClose: () => void;
+    onErrorChange: (hasError: boolean) => void;
     onUndoSelected: (
         results: FindInManualRedactionResult[]
     ) => number;
@@ -38,6 +39,7 @@ export default function FindAndDiscloseModal({
     pages,
     manualSelections,
     onClose,
+    onErrorChange,
     onUndoSelected,
 }: FindAndDiscloseModalProps) {
     const [searchTerm, setSearchTerm] = useState("");
@@ -53,6 +55,17 @@ export default function FindAndDiscloseModal({
     );
     const [error, setError] = useState<string | null>(null);
     const [resultsError, setResultsError] = useState<string | null>(null);
+
+    useEffect(() => {
+        onErrorChange(
+            isOpen && Boolean(error || resultsError)
+        );
+    }, [
+        error,
+        isOpen,
+        onErrorChange,
+        resultsError,
+    ]);
 
     const inputId = useId();
     const resultsHeadingId = useId();
