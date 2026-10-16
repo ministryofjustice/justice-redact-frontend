@@ -1,10 +1,28 @@
+"use client";
+
+import {
+    useEffect,
+    useRef,
+} from "react";
+
 export default function ApplyRedactionsFailureAlert() {
+    const alertRef =
+        useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        window.requestAnimationFrame(() => {
+            alertRef.current?.focus();
+        });
+    }, []);
+
     return (
         <div
+            ref={alertRef}
             role="region"
             className="moj-alert moj-alert--error moj-alert--with-heading jr-review-apply-error-alert"
             aria-label="error: There was a problem applying redactions"
             data-module="moj-alert"
+            tabIndex={-1}
         >
             <div>
                 <svg

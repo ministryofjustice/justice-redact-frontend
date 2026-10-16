@@ -1,6 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { usePageTitle } from "../components/PageTitle";
 import { fetchJson } from "../lib/api";
@@ -20,7 +24,7 @@ const BODY_TEXT_INLINE_ERROR =
 const UPLOAD_ERROR =
   "There was a problem uploading the file. Try again.";
 
-const MINIMUM_BODY_CHARACTERS = 50;
+const MINIMUM_BODY_CHARACTERS = 0;
 const MAX_VALIDATION_PAGES = 20;
 const LEADING_VALIDATION_PAGES = 10;
 
@@ -46,6 +50,10 @@ export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const isSubmittingRef = useRef(false);
+  const technicalErrorRef =
+    useRef<HTMLDivElement>(null);
+  const validationErrorRef =
+    useRef<HTMLDivElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [
@@ -62,6 +70,21 @@ export default function UploadPage() {
     "Upload a file",
     Boolean(validationError || technicalError),
   );
+
+  useEffect(() => {
+    if (!technicalError && !validationError) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      if (technicalError) {
+        technicalErrorRef.current?.focus();
+        return;
+      }
+
+      validationErrorRef.current?.focus();
+    });
+  }, [technicalError, validationError]);
 
   function handleFileChange() {
     setValidationError(null);
@@ -521,10 +544,12 @@ export default function UploadPage() {
 
           {technicalError && (
             <div
+              ref={technicalErrorRef}
               role="alert"
               className="moj-alert moj-alert--error jr-upload-api-alert"
               aria-label={`error: ${technicalError}`}
               data-module="moj-alert"
+              tabIndex={-1}
             >
               <div>
                 <svg
@@ -553,6 +578,7 @@ export default function UploadPage() {
 
           {validationError && (
             <div
+              ref={validationErrorRef}
               className="govuk-error-summary"
               data-module="govuk-error-summary"
               aria-labelledby="error-summary-title"

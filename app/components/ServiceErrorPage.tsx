@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PageTitle from "./PageTitle";
+import ErrorPageHeading from "./ErrorPageHeading";
 
 export type ServiceErrorVariant =
     | 400
@@ -172,7 +173,9 @@ export default function ServiceErrorPage({
             />
 
             <div className="govuk-grid-column-two-thirds">
-                <h1 className="govuk-heading-xl">{content.heading}</h1>
+                <ErrorPageHeading>
+                    {content.heading}
+                </ErrorPageHeading>
 
                 {content.body}
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
     Suspense,
     useEffect,
+    useRef,
     useState,
 } from "react";
 import {
@@ -113,6 +114,9 @@ function ExportContent() {
     const [error, setError] =
         useState<string | null>(null);
 
+    const errorSummaryRef =
+        useRef<HTMLDivElement>(null);
+
     usePageTitle(
         "Redactions applied",
         Boolean(error),
@@ -120,6 +124,28 @@ function ExportContent() {
         !workflowErrorVariant &&
         !isStaleRevision,
     );
+
+    useEffect(() => {
+        if (
+            !error ||
+            isLoading ||
+            isCheckingWorkflow ||
+            workflowErrorVariant ||
+            isStaleRevision
+        ) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            errorSummaryRef.current?.focus();
+        });
+    }, [
+        error,
+        isLoading,
+        isCheckingWorkflow,
+        workflowErrorVariant,
+        isStaleRevision,
+    ]);
 
     useEffect(() => {
         if (
@@ -279,6 +305,7 @@ function ExportContent() {
             <div className="govuk-grid-row">
                 <div className="govuk-grid-column-two-thirds">
                     <div
+                        ref={errorSummaryRef}
                         className="govuk-error-summary"
                         data-module="govuk-error-summary"
                         aria-labelledby="export-error-title"

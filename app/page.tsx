@@ -1,6 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import {
+    FormEvent,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { usePageTitle } from "./components/PageTitle";
 
@@ -36,11 +41,23 @@ export default function StartPage() {
         useState(true);
     const [isSubmitting, setIsSubmitting] =
         useState(false);
+    const errorSummaryRef =
+        useRef<HTMLDivElement>(null);
 
     usePageTitle(
         "Start using Justice Redact",
         Boolean(emailError || serviceError),
     );
+
+    useEffect(() => {
+        if (!emailError && !serviceError) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            errorSummaryRef.current?.focus();
+        });
+    }, [emailError, serviceError]);
 
     useEffect(() => {
         let isActive = true;
@@ -146,10 +163,12 @@ export default function StartPage() {
             <div className="govuk-grid-column-two-thirds">
                 {serviceError && (
                     <div
+                        ref={errorSummaryRef}
                         className="govuk-error-summary"
                         data-module="govuk-error-summary"
                         role="alert"
                         aria-labelledby="error-summary-title"
+                        tabIndex={-1}
                     >
                         <h2
                             className="govuk-error-summary__title"
@@ -168,10 +187,12 @@ export default function StartPage() {
 
                 {emailError && (
                     <div
+                        ref={errorSummaryRef}
                         className="govuk-error-summary"
                         data-module="govuk-error-summary"
                         role="alert"
                         aria-labelledby="error-summary-title"
+                        tabIndex={-1}
                     >
                         <h2
                             className="govuk-error-summary__title"

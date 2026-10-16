@@ -12,6 +12,7 @@ import {
 import {
     clearVerificationEmail,
 } from "../lib/verificationEmail";
+import ErrorPageHeading from "../components/ErrorPageHeading";
 
 type VerifyEmailResponse = {
     userId: string;
@@ -140,9 +141,9 @@ export default function ConfirmEmailPage() {
                 />
 
                 <div className="govuk-grid-column-two-thirds">
-                    <h1 className="govuk-heading-xl">
+                    <ErrorPageHeading>
                         Your confirmation link did not work
-                    </h1>
+                    </ErrorPageHeading>
 
                     <p className="govuk-body">
                         Select the link in the email you received to start using Justice Redact.
@@ -178,9 +179,9 @@ export default function ConfirmEmailPage() {
                 />
 
                 <div className="govuk-grid-column-two-thirds">
-                    <h1 className="govuk-heading-xl">
+                    <ErrorPageHeading>
                         Your confirmation link was not recognised
-                    </h1>
+                    </ErrorPageHeading>
 
                     <p className="govuk-body">
                         Go back to the email and select the link again.
@@ -219,9 +220,9 @@ export default function ConfirmEmailPage() {
                 />
 
                 <div className="govuk-grid-column-two-thirds">
-                    <h1 className="govuk-heading-xl">
+                    <ErrorPageHeading>
                         Sorry, there is a problem with the service
-                    </h1>
+                    </ErrorPageHeading>
 
                     <p className="govuk-body">
                         Try again later.

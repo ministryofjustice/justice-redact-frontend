@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
     useEffect,
+    useRef,
     useState,
     useSyncExternalStore,
 } from "react";
@@ -29,11 +30,23 @@ export default function ResendEmailPage() {
         useState(false);
     const [hasServiceError, setHasServiceError] =
         useState(false);
+    const errorSummaryRef =
+        useRef<HTMLDivElement>(null);
 
     usePageTitle(
         "Check your email account",
         hasServiceError,
     );
+
+    useEffect(() => {
+        if (!hasServiceError) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            errorSummaryRef.current?.focus();
+        });
+    }, [hasServiceError]);
 
     useEffect(() => {
         if (!email) {
@@ -82,10 +95,12 @@ export default function ResendEmailPage() {
             <div className="govuk-grid-column-two-thirds">
                 {hasServiceError && (
                     <div
+                        ref={errorSummaryRef}
                         className="govuk-error-summary"
                         data-module="govuk-error-summary"
                         role="alert"
                         aria-labelledby="error-summary-title"
+                        tabIndex={-1}
                     >
                         <h2
                             className="govuk-error-summary__title"
