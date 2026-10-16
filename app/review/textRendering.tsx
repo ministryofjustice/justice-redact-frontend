@@ -275,7 +275,10 @@ export function renderTextSegments(
                 data-manual-id={range.manualId}
                 data-redaction-group-id={range.redactionGroupId}
             >
-                <span className="govuk-visually-hidden">
+                <span
+                    className="govuk-visually-hidden"
+                    data-selection-offset-ignore
+                >
                     {range.status === "redaction"
                         ? "Redaction: "
                         : "AI suggestion: "}
@@ -386,7 +389,10 @@ export function renderStyledTextSegments(
                 data-manual-id={range.manualId}
                 data-redaction-group-id={range.redactionGroupId}
             >
-                <span className="govuk-visually-hidden">
+                <span
+                    className="govuk-visually-hidden"
+                    data-selection-offset-ignore
+                >
                     {range.status === "redaction"
                         ? "Redaction: "
                         : "AI suggestion: "}

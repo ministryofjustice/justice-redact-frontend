@@ -31,6 +31,7 @@ import type {
 import Modal from "./Modal";
 import FindResultExcerpt from "./FindResultExcerpt";
 import { renderTextSegments } from "../textRendering";
+import { getSelectionSourceTextLength } from "../selectionUtils";
 
 type FindAndPartiallyRedactModalProps = {
     isOpen: boolean;
@@ -640,8 +641,15 @@ export default function FindAndPartiallyRedactModal({
         );
 
         const start =
-            rangeBeforeSelection.toString().length;
-        const end = start + range.toString().length;
+            getSelectionSourceTextLength(
+                rangeBeforeSelection
+            );
+
+        const end =
+            start +
+            getSelectionSourceTextLength(
+                range
+            );
 
         if (
             start < 0 ||
