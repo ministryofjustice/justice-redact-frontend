@@ -153,6 +153,7 @@ export function buildRenderRanges(
                 end: range.end,
                 className: "applied-redaction",
                 key: `manual-${range.id}`,
+                status: "redaction",
                 manualId: range.id,
                 redactionGroupId: range.redactionGroupId,
             }))
@@ -217,6 +218,9 @@ export function buildRenderRanges(
                 start,
                 end,
             ].join("-"),
+            status: manualRange
+                ? "redaction"
+                : "ai-suggestion",
             manualId: manualRange?.id,
             redactionGroupId: manualRange?.redactionGroupId,
         });
@@ -271,6 +275,15 @@ export function renderTextSegments(
                 data-manual-id={range.manualId}
                 data-redaction-group-id={range.redactionGroupId}
             >
+                <span
+                    className="govuk-visually-hidden"
+                    data-selection-offset-ignore
+                >
+                    {range.status === "redaction"
+                        ? "Redaction: "
+                        : "AI suggestion: "}
+                </span>
+
                 {renderSliceWithBoldRanges(
                     text,
                     range.start,
@@ -376,6 +389,15 @@ export function renderStyledTextSegments(
                 data-manual-id={range.manualId}
                 data-redaction-group-id={range.redactionGroupId}
             >
+                <span
+                    className="govuk-visually-hidden"
+                    data-selection-offset-ignore
+                >
+                    {range.status === "redaction"
+                        ? "Redaction: "
+                        : "AI suggestion: "}
+                </span>
+
                 {renderStyledSlice(
                     range.start,
                     range.end,

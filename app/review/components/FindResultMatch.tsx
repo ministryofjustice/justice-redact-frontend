@@ -52,6 +52,9 @@ export default function FindResultMatch({
                 key={`redacted-${index}-${range.start}-${range.end}`}
                 className="highlight highlight--redaction jr-find-and-redact-result__match"
             >
+                <span className="govuk-visually-hidden">
+                    Redaction:{" "}
+                </span>
                 {match.slice(range.start, range.end)}
             </span>
         );
