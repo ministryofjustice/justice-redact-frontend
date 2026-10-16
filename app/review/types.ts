@@ -198,6 +198,7 @@ export type RenderRange = {
     end: number;
     className: string;
     key: string;
+    status: "ai-suggestion" | "redaction";
     manualId?: string;
     redactionGroupId?: string;
 };

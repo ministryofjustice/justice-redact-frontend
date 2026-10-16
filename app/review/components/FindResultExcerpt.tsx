@@ -96,6 +96,9 @@ export default function FindResultExcerpt({
                 <span
                     className="highlight highlight--redaction jr-find-and-redact-result__match"
                 >
+                    <span className="govuk-visually-hidden">
+                        Redaction:{" "}
+                    </span>
                     {node}
                 </span>
             );
