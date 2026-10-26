@@ -348,4 +348,73 @@ describe("PageContent accessibility", () => {
             "Redaction start MARCUS"
         );
     });
+
+    it("does not announce the start of a grouped redaction when it began on an earlier page", () => {
+        const page: ReviewPageData = {
+            pageNumber: 2,
+            textItems: [
+                {
+                    itemId: "item-2",
+                    text: "THOMPSON",
+                    renderText: "THOMPSON",
+                    bbox: {
+                        x0: 0,
+                        y0: 0,
+                        x1: 100,
+                        y1: 20,
+                    },
+                },
+            ],
+            tables: [],
+            images: [],
+        };
+
+        const earlierPageSelection: ManualTextDecision = {
+            id: "manual-1",
+            documentId: "document-1",
+            kind: "text",
+            pageNumber: 1,
+            itemId: "item-1",
+            start: 0,
+            end: 6,
+            text: "MARCUS",
+            redactionGroupId: "group-1",
+        };
+
+        const currentPageSelection: ManualTextDecision = {
+            id: "manual-2",
+            documentId: "document-1",
+            kind: "text",
+            pageNumber: 2,
+            itemId: "item-2",
+            start: 0,
+            end: 8,
+            text: "THOMPSON",
+            redactionGroupId: "group-1",
+        };
+
+        const { container } = render(
+            <PageContent
+                page={page}
+                findings={[]}
+                manualSelections={[
+                    currentPageSelection,
+                ]}
+                documentManualSelections={[
+                    earlierPageSelection,
+                    currentPageSelection,
+                ]}
+                isPreviewMode={false}
+                onToggleImageRedaction={vi.fn()}
+            />
+        );
+
+        expect(
+            container.querySelector(
+                ".jr-review-block p > .govuk-visually-hidden"
+            )?.textContent
+        ).toBe(
+            "THOMPSON Redaction end"
+        );
+    });
 });

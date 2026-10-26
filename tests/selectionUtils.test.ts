@@ -178,4 +178,52 @@ describe("selection source offsets", () => {
             source: "manual",
         });
     });
+
+    it("ignores the full accessible copy and counts the visual source text exactly once", () => {
+        const container = document.createElement("div");
+
+        container.innerHTML =
+            '<span class="govuk-visually-hidden" data-selection-offset-ignore>' +
+            "The prisoner is Redaction start MARCUS Redaction end THOMPSON" +
+            "</span>" +
+            '<span aria-hidden="true">' +
+            '<span data-part="prefix">The prisoner is </span>' +
+            '<span data-part="target">MARCUS</span>' +
+            '<span data-part="suffix"> THOMPSON</span>' +
+            "</span>";
+
+        document.body.appendChild(container);
+
+        const target = container.querySelector(
+            '[data-part="target"]'
+        )?.firstChild;
+
+        if (!target) {
+            throw new Error("Target text node was not created");
+        }
+
+        const start = getTextOffsetWithinItem(
+            container,
+            target,
+            0
+        );
+
+        const end = getTextOffsetWithinItem(
+            container,
+            target,
+            "MARCUS".length
+        );
+
+        expect(start).toBe(16);
+        expect(end).toBe(22);
+
+        const range = document.createRange();
+        range.selectNodeContents(container);
+
+        expect(
+            getSelectionSourceTextLength(range)
+        ).toBe(
+            "The prisoner is MARCUS THOMPSON".length
+        );
+    });
 });
