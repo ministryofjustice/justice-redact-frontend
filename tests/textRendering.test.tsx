@@ -95,7 +95,7 @@ describe("accessible Review text", () => {
                 false
             )
         ).toBe(
-            "Redaction start AI suggestion A7293BK Redaction end"
+            "Redaction start AI suggestion start A7293BK AI suggestion end Redaction end"
         );
     });
 
@@ -127,7 +127,7 @@ describe("accessible Review text", () => {
                 false
             )
         ).toBe(
-            "Redaction start WILLIAMS, AI suggestion JAMIE LEE Redaction end"
+            "Redaction start WILLIAMS, AI suggestion start JAMIE AI suggestion end LEE Redaction end"
         );
     });
 

@@ -339,6 +339,10 @@ export function buildAccessibleReviewText(
             (range) => range.start === start
         );
 
+        const suggestionEndsHere = suggestionRanges.some(
+            (range) => range.end === end
+        );
+
         const redactionEndsHere = manualRanges.some(
             (range) =>
                 range.end === end &&
@@ -350,12 +354,19 @@ export function buildAccessibleReviewText(
         }
 
         if (suggestionStartsHere) {
-            appendStartMarker("AI suggestion");
+            appendStartMarker("AI suggestion start");
         }
 
         accessibleText += text
             .slice(start, end)
             .replace(/\r\n|\r|\n/g, " ");
+
+        if (suggestionEndsHere) {
+            appendEndMarker(
+                "AI suggestion end",
+                text[end] ?? ""
+            );
+        }
 
         if (redactionEndsHere) {
             appendEndMarker(
