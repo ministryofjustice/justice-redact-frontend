@@ -417,4 +417,66 @@ describe("PageContent accessibility", () => {
             "THOMPSON Redaction end"
         );
     });
+
+    it("renders AI suggestion start and end in the accessible Review text", () => {
+        const page: ReviewPageData = {
+            pageNumber: 1,
+            textItems: [
+                {
+                    itemId: "item-1",
+                    text: "Example text example AI suggestion example text",
+                    renderText: "Example text example AI suggestion example text",
+                    bbox: {
+                        x0: 0,
+                        y0: 0,
+                        x1: 200,
+                        y1: 20,
+                    },
+                },
+            ],
+            tables: [],
+            images: [],
+        };
+
+        const findings = [
+            {
+                id: "finding-1",
+                kind: "text" as const,
+                pageNumber: 1,
+                itemId: "item-1",
+                tableId: null,
+                cellId: null,
+                imageId: null,
+                imageRecordId: null,
+                entityType: "EXAMPLE",
+                entityText: "example AI suggestion",
+                entityStart: "Example text ".length,
+                entityEnd:
+                    "Example text example AI suggestion".length,
+                entityScore: 0.99,
+                context:
+                    "Example text example AI suggestion example text",
+                decision: "redact",
+                sectionLabel: null,
+            },
+        ];
+
+        const { container } = render(
+            <PageContent
+                page={page}
+                findings={findings}
+                manualSelections={[]}
+                isPreviewMode={false}
+                onToggleImageRedaction={vi.fn()}
+            />
+        );
+
+        expect(
+            container.querySelector(
+                ".jr-review-block p > .govuk-visually-hidden"
+            )?.textContent
+        ).toBe(
+            "Example text AI suggestion start example AI suggestion AI suggestion end example text"
+        );
+    });
 });
