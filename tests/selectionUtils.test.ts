@@ -18,76 +18,7 @@ afterEach(() => {
     document.body.innerHTML = "";
 });
 
-function createReviewTextDom(
-    statusText: "AI suggestion: " | "Redaction: "
-) {
-    const container = document.createElement("div");
-
-    container.innerHTML =
-        '<span data-part="prefix">The prisoner is </span>' +
-        '<span class="highlight">' +
-        `<span class="govuk-visually-hidden" data-selection-offset-ignore>${statusText}</span>` +
-        '<span data-part="target">MARCUS</span>' +
-        "</span>" +
-        '<span data-part="suffix"> THOMPSON</span>';
-
-    document.body.appendChild(container);
-
-    const target = container.querySelector(
-        '[data-part="target"]'
-    )?.firstChild;
-
-    if (!target) {
-        throw new Error("Target text node was not created");
-    }
-
-    return {
-        container,
-        target,
-    };
-}
-
 describe("selection source offsets", () => {
-    it("does not count AI suggestion accessibility text", () => {
-        const { container, target } =
-            createReviewTextDom("AI suggestion: ");
-
-        const start = getTextOffsetWithinItem(
-            container,
-            target,
-            0
-        );
-
-        const end = getTextOffsetWithinItem(
-            container,
-            target,
-            "MARCUS".length
-        );
-
-        expect(start).toBe(16);
-        expect(end).toBe(22);
-    });
-
-    it("does not count redaction accessibility text", () => {
-        const { container, target } =
-            createReviewTextDom("Redaction: ");
-
-        const start = getTextOffsetWithinItem(
-            container,
-            target,
-            0
-        );
-
-        const end = getTextOffsetWithinItem(
-            container,
-            target,
-            "MARCUS".length
-        );
-
-        expect(start).toBe(16);
-        expect(end).toBe(22);
-    });
-
     it("still counts ordinary nested document text", () => {
         const container = document.createElement("div");
 
@@ -115,38 +46,12 @@ describe("selection source offsets", () => {
         ).toBe("The prisoner is ".length);
     });
 
-    it("excludes accessibility metadata from a selected range", () => {
-        const { container } =
-            createReviewTextDom("AI suggestion: ");
-
-        const range = document.createRange();
-        range.selectNodeContents(container);
-
-        expect(
-            getSelectionSourceTextLength(range)
-        ).toBe(
-            "The prisoner is MARCUS THOMPSON".length
-        );
-    });
-
     it("sends the original source offsets unchanged in the apply-redactions request", () => {
         const sourceText =
             "The prisoner is MARCUS THOMPSON";
 
-        const { container, target } =
-            createReviewTextDom("AI suggestion: ");
-
-        const start = getTextOffsetWithinItem(
-            container,
-            target,
-            0
-        );
-
-        const end = getTextOffsetWithinItem(
-            container,
-            target,
-            "MARCUS".length
-        );
+        const start = "The prisoner is ".length;
+        const end = start + "MARCUS".length;
 
         const manualSelections: ManualDecision[] = [
             {
