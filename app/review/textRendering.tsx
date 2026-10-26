@@ -334,7 +334,9 @@ export function buildAccessibleReviewText(
         }
 
         const redactionStartsHere = manualRanges.some(
-            (range) => range.start === start
+            (range) =>
+                range.start === start &&
+                range.announceStart
         );
 
         const suggestionStartsHere = suggestionRanges.some(
