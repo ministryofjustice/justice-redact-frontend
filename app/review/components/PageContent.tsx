@@ -294,6 +294,7 @@ export default function PageContent({
                                 <span
                                     className="govuk-visually-hidden"
                                     data-selection-offset-ignore
+                                    aria-live="polite"
                                 >
                                     {accessibleText}
                                 </span>
@@ -428,6 +429,7 @@ export default function PageContent({
                                                             <span
                                                                 className="govuk-visually-hidden"
                                                                 data-selection-offset-ignore
+                                                                aria-live="polite"
                                                             >
                                                                 {accessibleText}
                                                             </span>
