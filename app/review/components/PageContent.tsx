@@ -1,5 +1,6 @@
 import ImageRedactionFrame from "./ImageRedactionFrame";
 import {
+    buildAccessibleReviewText,
     getBoldRangesFromTextSpans,
     getExactLineRanges,
     renderStyledTextSegments,
@@ -120,6 +121,13 @@ export default function PageContent({
                     const fallbackBoldRanges = getExactLineRanges(sourceText, "Case Note");
                     const boldRanges = [...pdfBoldRanges, ...fallbackBoldRanges];
 
+                    const accessibleText = buildAccessibleReviewText(
+                        sourceText,
+                        suggestionsForItem,
+                        manualForItem,
+                        isPreviewMode
+                    );
+
                     return (
                         <div
                             key={`text-${item.itemId}-${blockIndex}`}
@@ -128,20 +136,29 @@ export default function PageContent({
                             data-item-id={item.itemId}
                         >
                             <p className="govuk-body">
-                                {item.textSpans?.length
-                                    ? renderStyledTextSegments(
-                                        item.textSpans,
-                                        suggestionsForItem,
-                                        manualForItem,
-                                        isPreviewMode
-                                    )
-                                    : renderTextSegments(
-                                        sourceText,
-                                        suggestionsForItem,
-                                        manualForItem,
-                                        isPreviewMode,
-                                        boldRanges
-                                    )}
+                                <span
+                                    className="govuk-visually-hidden"
+                                    data-selection-offset-ignore
+                                >
+                                    {accessibleText}
+                                </span>
+
+                                <span aria-hidden="true">
+                                    {item.textSpans?.length
+                                        ? renderStyledTextSegments(
+                                            item.textSpans,
+                                            suggestionsForItem,
+                                            manualForItem,
+                                            isPreviewMode
+                                        )
+                                        : renderTextSegments(
+                                            sourceText,
+                                            suggestionsForItem,
+                                            manualForItem,
+                                            isPreviewMode,
+                                            boldRanges
+                                        )}
+                                </span>
                             </p>
                         </div>
                     );
@@ -214,6 +231,13 @@ export default function PageContent({
                                                     const sourceText = cell.text;
                                                     const boldRanges: Array<{ start: number; end: number }> = [];
 
+                                                    const accessibleText = buildAccessibleReviewText(
+                                                        sourceText,
+                                                        suggestionsForCell,
+                                                        manualForCell,
+                                                        isPreviewMode
+                                                    );
+
                                                     const cellClassName = [
                                                         cell.isNumeric
                                                             ? "govuk-table__cell govuk-table__cell--numeric"
@@ -232,20 +256,29 @@ export default function PageContent({
 
                                                     const content = (
                                                         <span className="jr-table-cell-text" style={{ whiteSpace: "pre-line" }}>
-                                                            {cell.textSpans?.length
-                                                                ? renderStyledTextSegments(
-                                                                    cell.textSpans,
-                                                                    suggestionsForCell,
-                                                                    manualForCell,
-                                                                    isPreviewMode
-                                                                )
-                                                                : renderTextSegments(
-                                                                    sourceText,
-                                                                    suggestionsForCell,
-                                                                    manualForCell,
-                                                                    isPreviewMode,
-                                                                    boldRanges
-                                                                )}
+                                                            <span
+                                                                className="govuk-visually-hidden"
+                                                                data-selection-offset-ignore
+                                                            >
+                                                                {accessibleText}
+                                                            </span>
+
+                                                            <span aria-hidden="true">
+                                                                {cell.textSpans?.length
+                                                                    ? renderStyledTextSegments(
+                                                                        cell.textSpans,
+                                                                        suggestionsForCell,
+                                                                        manualForCell,
+                                                                        isPreviewMode
+                                                                    )
+                                                                    : renderTextSegments(
+                                                                        sourceText,
+                                                                        suggestionsForCell,
+                                                                        manualForCell,
+                                                                        isPreviewMode,
+                                                                        boldRanges
+                                                                    )}
+                                                            </span>
                                                         </span>
                                                     );
 
