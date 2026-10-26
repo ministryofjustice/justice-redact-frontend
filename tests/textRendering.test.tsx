@@ -286,4 +286,44 @@ describe("accessible Review text", () => {
             "Redaction start A7293BK Redaction end"
         );
     });
+
+    it("can omit the end announcement when a redaction continues into the next text item", () => {
+        expect(
+            buildAccessibleReviewText(
+                "MARCUS",
+                [],
+                [
+                    {
+                        id: "manual-1",
+                        start: 0,
+                        end: 6,
+                        announceEnd: false,
+                    },
+                ],
+                false
+            )
+        ).toBe(
+            "Redaction start MARCUS"
+        );
+    });
+
+    it("can omit the start announcement when a redaction continues from the previous text item", () => {
+        expect(
+            buildAccessibleReviewText(
+                "THOMPSON",
+                [],
+                [
+                    {
+                        id: "manual-2",
+                        start: 0,
+                        end: 8,
+                        announceStart: false,
+                    },
+                ],
+                false
+            )
+        ).toBe(
+            "THOMPSON Redaction end"
+        );
+    });
 });

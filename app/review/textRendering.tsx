@@ -237,6 +237,8 @@ export function buildAccessibleReviewText(
         start: number;
         end: number;
         redactionGroupId?: string;
+        announceStart?: boolean;
+        announceEnd?: boolean;
     }>,
     isPreviewMode: boolean
 ) {
@@ -248,6 +250,10 @@ export function buildAccessibleReviewText(
             id: selection.id,
             start: clamp(selection.start),
             end: clamp(selection.end),
+            announceStart:
+                selection.announceStart !== false,
+            announceEnd:
+                selection.announceEnd !== false,
         }))
         .filter((range) => range.end > range.start);
 
@@ -336,7 +342,9 @@ export function buildAccessibleReviewText(
         );
 
         const redactionEndsHere = manualRanges.some(
-            (range) => range.end === end
+            (range) =>
+                range.end === end &&
+                range.announceEnd
         );
 
         if (redactionStartsHere) {
