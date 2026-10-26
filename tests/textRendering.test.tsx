@@ -189,4 +189,30 @@ describe("accessible Review text", () => {
             "THOMPSON Redaction end"
         );
     });
+
+    it("announces the start and end of a standalone AI suggestion", () => {
+        const sourceText =
+            "Example text example AI suggestion example text";
+
+        const aiSuggestion: ReviewFinding = {
+            ...suggestion,
+            id: "finding-ai-example",
+            entityText: "example AI suggestion",
+            entityStart:
+                "Example text ".length,
+            entityEnd:
+                "Example text example AI suggestion".length,
+        };
+
+        expect(
+            buildAccessibleReviewText(
+                sourceText,
+                [aiSuggestion],
+                [],
+                false
+            )
+        ).toBe(
+            "Example text AI suggestion start example AI suggestion AI suggestion end example text"
+        );
+    });
 });
