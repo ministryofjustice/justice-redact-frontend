@@ -257,7 +257,7 @@ test("stale Applying Redactions URL redirects to the current redaction run", asy
 });
 
 // 3. Missing document returns 404
-test("workflow 404 shows the Page not found error page", async ({
+test("workflow 404 shows the unrecognised link error page", async ({
     page,
 }) => {
     const documentId = "missing-document";
@@ -277,15 +277,20 @@ test("workflow 404 shows the Page not found error page", async ({
 
     await expect(
         page.getByRole("heading", {
-            name: "Page not found",
+            name: "Your link was not recognised",
             exact: true,
         }),
     ).toBeVisible();
 
     await expect(
         page.getByText(
-            "Otherwise, if it's been over 30 days since you uploaded your file, the link will have expired.",
-            { exact: false },
+            "Go back to the email and select the link again.",
+        ),
+    ).toBeVisible();
+
+    await expect(
+        page.getByText(
+            "You need to open the link in the same browser you're on now.",
         ),
     ).toBeVisible();
 
@@ -350,16 +355,23 @@ test("unexpected workflow failure shows the service problem page", async ({
 
     await expect(
         page.getByRole("heading", {
-            name: "Sorry, there is a problem with the service",
+            name: "Sorry, there is a problem",
             exact: true,
         }),
     ).toBeVisible();
 
     await expect(
         page.getByText(
-            "Try reloading the page. You can do this by pressing F5 on a PC or cmd + R on a mac.",
+            "Try reloading the page. You can do this by pressing F5.",
         ),
     ).toBeVisible();
+
+    await expect(
+        page.getByRole("link", {
+            name: "upload the file again",
+            exact: true,
+        }),
+    ).toHaveAttribute("href", "/upload");
 
     await expect(page).toHaveURL(
         `/review?documentId=${documentId}`,
