@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { fetchJson } from "../../../app/lib/api";
@@ -45,10 +46,14 @@ export function useDocumentProcessing(
     const [isAbandoning, setIsAbandoning] =
         useState(false);
 
+    const isAbandoningRef = useRef(false);
+
     async function handleBackToUpload(): Promise<void> {
-        if (!documentId || isAbandoning) {
+        if (!documentId || isAbandoningRef.current) {
             return;
         }
+
+        isAbandoningRef.current = true;
 
         setIsAbandoning(true);
         setError(null);
@@ -71,12 +76,13 @@ export function useDocumentProcessing(
                     : "Unable to stop processing. Try again.",
             );
 
+            isAbandoningRef.current = false;
             setIsAbandoning(false);
         }
     }
 
     useEffect(() => {
-        if (!documentId || !enabled) {
+        if (!documentId || !enabled || isAbandoning) {
             return;
         }
 
@@ -91,7 +97,10 @@ export function useDocumentProcessing(
         let controller: AbortController | null = null;
 
         function scheduleNextPoll() {
-            if (!isActive) {
+            if (
+                !isActive ||
+                isAbandoningRef.current
+            ) {
                 return;
             }
 
@@ -101,7 +110,10 @@ export function useDocumentProcessing(
         }
 
         async function pollStatus() {
-            if (!isActive) {
+            if (
+                !isActive ||
+                isAbandoningRef.current
+            ) {
                 return;
             }
 
@@ -110,14 +122,19 @@ export function useDocumentProcessing(
             try {
                 const data =
                     await fetchJson<DocumentStatusResponse>(
-                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${currentDocumentId}/status`,
+                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                            currentDocumentId,
+                        )}/status`,
                         {
                             cache: "no-store",
                             signal: controller.signal,
                         },
                     );
 
-                if (!isActive) {
+                if (
+                    !isActive ||
+                    isAbandoningRef.current
+                ) {
                     return;
                 }
 
@@ -136,14 +153,19 @@ export function useDocumentProcessing(
 
                 setError(null);
 
-                if (data.status === "ready_for_review") {
+                if (
+                    data.status ===
+                    "ready_for_review"
+                ) {
                     setProcessingProgress(100);
 
                     const [
                         reviewDataResult,
                         reviewSearchResult,
                     ] = await Promise.allSettled([
-                        loadReviewData(currentDocumentId),
+                        loadReviewData(
+                            currentDocumentId,
+                        ),
                         loadReviewSearchPages(
                             currentDocumentId,
                         ),
@@ -169,7 +191,10 @@ export function useDocumentProcessing(
                         );
                     }
 
-                    if (!isActive) {
+                    if (
+                        !isActive ||
+                        isAbandoningRef.current
+                    ) {
                         return;
                     }
 
@@ -191,7 +216,10 @@ export function useDocumentProcessing(
 
                 scheduleNextPoll();
             } catch (err) {
-                if (!isActive) {
+                if (
+                    !isActive ||
+                    isAbandoningRef.current
+                ) {
                     return;
                 }
 
@@ -227,6 +255,7 @@ export function useDocumentProcessing(
     }, [
         documentId,
         enabled,
+        isAbandoning,
         router,
     ]);
 
