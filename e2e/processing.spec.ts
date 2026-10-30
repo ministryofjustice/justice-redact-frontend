@@ -394,7 +394,8 @@ test("Back abandons document processing before returning to Upload", async ({
 });
 
 // 6. Abandonment during Review prefetch
-test("abandoning during Review prefetch returns to Upload instead of Review", async ({
+
+test("does not navigate to Review while abandonment is pending", async ({
     page,
 }) => {
     const stage: { value: WorkflowStage } = {
@@ -404,6 +405,17 @@ test("abandoning during Review prefetch returns to Upload instead of Review", as
     await mockWorkflow(page, stage);
     await mockReview(page);
     await mockAuthenticatedUpload(page);
+
+    const reviewNavigations: string[] = [];
+
+    page.on("framenavigated", (frame) => {
+        if (
+            frame === page.mainFrame() &&
+            new URL(frame.url()).pathname === "/review"
+        ) {
+            reviewNavigations.push(frame.url());
+        }
+    });
 
     let notifyPrefetchStarted = () => { };
 
@@ -440,6 +452,18 @@ test("abandoning during Review prefetch returns to Upload instead of Review", as
         };
     });
 
+    let notifyAbandonStarted = () => { };
+
+    const abandonStarted = new Promise<void>((resolve) => {
+        notifyAbandonStarted = resolve;
+    });
+
+    let releaseAbandon = () => { };
+
+    const abandonGate = new Promise<void>((resolve) => {
+        releaseAbandon = resolve;
+    });
+
     let abandonRequests = 0;
 
     await page.route(
@@ -450,7 +474,12 @@ test("abandoning during Review prefetch returns to Upload instead of Review", as
                 return;
             }
 
+            expect(route.request().method()).toBe("POST");
+
             abandonRequests += 1;
+            notifyAbandonStarted();
+
+            await abandonGate;
 
             await fulfillJson(route, {
                 documentId: DOCUMENT_ID,
@@ -466,24 +495,47 @@ test("abandoning during Review prefetch returns to Upload instead of Review", as
     await prefetchStarted;
 
     try {
-        await expect(
-            page.getByRole("heading", {
-                name: "Your file is being processed",
-                exact: true,
-            }),
-        ).toBeVisible();
-
         await page.getByRole("link", {
             name: "Back",
             exact: true,
-        }).click();
+        }).click({
+            noWaitAfter: true,
+        });
 
-        await expect(page).toHaveURL("/upload");
+        await abandonStarted;
 
-        expect(abandonRequests).toBe(1);
+        await expect(
+            page.getByRole("link", {
+                name: "Stopping processing...",
+            }),
+        ).toBeVisible();
+
+        const searchResponse = page.waitForResponse(
+            (response) =>
+                response.url() ===
+                `${API_BASE_URL}/documents/${DOCUMENT_ID}/review/search` &&
+                response.status() === 200,
+        );
+
+        releasePrefetch();
+
+        await searchResponse;
+
+        await page.waitForTimeout(350);
+
+        await expect(page).toHaveURL(
+            `/processing?documentId=${DOCUMENT_ID}`,
+        );
+
+        expect(reviewNavigations).toEqual([]);
     } finally {
         releasePrefetch();
+        releaseAbandon();
     }
 
     await expect(page).toHaveURL("/upload");
+
+    expect(abandonRequests).toBe(1);
+    expect(reviewNavigations).toEqual([]);
 });
+
