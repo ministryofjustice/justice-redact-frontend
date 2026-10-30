@@ -20,6 +20,7 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
                 contentType: "application/json",
                 headers: {
                     "Access-Control-Allow-Origin": "http://localhost:3000",
+                    "Access-Control-Allow-Credentials": "true",
                 },
                 body: JSON.stringify(
                     hasNewerRun
@@ -58,6 +59,7 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
                 contentType: "application/json",
                 headers: {
                     "Access-Control-Allow-Origin": "http://localhost:3000",
+                    "Access-Control-Allow-Credentials": "true",
                 },
                 body: JSON.stringify({
                     documentId,
@@ -89,6 +91,7 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
                 contentType: "application/json",
                 headers: {
                     "Access-Control-Allow-Origin": "http://localhost:3000",
+                    "Access-Control-Allow-Credentials": "true",
                 },
                 body: JSON.stringify({
                     documentId,
