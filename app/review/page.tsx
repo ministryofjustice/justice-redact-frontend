@@ -2029,6 +2029,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
                           page={page}
                           findings={findingsForPage}
                           manualSelections={manualSelectionsForPage}
+                          documentManualSelections={manualSelectionsForCurrentDocument()}
                           isPreviewMode={isPreviewMode}
                           onToggleImageRedaction={toggleImageRedaction}
                         />
@@ -2039,6 +2040,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
                       page={page}
                       findings={findingsForPage}
                       manualSelections={manualSelectionsForPage}
+                      documentManualSelections={manualSelectionsForCurrentDocument()}
                       isPreviewMode={isPreviewMode}
                       onToggleImageRedaction={toggleImageRedaction}
                     />

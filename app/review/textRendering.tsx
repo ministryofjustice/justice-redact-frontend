@@ -153,7 +153,6 @@ export function buildRenderRanges(
                 end: range.end,
                 className: "applied-redaction",
                 key: `manual-${range.id}`,
-                status: "redaction",
                 manualId: range.id,
                 redactionGroupId: range.redactionGroupId,
             }))
@@ -218,15 +217,168 @@ export function buildRenderRanges(
                 start,
                 end,
             ].join("-"),
-            status: manualRange
-                ? "redaction"
-                : "ai-suggestion",
             manualId: manualRange?.id,
             redactionGroupId: manualRange?.redactionGroupId,
         });
     }
 
     return ranges;
+}
+
+export function buildAccessibleReviewText(
+    text: string,
+    suggestions: ReviewFinding[],
+    manualSelections: Array<{
+        id: string;
+        start: number;
+        end: number;
+        redactionGroupId?: string;
+        announceStart?: boolean;
+        announceEnd?: boolean;
+    }>,
+    isPreviewMode: boolean
+) {
+    const clamp = (value: number) =>
+        clampRangeValue(value, text.length);
+
+    const manualRanges = manualSelections
+        .map((selection) => ({
+            id: selection.id,
+            start: clamp(selection.start),
+            end: clamp(selection.end),
+            announceStart:
+                selection.announceStart !== false,
+            announceEnd:
+                selection.announceEnd !== false,
+        }))
+        .filter((range) => range.end > range.start);
+
+    const suggestionRanges = isPreviewMode
+        ? []
+        : suggestions
+            .filter(
+                (suggestion) =>
+                    typeof suggestion.entityStart === "number" &&
+                    typeof suggestion.entityEnd === "number"
+            )
+            .map((suggestion) => ({
+                id: suggestion.id,
+                start: clamp(suggestion.entityStart as number),
+                end: clamp(suggestion.entityEnd as number),
+            }))
+            .filter((range) => range.end > range.start);
+
+    const boundaries = Array.from(
+        new Set([
+            0,
+            text.length,
+            ...manualRanges.flatMap((range) => [
+                range.start,
+                range.end,
+            ]),
+            ...suggestionRanges.flatMap((range) => [
+                range.start,
+                range.end,
+            ]),
+        ])
+    ).sort((left, right) => left - right);
+
+    let accessibleText = "";
+
+    function appendStartMarker(marker: string) {
+        if (
+            accessibleText.length > 0 &&
+            !/\s$/.test(accessibleText)
+        ) {
+            accessibleText += " ";
+        }
+
+        accessibleText += `${marker} `;
+    }
+
+    function appendEndMarker(
+        marker: string,
+        nextCharacter: string
+    ) {
+        if (
+            accessibleText.length > 0 &&
+            !/\s$/.test(accessibleText)
+        ) {
+            accessibleText += " ";
+        }
+
+        accessibleText += marker;
+
+        if (
+            nextCharacter &&
+            !/[\s.,;:!?)}\]]/.test(nextCharacter)
+        ) {
+            accessibleText += " ";
+        }
+    }
+
+    for (
+        let index = 0;
+        index < boundaries.length - 1;
+        index += 1
+    ) {
+        const start = boundaries[index];
+        const end = boundaries[index + 1];
+
+        if (end <= start) {
+            continue;
+        }
+
+        const redactionStartsHere = manualRanges.some(
+            (range) =>
+                range.start === start &&
+                range.announceStart
+        );
+
+        const suggestionStartsHere = suggestionRanges.some(
+            (range) => range.start === start
+        );
+
+        const suggestionEndsHere = suggestionRanges.some(
+            (range) => range.end === end
+        );
+
+        const redactionEndsHere = manualRanges.some(
+            (range) =>
+                range.end === end &&
+                range.announceEnd
+        );
+
+        if (redactionStartsHere) {
+            appendStartMarker("Redaction start");
+        }
+
+        if (suggestionStartsHere) {
+            appendStartMarker("AI suggestion start");
+        }
+
+        accessibleText += text
+            .slice(start, end)
+            .replace(/\r\n|\r|\n/g, " ");
+
+        if (suggestionEndsHere) {
+            appendEndMarker(
+                "AI suggestion end",
+                text[end] ?? ""
+            );
+        }
+
+        if (redactionEndsHere) {
+            appendEndMarker(
+                "Redaction end",
+                text[end] ?? ""
+            );
+        }
+    }
+
+    return accessibleText
+        .replace(/[ \t]+/g, " ")
+        .trim();
 }
 
 export function renderTextSegments(
@@ -275,14 +427,6 @@ export function renderTextSegments(
                 data-manual-id={range.manualId}
                 data-redaction-group-id={range.redactionGroupId}
             >
-                <span
-                    className="govuk-visually-hidden"
-                    data-selection-offset-ignore
-                >
-                    {range.status === "redaction"
-                        ? "Redaction: "
-                        : "AI suggestion: "}
-                </span>
 
                 {renderSliceWithBoldRanges(
                     text,
@@ -389,15 +533,6 @@ export function renderStyledTextSegments(
                 data-manual-id={range.manualId}
                 data-redaction-group-id={range.redactionGroupId}
             >
-                <span
-                    className="govuk-visually-hidden"
-                    data-selection-offset-ignore
-                >
-                    {range.status === "redaction"
-                        ? "Redaction: "
-                        : "AI suggestion: "}
-                </span>
-
                 {renderStyledSlice(
                     range.start,
                     range.end,

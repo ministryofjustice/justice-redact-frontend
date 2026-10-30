@@ -3,6 +3,7 @@ import {
     type FindInDocumentResult,
 } from "../findInDocument";
 import {
+    buildAccessibleFindResultText,
     getFindResultRedactedDisplayRanges,
 } from "../findResultRedactionDisplay";
 import type {
@@ -29,6 +30,12 @@ export default function FindResultMatch({
             result,
             pages,
             manualSelections
+        );
+
+    const accessibleMatch =
+        buildAccessibleFindResultText(
+            match,
+            redactedRanges
         );
 
     if (redactedRanges.length === 0) {
@@ -70,5 +77,15 @@ export default function FindResultMatch({
         );
     }
 
-    return <strong>{nodes}</strong>;
+    return (
+        <strong>
+            <span className="govuk-visually-hidden">
+                {accessibleMatch}
+            </span>
+
+            <span aria-hidden="true">
+                {nodes}
+            </span>
+        </strong>
+    );
 }

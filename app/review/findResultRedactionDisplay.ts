@@ -94,6 +94,84 @@ function mergeDisplayRanges(
     return merged;
 }
 
+export function buildAccessibleFindResultText(
+    text: string,
+    redactedRanges: FindResultDisplayRange[]
+): string {
+    const ranges = mergeDisplayRanges(
+        redactedRanges.map((range) => ({
+            start: Math.max(
+                0,
+                Math.min(text.length, range.start)
+            ),
+            end: Math.max(
+                0,
+                Math.min(text.length, range.end)
+            ),
+        }))
+    );
+
+    if (ranges.length === 0) {
+        return text;
+    }
+
+    let accessibleText = "";
+    let cursor = 0;
+
+    ranges.forEach((range) => {
+        if (cursor < range.start) {
+            accessibleText += text.slice(
+                cursor,
+                range.start
+            );
+        }
+
+        if (
+            accessibleText.length > 0 &&
+            !/\s$/.test(accessibleText)
+        ) {
+            accessibleText += " ";
+        }
+
+        accessibleText += "Redaction start ";
+
+        accessibleText += text.slice(
+            range.start,
+            range.end
+        );
+
+        if (
+            accessibleText.length > 0 &&
+            !/\s$/.test(accessibleText)
+        ) {
+            accessibleText += " ";
+        }
+
+        accessibleText += "Redaction end";
+
+        const nextCharacter =
+            text[range.end] ?? "";
+
+        if (
+            nextCharacter &&
+            !/[\s.,;:!?)}\]]/.test(nextCharacter)
+        ) {
+            accessibleText += " ";
+        }
+
+        cursor = range.end;
+    });
+
+    if (cursor < text.length) {
+        accessibleText += text.slice(cursor);
+    }
+
+    return accessibleText
+        .replace(/\r\n|\r|\n/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .trim();
+}
+
 export function isFindResultFullyRedacted(
     result: FindInDocumentResult,
     manualSelections: ManualDecision[]

@@ -1,5 +1,6 @@
 import ImageRedactionFrame from "./ImageRedactionFrame";
 import {
+    buildAccessibleReviewText,
     getBoldRangesFromTextSpans,
     getExactLineRanges,
     renderStyledTextSegments,
@@ -21,6 +22,7 @@ type PageContentProps = {
     page: ReviewPageData;
     findings: ReviewFinding[];
     manualSelections: ManualDecision[];
+    documentManualSelections?: ManualDecision[];
     isPreviewMode: boolean;
     onToggleImageRedaction: (pageNumber: number, imageId: string) => void;
 };
@@ -55,10 +57,142 @@ function imageBelongsToAnyTableRow(image: ReviewImage, tables: ReviewTable[]) {
     );
 }
 
+type TextualManualDecision =
+    | ManualTextDecision
+    | ManualTableCellDecision;
+
+function getOrderedPageManualSelections(
+    page: ReviewPageData,
+    pageContentBlocks: PageContentBlock[],
+    manualSelections: ManualDecision[]
+): TextualManualDecision[] {
+    const pageSelections = manualSelections.filter(
+        (
+            selection
+        ): selection is TextualManualDecision =>
+            selection.pageNumber === page.pageNumber &&
+            selection.kind !== "image"
+    );
+
+    const orderedSelections: TextualManualDecision[] = [];
+
+    pageContentBlocks.forEach((block) => {
+        if (block.kind === "text") {
+            orderedSelections.push(
+                ...pageSelections
+                    .filter(
+                        (
+                            selection
+                        ): selection is ManualTextDecision =>
+                            selection.kind === "text" &&
+                            selection.itemId ===
+                            block.item.itemId
+                    )
+                    .sort(
+                        (left, right) =>
+                            left.start - right.start ||
+                            left.end - right.end
+                    )
+            );
+
+            return;
+        }
+
+        if (block.kind !== "table") {
+            return;
+        }
+
+        block.table.rows.forEach((row) => {
+            row.cells.forEach((cell) => {
+                orderedSelections.push(
+                    ...pageSelections
+                        .filter(
+                            (
+                                selection
+                            ): selection is ManualTableCellDecision =>
+                                selection.kind ===
+                                "table_cell" &&
+                                selection.tableId ===
+                                block.table.tableId &&
+                                selection.cellId ===
+                                cell.cellId
+                        )
+                        .sort(
+                            (left, right) =>
+                                left.start -
+                                right.start ||
+                                left.end -
+                                right.end
+                        )
+                );
+            });
+        });
+    });
+
+    return orderedSelections;
+}
+
+function getRedactionAnnouncementFlags(
+    selection: TextualManualDecision,
+    orderedPageSelections: TextualManualDecision[],
+    documentManualSelections: ManualDecision[]
+) {
+    if (!selection.redactionGroupId) {
+        return {
+            announceStart: true,
+            announceEnd: true,
+        };
+    }
+
+    const groupId = selection.redactionGroupId;
+
+    const groupSelectionsOnPage =
+        orderedPageSelections.filter(
+            (candidate) =>
+                candidate.redactionGroupId === groupId
+        );
+
+    const firstSelectionOnPage =
+        groupSelectionsOnPage[0];
+
+    const lastSelectionOnPage =
+        groupSelectionsOnPage[
+        groupSelectionsOnPage.length - 1
+        ];
+
+    const hasEarlierPageSelection =
+        documentManualSelections.some(
+            (candidate) =>
+                candidate.kind !== "image" &&
+                candidate.redactionGroupId === groupId &&
+                candidate.pageNumber <
+                selection.pageNumber
+        );
+
+    const hasLaterPageSelection =
+        documentManualSelections.some(
+            (candidate) =>
+                candidate.kind !== "image" &&
+                candidate.redactionGroupId === groupId &&
+                candidate.pageNumber >
+                selection.pageNumber
+        );
+
+    return {
+        announceStart:
+            selection.id === firstSelectionOnPage?.id &&
+            !hasEarlierPageSelection,
+        announceEnd:
+            selection.id === lastSelectionOnPage?.id &&
+            !hasLaterPageSelection,
+    };
+}
+
 export default function PageContent({
     page,
     findings,
     manualSelections,
+    documentManualSelections = manualSelections,
     isPreviewMode,
     onToggleImageRedaction,
 }: PageContentProps) {
@@ -90,6 +224,13 @@ export default function PageContent({
             })),
     ].sort((a, b) => a.y - b.y);
 
+    const orderedPageManualSelections =
+        getOrderedPageManualSelections(
+            page,
+            pageContentBlocks,
+            manualSelections
+        );
+
     return (
         <div className="jr-review-page__content">
             {pageContentBlocks.map((block, blockIndex) => {
@@ -106,19 +247,41 @@ export default function PageContent({
                     const manualForItem = manualSelections
                         .filter(
                             (selection): selection is ManualTextDecision =>
-                                selection.kind === "text" && selection.itemId === item.itemId
+                                selection.kind === "text" &&
+                                selection.itemId === item.itemId
                         )
-                        .map((selection) => ({
-                            id: selection.id,
-                            start: selection.start,
-                            end: selection.end,
-                            redactionGroupId: selection.redactionGroupId,
-                        }));
+                        .map((selection) => {
+                            const {
+                                announceStart,
+                                announceEnd,
+                            } = getRedactionAnnouncementFlags(
+                                selection,
+                                orderedPageManualSelections,
+                                documentManualSelections
+                            );
+
+                            return {
+                                id: selection.id,
+                                start: selection.start,
+                                end: selection.end,
+                                redactionGroupId:
+                                    selection.redactionGroupId,
+                                announceStart,
+                                announceEnd,
+                            };
+                        });
 
                     const sourceText = item.text;
                     const pdfBoldRanges = getBoldRangesFromTextSpans(sourceText, item.textSpans);
                     const fallbackBoldRanges = getExactLineRanges(sourceText, "Case Note");
                     const boldRanges = [...pdfBoldRanges, ...fallbackBoldRanges];
+
+                    const accessibleText = buildAccessibleReviewText(
+                        sourceText,
+                        suggestionsForItem,
+                        manualForItem,
+                        isPreviewMode
+                    );
 
                     return (
                         <div
@@ -128,20 +291,30 @@ export default function PageContent({
                             data-item-id={item.itemId}
                         >
                             <p className="govuk-body">
-                                {item.textSpans?.length
-                                    ? renderStyledTextSegments(
-                                        item.textSpans,
-                                        suggestionsForItem,
-                                        manualForItem,
-                                        isPreviewMode
-                                    )
-                                    : renderTextSegments(
-                                        sourceText,
-                                        suggestionsForItem,
-                                        manualForItem,
-                                        isPreviewMode,
-                                        boldRanges
-                                    )}
+                                <span
+                                    className="govuk-visually-hidden"
+                                    data-selection-offset-ignore
+                                    aria-live="polite"
+                                >
+                                    {accessibleText}
+                                </span>
+
+                                <span aria-hidden="true">
+                                    {item.textSpans?.length
+                                        ? renderStyledTextSegments(
+                                            item.textSpans,
+                                            suggestionsForItem,
+                                            manualForItem,
+                                            isPreviewMode
+                                        )
+                                        : renderTextSegments(
+                                            sourceText,
+                                            suggestionsForItem,
+                                            manualForItem,
+                                            isPreviewMode,
+                                            boldRanges
+                                        )}
+                                </span>
                             </p>
                         </div>
                     );
@@ -202,17 +375,38 @@ export default function PageContent({
                                                                 selection.tableId === table.tableId &&
                                                                 selection.cellId === cell.cellId
                                                         )
-                                                        .map((selection) => ({
-                                                            id: selection.id,
-                                                            start: selection.start,
-                                                            end: selection.end,
-                                                            redactionGroupId: selection.redactionGroupId,
-                                                        }));
+                                                        .map((selection) => {
+                                                            const {
+                                                                announceStart,
+                                                                announceEnd,
+                                                            } = getRedactionAnnouncementFlags(
+                                                                selection,
+                                                                orderedPageManualSelections,
+                                                                documentManualSelections
+                                                            );
+
+                                                            return {
+                                                                id: selection.id,
+                                                                start: selection.start,
+                                                                end: selection.end,
+                                                                redactionGroupId:
+                                                                    selection.redactionGroupId,
+                                                                announceStart,
+                                                                announceEnd,
+                                                            };
+                                                        });
 
                                                     const isManuallyRedacted = manualForCell.length > 0;
                                                     const hasSuggestion = suggestionsForCell.length > 0;
                                                     const sourceText = cell.text;
                                                     const boldRanges: Array<{ start: number; end: number }> = [];
+
+                                                    const accessibleText = buildAccessibleReviewText(
+                                                        sourceText,
+                                                        suggestionsForCell,
+                                                        manualForCell,
+                                                        isPreviewMode
+                                                    );
 
                                                     const cellClassName = [
                                                         cell.isNumeric
@@ -232,20 +426,30 @@ export default function PageContent({
 
                                                     const content = (
                                                         <span className="jr-table-cell-text" style={{ whiteSpace: "pre-line" }}>
-                                                            {cell.textSpans?.length
-                                                                ? renderStyledTextSegments(
-                                                                    cell.textSpans,
-                                                                    suggestionsForCell,
-                                                                    manualForCell,
-                                                                    isPreviewMode
-                                                                )
-                                                                : renderTextSegments(
-                                                                    sourceText,
-                                                                    suggestionsForCell,
-                                                                    manualForCell,
-                                                                    isPreviewMode,
-                                                                    boldRanges
-                                                                )}
+                                                            <span
+                                                                className="govuk-visually-hidden"
+                                                                data-selection-offset-ignore
+                                                                aria-live="polite"
+                                                            >
+                                                                {accessibleText}
+                                                            </span>
+
+                                                            <span aria-hidden="true">
+                                                                {cell.textSpans?.length
+                                                                    ? renderStyledTextSegments(
+                                                                        cell.textSpans,
+                                                                        suggestionsForCell,
+                                                                        manualForCell,
+                                                                        isPreviewMode
+                                                                    )
+                                                                    : renderTextSegments(
+                                                                        sourceText,
+                                                                        suggestionsForCell,
+                                                                        manualForCell,
+                                                                        isPreviewMode,
+                                                                        boldRanges
+                                                                    )}
+                                                            </span>
                                                         </span>
                                                     );
 

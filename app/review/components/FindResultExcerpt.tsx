@@ -1,13 +1,11 @@
 import type { ReactNode } from "react";
-
 import {
+    buildAccessibleFindResultText,
     getFindResultExcerptRedactedDisplayRanges,
 } from "../findResultRedactionDisplay";
-
 import type {
     FindInDocumentResult,
 } from "../findInDocument";
-
 import type {
     ManualDecision,
     ReviewPageData,
@@ -37,6 +35,12 @@ export default function FindResultExcerpt({
             result,
             pages,
             manualSelections
+        );
+
+    const accessibleExcerpt =
+        buildAccessibleFindResultText(
+            text,
+            redactedRanges
         );
 
     const boundaries = Array.from(
@@ -119,9 +123,17 @@ export default function FindResultExcerpt({
 
     return (
         <>
-            {hasLeadingEllipsis && "…"}
-            {nodes}
-            {hasTrailingEllipsis && "…"}
+            <span className="govuk-visually-hidden">
+                {hasLeadingEllipsis && "…"}
+                {accessibleExcerpt}
+                {hasTrailingEllipsis && "…"}
+            </span>
+
+            <span aria-hidden="true">
+                {hasLeadingEllipsis && "…"}
+                {nodes}
+                {hasTrailingEllipsis && "…"}
+            </span>
         </>
     );
 }

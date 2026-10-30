@@ -20,6 +20,7 @@ import type {
     ManualDecision,
     ReviewPageData,
 } from "../app/review/types";
+import { buildAccessibleFindResultText } from "../app/review/findResultRedactionDisplay";
 
 afterEach(() => {
     cleanup();
@@ -112,10 +113,8 @@ describe("find result redaction accessibility", () => {
             container.querySelector(
                 ".govuk-visually-hidden",
             )?.textContent,
-        ).toBe("Redaction: ");
-
-        expect(container.textContent).toContain(
-            "Redaction: A7293BK",
+        ).toBe(
+            "Redaction start A7293BK Redaction end"
         );
     });
 
@@ -132,10 +131,46 @@ describe("find result redaction accessibility", () => {
             container.querySelector(
                 ".govuk-visually-hidden",
             )?.textContent,
-        ).toBe("Redaction: ");
+        ).toBe(
+            "Redaction start A7293BK Redaction end"
+        );
+    });
+});
 
-        expect(container.textContent).toContain(
-            "Redaction: A7293BK",
+describe("Find result accessible text", () => {
+    it("announces redaction start and end", () => {
+        expect(
+            buildAccessibleFindResultText(
+                "A7293BK",
+                [
+                    {
+                        start: 0,
+                        end: 7,
+                    },
+                ]
+            )
+        ).toBe(
+            "Redaction start A7293BK Redaction end"
+        );
+    });
+
+    it("does not repeat boundaries for adjacent redacted ranges", () => {
+        expect(
+            buildAccessibleFindResultText(
+                "WILLIAMS, JAMIE LEE",
+                [
+                    {
+                        start: 0,
+                        end: 10,
+                    },
+                    {
+                        start: 10,
+                        end: 19,
+                    },
+                ]
+            )
+        ).toBe(
+            "Redaction start WILLIAMS, JAMIE LEE Redaction end"
         );
     });
 });
