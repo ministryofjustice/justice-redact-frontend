@@ -63,6 +63,20 @@ async function mockWorkflow(
             });
         },
     );
+
+    await page.route(
+        `${API_BASE_URL}/documents/${DOCUMENT_ID}/status`,
+        async (route) => {
+            expect(route.request().method()).toBe("GET");
+
+            await fulfillJson(route, {
+                documentId: DOCUMENT_ID,
+                filename: "test.pdf",
+                status: "processing",
+                processingProgress: 30,
+            });
+        },
+    );
 }
 
 test("submitting subject details starts document processing", async ({
