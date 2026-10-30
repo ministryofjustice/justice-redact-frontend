@@ -15,11 +15,8 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
         "Access-Control-Allow-Credentials": "true",
     };
 
-    // Start with the old run as the authoritative completed run.
-    // Changing this variable simulates the backend selecting a newer run.
     let currentRunId = oldRunId;
 
-    // Mock the authoritative backend workflow endpoint.
     await page.route(
         `${apiBaseUrl}/documents/${documentId}/workflow`,
         async (route) => {
@@ -38,7 +35,6 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
         },
     );
 
-    // Mock a completed Export response for a specific redaction run.
     async function mockExport(runId: string) {
         await page.route(
             `${apiBaseUrl}/documents/${documentId}/redaction-runs/${runId}/export`,
@@ -83,7 +79,6 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
     await mockExport(oldRunId);
     await mockExport(newRunId);
 
-    // STEP 1: Open the original completed Export page.
     await page.goto(
         `/export?documentId=${documentId}&runId=${oldRunId}`,
     );
@@ -101,7 +96,6 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
 
     await expect(downloadAllButton).toBeVisible();
 
-    // The initial download belongs to the old run.
     await expect(downloadAllButton).toHaveAttribute(
         "href",
         new RegExp(
@@ -113,19 +107,14 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
         `/export?documentId=${documentId}&runId=${oldRunId}`,
     );
 
-    // STEP 2: A newer completed run supersedes the old run.
     currentRunId = newRunId;
 
-    // The Export page checks the workflow when browser visibility
-    // changes. Simulate that event without reloading the page.
     await page.evaluate(() => {
         document.dispatchEvent(
             new Event("visibilitychange"),
         );
     });
 
-    // The old Export page must redirect to the dedicated
-    // superseded-revision page.
     await expect(page).toHaveURL(
         `/export/superseded?documentId=${documentId}&runId=${oldRunId}`,
     );
@@ -137,14 +126,12 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
         }),
     ).toBeVisible();
 
-    // The superseded run must not offer downloads.
     await expect(
         page.getByRole("button", {
             name: "Download all files",
         }),
     ).toHaveCount(0);
 
-    // The user should be able to navigate to the current revision.
     const latestVersionLink = page.getByRole("link", {
         name: "Go to the latest version",
         exact: true,
@@ -157,11 +144,8 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
         `/export?documentId=${documentId}&runId=${newRunId}`,
     );
 
-    // STEP 3: Refresh the superseded page.
     await page.reload();
 
-    // The backend workflow must remain authoritative after reload,
-    // not just while the original React state is in memory.
     await expect(page).toHaveURL(
         `/export/superseded?documentId=${documentId}&runId=${oldRunId}`,
     );
@@ -191,7 +175,6 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
         `/export?documentId=${documentId}&runId=${newRunId}`,
     );
 
-    // STEP 4: Open the latest authoritative Export page.
     await refreshedLatestVersionLink.click();
 
     await expect(page).toHaveURL(
@@ -205,7 +188,6 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
         }),
     ).toBeVisible();
 
-    // The latest run must have its own download.
     const latestDownloadButton = page.getByRole("button", {
         name: "Download all files",
     });
@@ -219,7 +201,6 @@ test("an open Export page blocks downloads when a newer revision supersedes it",
         ),
     );
 
-    // The latest run must not display the superseded warning.
     await expect(
         page.getByRole("heading", {
             name: "There is a newer version of these files",
