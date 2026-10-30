@@ -1,51 +1,72 @@
-import { expect, test } from "@playwright/test";
 
-test("stale Processing URL redirects to the authoritative Review page", async ({
-    page,
-}) => {
-    const documentId = "document-123";
+import { expect, test, type Page } from "@playwright/test";
 
+const API_BASE_URL = "http://127.0.0.1:8000";
+
+const CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "http://localhost:3000",
+    "Access-Control-Allow-Credentials": "true",
+};
+
+type WorkflowState = {
+    status: string;
+    currentRedactionRunId: string | null;
+    preferredPage: string;
+    allowedPages: string[];
+};
+
+// Mock the backend-authoritative document workflow.
+async function mockWorkflow(
+    page: Page,
+    documentId: string,
+    response: WorkflowState | { detail: string },
+    httpStatus = 200,
+): Promise<void> {
     await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
+        `${API_BASE_URL}/documents/${documentId}/workflow`,
         async (route) => {
+            expect(route.request().method()).toBe("GET");
+
             await route.fulfill({
-                status: 200,
+                status: httpStatus,
                 contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    status: "ready_for_review",
-                    currentRedactionRunId: null,
-                    preferredPage: "review",
-                    allowedPages: ["review"],
-                }),
+                headers: CORS_HEADERS,
+                body: JSON.stringify(
+                    httpStatus === 200
+                        ? { documentId, ...response }
+                        : response,
+                ),
             });
         },
     );
+}
+
+// Mock the APIs required to render the current Review page.
+async function mockReview(
+    page: Page,
+    documentId: string,
+    status: string,
+    revision = 4,
+): Promise<void> {
+    const reviewPage = {
+        pageNumber: 1,
+        textItems: [],
+        tables: [],
+        images: [],
+    };
 
     await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/review`,
+        `${API_BASE_URL}/documents/${documentId}/review`,
         async (route) => {
             await route.fulfill({
                 status: 200,
                 contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
+                headers: CORS_HEADERS,
                 body: JSON.stringify({
                     documentId,
                     filename: "test.pdf",
-                    status: "ready_for_review",
-                    pages: [
-                        {
-                            pageNumber: 1,
-                            textItems: [],
-                            tables: [],
-                            images: [],
-                        },
-                    ],
+                    status,
+                    pages: [reviewPage],
                     findings: [],
                     subjectDetails: {
                         subjectName: "Test Subject",
@@ -62,22 +83,124 @@ test("stale Processing URL redirects to the authoritative Review page", async ({
     );
 
     await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/redaction-decisions`,
+        `${API_BASE_URL}/documents/${documentId}/review/pages?pageStart=1&pageEnd=1`,
+        async (route) => {
+            expect(route.request().method()).toBe("GET");
+
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                headers: CORS_HEADERS,
+                body: JSON.stringify({
+                    documentId,
+                    pages: [reviewPage],
+                }),
+            });
+        },
+    );
+
+    await page.route(
+        `${API_BASE_URL}/documents/${documentId}/redaction-decisions`,
         async (route) => {
             await route.fulfill({
                 status: 200,
                 contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
+                headers: CORS_HEADERS,
                 body: JSON.stringify({
                     documentId,
-                    revision: 0,
+                    revision,
                     decisions: [],
                     updatedAt: null,
                 }),
             });
         },
+    );
+}
+
+// Mock the current versioned redaction-run status endpoint.
+async function mockRedactionStatus(
+    page: Page,
+    documentId: string,
+    runId: string,
+): Promise<void> {
+    await page.route(
+        `${API_BASE_URL}/documents/${documentId}/redaction-runs/${runId}/status`,
+        async (route) => {
+            expect(route.request().method()).toBe("GET");
+
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                headers: CORS_HEADERS,
+                body: JSON.stringify({
+                    documentId,
+                    runId,
+                    status: "processing",
+                    processingProgress: 30,
+                }),
+            });
+        },
+    );
+}
+
+// Mock the Export response for a completed redaction run.
+async function mockExport(
+    page: Page,
+    documentId: string,
+    runId: string,
+): Promise<void> {
+    await page.route(
+        `${API_BASE_URL}/documents/${documentId}/redaction-runs/${runId}/export`,
+        async (route) => {
+            expect(route.request().method()).toBe("GET");
+
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                headers: CORS_HEADERS,
+                body: JSON.stringify({
+                    documentId,
+                    runId,
+                    filename: "test.pdf",
+                    status: "redaction_complete",
+                    redactedExportUrl:
+                        `/documents/${documentId}/redaction-runs/${runId}/redacted-file`,
+                    vettedExportUrl:
+                        `/documents/${documentId}/redaction-runs/${runId}/vetted-file`,
+                    exemptExportUrl: null,
+                    allFilesExportUrl:
+                        `/documents/${documentId}/redaction-runs/${runId}/all-files`,
+                    pageCount: 1,
+                    pageCounts: {
+                        original: 1,
+                        exempt: 0,
+                        deleted: 0,
+                        redacted: 1,
+                    },
+                }),
+            });
+        },
+    );
+}
+
+// 1. Stale Processing URL redirects to Review
+test("stale Processing URL redirects to the authoritative Review page", async ({
+    page,
+}) => {
+    const documentId = "document-123";
+
+    await mockWorkflow(page, documentId, {
+        status: "ready_for_review",
+        currentRedactionRunId: null,
+        preferredPage: "review",
+        allowedPages: ["review"],
+    });
+
+    await mockReview(
+        page,
+        documentId,
+        "ready_for_review",
+        0,
     );
 
     await page.goto(
@@ -89,10 +212,14 @@ test("stale Processing URL redirects to the authoritative Review page", async ({
     );
 
     await expect(
-        page.getByRole("heading", { name: "Mark for redaction" }),
+        page.getByRole("heading", {
+            name: "Make redactions",
+            exact: true,
+        }),
     ).toBeVisible();
 });
 
+// 2. Stale Applying Redactions URL redirects to current run
 test("stale Applying Redactions URL redirects to the current redaction run", async ({
     page,
 }) => {
@@ -100,42 +227,17 @@ test("stale Applying Redactions URL redirects to the current redaction run", asy
     const oldRunId = "run-old";
     const currentRunId = "run-current";
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    status: "applying_redactions",
-                    currentRedactionRunId: currentRunId,
-                    preferredPage: "applying-redactions",
-                    allowedPages: ["applying-redactions"],
-                }),
-            });
-        },
-    );
+    await mockWorkflow(page, documentId, {
+        status: "applying_redactions",
+        currentRedactionRunId: currentRunId,
+        preferredPage: "applying-redactions",
+        allowedPages: ["applying-redactions"],
+    });
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/status`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    filename: "test.pdf",
-                    status: "applying_redactions",
-                }),
-            });
-        },
+    await mockRedactionStatus(
+        page,
+        documentId,
+        currentRunId,
     );
 
     await page.goto(
@@ -147,29 +249,26 @@ test("stale Applying Redactions URL redirects to the current redaction run", asy
     );
 
     await expect(
-        page.getByRole("heading", { name: "Applying redactions" }),
+        page.getByRole("heading", {
+            name: "Your redactions are being applied",
+            exact: true,
+        }),
     ).toBeVisible();
 });
 
+// 3. Missing document returns 404
 test("workflow 404 shows the Page not found error page", async ({
     page,
 }) => {
     const documentId = "missing-document";
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
-        async (route) => {
-            await route.fulfill({
-                status: 404,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    detail: "Document not found",
-                }),
-            });
+    await mockWorkflow(
+        page,
+        documentId,
+        {
+            detail: "Document not found",
         },
+        404,
     );
 
     await page.goto(
@@ -177,7 +276,10 @@ test("workflow 404 shows the Page not found error page", async ({
     );
 
     await expect(
-        page.getByRole("heading", { name: "Page not found" }),
+        page.getByRole("heading", {
+            name: "Page not found",
+            exact: true,
+        }),
     ).toBeVisible();
 
     await expect(
@@ -192,25 +294,19 @@ test("workflow 404 shows the Page not found error page", async ({
     );
 });
 
+// 4. Temporary workflow service failure returns 503
 test("temporary workflow service failure shows the service unavailable page", async ({
     page,
 }) => {
     const documentId = "document-123";
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
-        async (route) => {
-            await route.fulfill({
-                status: 503,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    detail: "Service unavailable",
-                }),
-            });
+    await mockWorkflow(
+        page,
+        documentId,
+        {
+            detail: "Service unavailable",
         },
+        503,
     );
 
     await page.goto(
@@ -220,6 +316,7 @@ test("temporary workflow service failure shows the service unavailable page", as
     await expect(
         page.getByRole("heading", {
             name: "Sorry, the service is unavailable",
+            exact: true,
         }),
     ).toBeVisible();
 
@@ -232,25 +329,19 @@ test("temporary workflow service failure shows the service unavailable page", as
     );
 });
 
+// 5. Unexpected workflow failure returns 500
 test("unexpected workflow failure shows the service problem page", async ({
     page,
 }) => {
     const documentId = "document-123";
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
-        async (route) => {
-            await route.fulfill({
-                status: 500,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    detail: "Internal server error",
-                }),
-            });
+    await mockWorkflow(
+        page,
+        documentId,
+        {
+            detail: "Internal server error",
         },
+        500,
     );
 
     await page.goto(
@@ -260,6 +351,7 @@ test("unexpected workflow failure shows the service problem page", async ({
     await expect(
         page.getByRole("heading", {
             name: "Sorry, there is a problem with the service",
+            exact: true,
         }),
     ).toBeVisible();
 
@@ -274,25 +366,19 @@ test("unexpected workflow failure shows the service problem page", async ({
     );
 });
 
+// 6. Forbidden workflow access returns 403
 test("workflow access denied shows the access error page", async ({
     page,
 }) => {
     const documentId = "document-123";
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
-        async (route) => {
-            await route.fulfill({
-                status: 403,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    detail: "Forbidden",
-                }),
-            });
+    await mockWorkflow(
+        page,
+        documentId,
+        {
+            detail: "Forbidden",
         },
+        403,
     );
 
     await page.goto(
@@ -302,6 +388,7 @@ test("workflow access denied shows the access error page", async ({
     await expect(
         page.getByRole("heading", {
             name: "You do not have access to this service",
+            exact: true,
         }),
     ).toBeVisible();
 
@@ -322,32 +409,29 @@ test("workflow access denied shows the access error page", async ({
     );
 });
 
+// 7. Invalid workflow request returns 400
 test("workflow 400 shows the generic request problem page", async ({
     page,
 }) => {
     const documentId = "document-123";
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
-        async (route) => {
-            await route.fulfill({
-                status: 400,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    detail: "Bad request",
-                }),
-            });
+    await mockWorkflow(
+        page,
+        documentId,
+        {
+            detail: "Bad request",
         },
+        400,
     );
 
-    await page.goto(`/review?documentId=${documentId}`);
+    await page.goto(
+        `/review?documentId=${documentId}`,
+    );
 
     await expect(
         page.getByRole("heading", {
             name: "Sorry, there is a problem",
+            exact: true,
         }),
     ).toBeVisible();
 
@@ -360,7 +444,7 @@ test("workflow 400 shows the generic request problem page", async ({
     );
 });
 
-
+// 8. Missing document ID redirects to Upload
 test("missing document ID redirects to Upload", async ({
     page,
 }) => {
@@ -369,63 +453,21 @@ test("missing document ID redirects to Upload", async ({
     await expect(page).toHaveURL("/upload");
 });
 
-
+// 9. Missing Export run ID is upgraded to current run
 test("Export without a run ID is upgraded to the current completed run", async ({
     page,
 }) => {
     const documentId = "document-123";
     const runId = "run-123";
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    status: "redaction_complete",
-                    currentRedactionRunId: runId,
-                    preferredPage: "export",
-                    allowedPages: ["review", "export"],
-                }),
-            });
-        },
-    );
+    await mockWorkflow(page, documentId, {
+        status: "redaction_complete",
+        currentRedactionRunId: runId,
+        preferredPage: "export",
+        allowedPages: ["review", "export"],
+    });
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/redaction-runs/${runId}/export`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    runId,
-                    filename: "test.pdf",
-                    status: "redaction_complete",
-                    redactedExportUrl:
-                        `/documents/${documentId}/redaction-runs/${runId}/redacted-file`,
-                    vettedExportUrl:
-                        `/documents/${documentId}/redaction-runs/${runId}/vetted-file`,
-                    exemptExportUrl: null,
-                    pageCount: 1,
-                    pageCounts: {
-                        original: 1,
-                        exempt: 0,
-                        deleted: 0,
-                        redacted: 1,
-                    },
-                }),
-            });
-        },
-    );
+    await mockExport(page, documentId, runId);
 
     await page.goto(
         `/export?documentId=${documentId}`,
@@ -436,53 +478,37 @@ test("Export without a run ID is upgraded to the current completed run", async (
     );
 
     await expect(
-        page.getByRole("heading", { name: "Redaction complete" }),
+        page.getByRole("heading", {
+            name: "Redactions applied",
+            exact: true,
+        }),
+    ).toBeVisible();
+
+    await expect(
+        page.getByRole("button", {
+            name: "Download all files",
+        }),
     ).toBeVisible();
 });
 
-
+// 10. Export before completion redirects to Applying Redactions
 test("Export before redaction completion redirects to Applying Redactions", async ({
     page,
 }) => {
     const documentId = "document-123";
     const runId = "run-123";
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    status: "applying_redactions",
-                    currentRedactionRunId: runId,
-                    preferredPage: "applying-redactions",
-                    allowedPages: ["applying-redactions"],
-                }),
-            });
-        },
-    );
+    await mockWorkflow(page, documentId, {
+        status: "applying_redactions",
+        currentRedactionRunId: runId,
+        preferredPage: "applying-redactions",
+        allowedPages: ["applying-redactions"],
+    });
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/status`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    filename: "test.pdf",
-                    status: "applying_redactions",
-                }),
-            });
-        },
+    await mockRedactionStatus(
+        page,
+        documentId,
+        runId,
     );
 
     await page.goto(
@@ -494,90 +520,31 @@ test("Export before redaction completion redirects to Applying Redactions", asyn
     );
 
     await expect(
-        page.getByRole("heading", { name: "Applying redactions" }),
+        page.getByRole("heading", {
+            name: "Your redactions are being applied",
+            exact: true,
+        }),
     ).toBeVisible();
 });
 
-
+// 11. Cancelled Applying Redactions URL redirects to Review
 test("Applying Redactions URL after cancellation redirects to Review", async ({
     page,
 }) => {
     const documentId = "document-123";
     const oldRunId = "run-cancelled";
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    status: "ready_for_review",
-                    currentRedactionRunId: null,
-                    preferredPage: "review",
-                    allowedPages: ["review"],
-                }),
-            });
-        },
-    );
+    await mockWorkflow(page, documentId, {
+        status: "ready_for_review",
+        currentRedactionRunId: null,
+        preferredPage: "review",
+        allowedPages: ["review"],
+    });
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/review`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    filename: "test.pdf",
-                    status: "ready_for_review",
-                    pages: [
-                        {
-                            pageNumber: 1,
-                            textItems: [],
-                            tables: [],
-                            images: [],
-                        },
-                    ],
-                    findings: [],
-                    subjectDetails: {
-                        subjectName: "Test Subject",
-                        subjectPrisonNumber: "A1234BC",
-                        otherPhrases: [],
-                    },
-                    summary: {
-                        totalPages: 1,
-                        totalFindings: 0,
-                    },
-                }),
-            });
-        },
-    );
-
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/redaction-decisions`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    revision: 4,
-                    decisions: [],
-                    updatedAt: null,
-                }),
-            });
-        },
+    await mockReview(
+        page,
+        documentId,
+        "ready_for_review",
     );
 
     await page.goto(
@@ -589,67 +556,28 @@ test("Applying Redactions URL after cancellation redirects to Review", async ({
     );
 
     await expect(
-        page.getByRole("heading", { name: "Mark for redaction" }),
+        page.getByRole("heading", {
+            name: "Make redactions",
+            exact: true,
+        }),
     ).toBeVisible();
 });
 
-
+// 12. Completed Applying Redactions URL redirects to Export
 test("Applying Redactions URL after completion redirects to versioned Export", async ({
     page,
 }) => {
     const documentId = "document-123";
     const runId = "run-123";
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    status: "redaction_complete",
-                    currentRedactionRunId: runId,
-                    preferredPage: "export",
-                    allowedPages: ["review", "export"],
-                }),
-            });
-        },
-    );
+    await mockWorkflow(page, documentId, {
+        status: "redaction_complete",
+        currentRedactionRunId: runId,
+        preferredPage: "export",
+        allowedPages: ["review", "export"],
+    });
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/redaction-runs/${runId}/export`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    runId,
-                    filename: "test.pdf",
-                    status: "redaction_complete",
-                    redactedExportUrl:
-                        `/documents/${documentId}/redaction-runs/${runId}/redacted-file`,
-                    vettedExportUrl:
-                        `/documents/${documentId}/redaction-runs/${runId}/vetted-file`,
-                    exemptExportUrl: null,
-                    pageCount: 1,
-                    pageCounts: {
-                        original: 1,
-                        exempt: 0,
-                        deleted: 0,
-                        redacted: 1,
-                    },
-                }),
-            });
-        },
-    );
+    await mockExport(page, documentId, runId);
 
     await page.goto(
         `/applying-redactions?documentId=${documentId}&runId=${runId}`,
@@ -660,90 +588,37 @@ test("Applying Redactions URL after completion redirects to versioned Export", a
     );
 
     await expect(
-        page.getByRole("heading", { name: "Redaction complete" }),
+        page.getByRole("heading", {
+            name: "Redactions applied",
+            exact: true,
+        }),
+    ).toBeVisible();
+
+    await expect(
+        page.getByRole("button", {
+            name: "Download all files",
+        }),
     ).toBeVisible();
 });
 
-
+// 13. Review remains accessible after redaction completion
 test("Review remains accessible after redaction completion", async ({
     page,
 }) => {
     const documentId = "document-123";
     const runId = "run-123";
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/workflow`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    status: "redaction_complete",
-                    currentRedactionRunId: runId,
-                    preferredPage: "export",
-                    allowedPages: ["review", "export"],
-                }),
-            });
-        },
-    );
+    await mockWorkflow(page, documentId, {
+        status: "redaction_complete",
+        currentRedactionRunId: runId,
+        preferredPage: "export",
+        allowedPages: ["review", "export"],
+    });
 
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/review`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    filename: "test.pdf",
-                    status: "redaction_complete",
-                    pages: [
-                        {
-                            pageNumber: 1,
-                            textItems: [],
-                            tables: [],
-                            images: [],
-                        },
-                    ],
-                    findings: [],
-                    subjectDetails: {
-                        subjectName: "Test Subject",
-                        subjectPrisonNumber: "A1234BC",
-                        otherPhrases: [],
-                    },
-                    summary: {
-                        totalPages: 1,
-                        totalFindings: 0,
-                    },
-                }),
-            });
-        },
-    );
-
-    await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/redaction-decisions`,
-        async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: "application/json",
-                headers: {
-                    "Access-Control-Allow-Origin": "http://localhost:3000",
-                },
-                body: JSON.stringify({
-                    documentId,
-                    revision: 4,
-                    decisions: [],
-                    updatedAt: null,
-                }),
-            });
-        },
+    await mockReview(
+        page,
+        documentId,
+        "redaction_complete",
     );
 
     await page.goto(
@@ -755,6 +630,9 @@ test("Review remains accessible after redaction completion", async ({
     );
 
     await expect(
-        page.getByRole("heading", { name: "Mark for redaction" }),
+        page.getByRole("heading", {
+            name: "Make redactions",
+            exact: true,
+        }),
     ).toBeVisible();
 });
