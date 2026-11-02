@@ -298,4 +298,110 @@ describe("useApplyRedactions", () => {
         expect(window.scrollTo)
             .toHaveBeenCalled();
     });
+
+    it("prevents duplicate Apply submissions during saving and navigation", async () => {
+        let resolveSave:
+            | ((revision: number) => void)
+            | undefined;
+
+        const pendingSave = new Promise<number>((resolve) => {
+            resolveSave = resolve;
+        });
+
+        const saveBeforeApply = vi.fn()
+            .mockReturnValue(pendingSave);
+
+        const options = makeOptions({
+            saveBeforeApply,
+        });
+
+        const { result } = renderHook(() =>
+            useApplyRedactions(options),
+        );
+
+        const attempts: Promise<void>[] = [];
+
+        act(() => {
+            attempts.push(
+                result.current.handleApplyRedactions(),
+            );
+
+            attempts.push(
+                result.current.handleApplyRedactions(),
+            );
+        });
+
+        expect(result.current.isApplyingRedactions)
+            .toBe(true);
+
+        await act(async () => {
+            resolveSave?.(7);
+            await Promise.all(attempts);
+        });
+
+        expect(saveBeforeApply)
+            .toHaveBeenCalledTimes(1);
+
+        expect(mocks.fetchJson)
+            .toHaveBeenCalledTimes(1);
+
+        expect(mocks.push)
+            .toHaveBeenCalledTimes(1);
+
+        // Navigation has been requested, but the hook
+        // remains mounted in this test. Applying again
+        // must not start a second processing run.
+        await act(async () => {
+            await result.current.handleApplyRedactions();
+        });
+
+        expect(saveBeforeApply)
+            .toHaveBeenCalledTimes(1);
+
+        expect(mocks.fetchJson)
+            .toHaveBeenCalledTimes(1);
+    });
+
+    it("allows retrying after an Apply submission fails", async () => {
+        const saveBeforeApply = vi.fn()
+            .mockRejectedValueOnce(
+                new Error("Temporary save failure"),
+            )
+            .mockResolvedValueOnce(8);
+
+        const options = makeOptions({
+            saveBeforeApply,
+        });
+
+        const { result } = renderHook(() =>
+            useApplyRedactions(options),
+        );
+
+        await act(async () => {
+            await result.current.handleApplyRedactions();
+        });
+
+        expect(result.current.showApplyRedactionsFailure)
+            .toBe(true);
+
+        expect(result.current.isApplyingRedactions)
+            .toBe(false);
+
+        await act(async () => {
+            await result.current.handleApplyRedactions();
+        });
+
+        expect(saveBeforeApply)
+            .toHaveBeenCalledTimes(2);
+
+        expect(mocks.fetchJson)
+            .toHaveBeenCalledTimes(1);
+
+        expect(mocks.push)
+            .toHaveBeenCalledTimes(1);
+
+        expect(result.current.showApplyRedactionsFailure)
+            .toBe(false);
+    });
+
 });

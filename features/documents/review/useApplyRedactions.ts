@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../../../app/lib/api";
 import {
@@ -43,6 +43,9 @@ export function useApplyRedactions({
     saveBeforeApply,
 }: UseApplyRedactionsOptions) {
     const router = useRouter();
+
+    // Synchronous protection against duplicate Apply requests.
+    const applyInFlightRef = useRef(false);
 
     const [
         isApplyingRedactions,
@@ -89,6 +92,10 @@ export function useApplyRedactions({
     }
 
     async function handleApplyRedactions() {
+        if (applyInFlightRef.current) {
+            return;
+        }
+
         if (!documentData || !documentId) {
             return;
         }
@@ -115,6 +122,8 @@ export function useApplyRedactions({
             );
             return;
         }
+
+        applyInFlightRef.current = true;
 
         try {
             setIsApplyingRedactions(true);
@@ -149,6 +158,8 @@ export function useApplyRedactions({
                 `/applying-redactions?documentId=${documentData.documentId}&runId=${applyResponse.runId}`,
             );
         } catch {
+            // Unlock on failure so the user can retry.
+            applyInFlightRef.current = false;
             showApplyFailureAlert();
         }
     }
