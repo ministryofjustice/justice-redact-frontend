@@ -1068,3 +1068,218 @@ test("Find and redact part merges overlapping manual redactions and restores the
 });
 
 
+test("Find and Disclose splits a redaction into independent persisted groups", async ({
+    page,
+}) => {
+    const state = await mockReview(page);
+    await openReview(page);
+
+    await selectContent(
+        page,
+        TEXT_SELECTOR,
+        0,
+        TEXT_SELECTOR,
+        7,
+    );
+
+    await expect.poll(
+        () => state.saves.length,
+    ).toBe(1);
+
+    const initialSave = state.saves[0];
+
+    expect(initialSave.expectedRevision).toBe(4);
+    expect(initialSave.decisions).toHaveLength(1);
+
+    expect(initialSave.decisions[0]).toMatchObject({
+        kind: "text",
+        pageNumber: 1,
+        itemId: "item-1",
+        start: 0,
+        end: 7,
+        text: "the cat",
+        action: "redact",
+        source: "manual",
+    });
+
+    const originalGroupId =
+        initialSave.decisions[0].redactionGroupId;
+
+    expect(originalGroupId).toBeTruthy();
+
+    await page.getByRole("button", {
+        name: "Find",
+        exact: true,
+    }).click();
+
+    await page.getByRole("menu")
+        .getByRole("menuitem")
+        .nth(2)
+        .click();
+
+    await expect(
+        page.getByRole("heading", {
+            name: "Find and remove redactions",
+        }),
+    ).toBeVisible();
+
+    await page.getByRole("textbox", {
+        name: "Enter a word or phrase to search for",
+    }).fill("e c");
+
+    await page.getByRole("button", {
+        name: "Search",
+        exact: true,
+    }).click();
+
+    await expect(
+        page.getByRole("heading", {
+            name: "Select what redactions you want to remove",
+        }),
+    ).toBeVisible();
+
+    const resultCheckboxes = page.locator(
+        '#find-and-redact-results input[name="searchResults"]',
+    );
+
+    await expect(resultCheckboxes).toHaveCount(1);
+    await resultCheckboxes.first().check();
+
+    await page.getByRole("button", {
+        name: "Remove",
+        exact: true,
+    }).click();
+
+    await expect.poll(
+        () => state.saves.length,
+    ).toBe(2);
+
+    const disclosureSave = state.saves[1];
+
+    expect(disclosureSave.documentId).toBe(DOCUMENT_ID);
+    expect(disclosureSave.expectedRevision).toBe(5);
+    expect(disclosureSave.decisions).toHaveLength(2);
+
+    expect(disclosureSave.decisions).toMatchObject([
+        {
+            kind: "text",
+            pageNumber: 1,
+            itemId: "item-1",
+            start: 0,
+            end: 2,
+            text: "th",
+            action: "redact",
+            source: "manual",
+        },
+        {
+            kind: "text",
+            pageNumber: 1,
+            itemId: "item-1",
+            start: 5,
+            end: 7,
+            text: "at",
+            action: "redact",
+            source: "manual",
+        },
+    ]);
+
+    const leftGroupId =
+        disclosureSave.decisions[0].redactionGroupId;
+
+    const rightGroupId =
+        disclosureSave.decisions[1].redactionGroupId;
+
+    expect(leftGroupId).toBeTruthy();
+    expect(rightGroupId).toBeTruthy();
+
+    expect(leftGroupId).not.toBe(rightGroupId);
+
+    expect(leftGroupId).not.toBe(originalGroupId);
+    expect(rightGroupId).not.toBe(originalGroupId);
+
+    expect(
+        disclosureSave.decisions.some(
+            (decision) => decision.kind === "table_cell",
+        ),
+    ).toBe(false);
+
+    await expect.poll(
+        () => state.revision,
+    ).toBe(6);
+
+    await page.reload();
+
+    await expect(
+        page.getByRole("heading", {
+            name: "Make redactions",
+            exact: true,
+        }),
+    ).toBeVisible();
+
+    await expect(
+        page.locator(TEXT_SELECTOR),
+    ).toBeVisible();
+
+    expect(state.decisions).toHaveLength(2);
+
+    expect(state.decisions).toMatchObject([
+        {
+            kind: "text",
+            start: 0,
+            end: 2,
+            text: "th",
+            redactionGroupId: leftGroupId,
+        },
+        {
+            kind: "text",
+            start: 5,
+            end: 7,
+            text: "at",
+            redactionGroupId: rightGroupId,
+        },
+    ]);
+
+    await page.getByRole("button", {
+        name: "Find",
+        exact: true,
+    }).click();
+
+    await page.getByRole("menu")
+        .getByRole("menuitem")
+        .nth(2)
+        .click();
+
+    await page.getByRole("textbox", {
+        name: "Enter a word or phrase to search for",
+    }).fill("th");
+
+    await page.getByRole("button", {
+        name: "Search",
+        exact: true,
+    }).click();
+
+    const restoredResults = page.locator(
+        '#find-and-redact-results input[name="searchResults"]',
+    );
+
+    await expect(restoredResults).toHaveCount(1);
+
+    await page.getByRole("button", {
+        name: "Go back",
+        exact: true,
+    }).click();
+
+    await page.getByRole("textbox", {
+        name: "Enter a word or phrase to search for",
+    }).fill("at");
+
+    await page.getByRole("button", {
+        name: "Search",
+        exact: true,
+    }).click();
+
+    await expect(restoredResults).toHaveCount(1);
+});
+
+
+

@@ -11,7 +11,6 @@ import {
 import type { MouseEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchJson } from "../lib/api";
-
 import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
 import { useReviewPages } from "./useReviewPages";
@@ -59,7 +58,6 @@ import {
   consumeApplyRedactionsFailure,
 } from "../lib/applyRedactionsFailure";
 import BetaBanner from "../components/BetaBanner";
-
 import {
   type FindInDocumentResult,
 } from "./findInDocument";
@@ -1346,25 +1344,23 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return 0;
     }
 
-    const result = discloseManualRedactions(
+    const preview = discloseManualRedactions(
       manualSelections,
       selectedResults,
-      () => crypto.randomUUID()
+      () => "preview-only"
     );
 
-    if (result.disclosedCount === 0) {
-      return 0;
-    }
-
-    setManualSelections(
-      result.remainingSelections
+    setManualSelections((previous) =>
+      discloseManualRedactions(
+        previous,
+        selectedResults,
+        () => crypto.randomUUID()
+      ).remainingSelections
     );
 
-    return result.disclosedCount;
+    return preview.disclosedCount;
   }
 
-  // Do not expose editable Review content until the
-  // persisted redaction decisions have been restored.
   if (decisionLoadError) {
     return (
       <ServiceErrorPage
