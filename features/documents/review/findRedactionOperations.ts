@@ -6,7 +6,7 @@ import {
     type ContentRange,
 } from "../../../app/review/contentRangeUtils";
 import { mergeContentRanges } from "../../../app/review/mergeContentRanges";
-import { subtractContentRanges } from "../../../app/review/subtractContentRanges";
+import { buildRemainingRedactionFragments } from "../../../app/review/buildRemainingRedactionFragments";
 import { buildContentRangesFromFindResults } from "../../../app/review/buildContentRangesFromFindResults";
 import { buildManualSelectionsFromContentRanges } from "../../../app/review/buildManualSelectionsFromContentRanges";
 import {
@@ -15,6 +15,7 @@ import {
 } from "../../../app/review/findInDocument";
 import type { ReviewPageData } from "../../../app/review/types";
 import type { ManualDecision } from "../../../app/review/types";
+import { subtractContentRanges } from "../../../app/review/subtractContentRanges";
 
 type FragmentLocation = {
     selectionIndex: number;
@@ -28,57 +29,11 @@ function buildRemainingFragments(
     rangesToRemove: ContentRange[],
     createId: () => string,
 ): ManualDecision[] {
-    if (selection.kind === "image") {
-        return [selection];
-    }
-
-    const sourceRange =
-        getManualDecisionContentRange(selection);
-
-    if (!sourceRange) {
-        return [selection];
-    }
-
-    const remainingRanges = subtractContentRanges(
-        sourceRange,
+    return buildRemainingRedactionFragments(
+        selection,
         rangesToRemove,
-    );
-
-    if (
-        remainingRanges.length === 1 &&
-        remainingRanges[0].start === sourceRange.start &&
-        remainingRanges[0].end === sourceRange.end
-    ) {
-        return [selection];
-    }
-
-    return remainingRanges.flatMap<ManualDecision>(
-        (range) => {
-            const localStart =
-                range.start - sourceRange.start;
-
-            const localEnd =
-                range.end - sourceRange.start;
-
-            const text = selection.text.slice(
-                localStart,
-                localEnd,
-            );
-
-            if (!text.trim()) {
-                return [];
-            }
-
-            return [
-                {
-                    ...selection,
-                    id: createId(),
-                    start: range.start,
-                    end: range.end,
-                    text,
-                },
-            ];
-        },
+        createId,
+        "reuse",
     );
 }
 
