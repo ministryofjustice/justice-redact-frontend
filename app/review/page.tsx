@@ -6,12 +6,11 @@ import {
   useState,
   useEffect,
 } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { fetchJson } from "../lib/api";
-import { buildApplyRedactionsRequest } from "./applyRedactions";
+import { useSearchParams } from "next/navigation";
 import { useReviewData } from "./useReviewData";
 import { useReviewPages } from "./useReviewPages";
 import { useReviewDecisionPersistence } from "../../features/documents/review/useReviewDecisionPersistence";
+import { useApplyRedactions } from "../../features/documents/review/useApplyRedactions";
 import { useReviewFindWorkflows } from "../../features/documents/review/useReviewFindWorkflows";
 import { useRedactionInteractions } from "../../features/documents/review/useRedactionInteractions";
 import {
@@ -50,9 +49,6 @@ import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModa
 import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
-import {
-  consumeApplyRedactionsFailure,
-} from "../lib/applyRedactionsFailure";
 import BetaBanner from "../components/BetaBanner";
 import {
   type FindInDocumentResult,
@@ -61,12 +57,6 @@ import { discloseManualRedactions } from "./discloseManualRedactions";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
 
 const PAGES_PER_BATCH = 50;
-
-type ApplyRedactionsResponse = {
-  documentId: string;
-  runId: string;
-  status: string;
-};
 
 function ReviewContent() {
   const searchParams = useSearchParams();
@@ -100,7 +90,6 @@ function ReviewContent() {
 
 function ReviewDocument({ documentId }: { documentId: string | null }) {
 
-  const router = useRouter();
 
   const [selectedRangeStart, setSelectedRangeStart] = useState(0);
   const { data, isLoading, error } = useReviewData(documentId);
@@ -121,16 +110,21 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     Boolean(data),
   );
   const [reviewMode, setReviewMode] = useState<ReviewMode>("redact");
-  const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
-  const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
-  const [showApplyRedactionsFailure, setShowApplyRedactionsFailure] =
-    useState(() => {
-      if (!documentId) {
-        return false;
-      }
+  const {
+    isApplyingRedactions,
+    applyRedactionsError,
+    showApplyRedactionsFailure,
+    handleApplyRedactions,
+  } = useApplyRedactions({
+    documentId,
+    documentData: data,
+    manualSelections,
+    pageStatuses,
+    hasDecisionConflict,
+    clearDecisionSaveError,
+    saveBeforeApply,
+  });
 
-      return consumeApplyRedactionsFailure(documentId);
-    });
   const [isQuickHelpOpen, setIsQuickHelpOpen] = useState(false);
   const {
     isFindAndRedactOpen,
@@ -207,17 +201,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     setManualSelections,
   });
 
-  useEffect(() => {
-    if (!showApplyRedactionsFailure) {
-      return;
-    }
-
-    window.scrollTo({
-      top: 0,
-      behavior: "auto",
-    });
-  }, [showApplyRedactionsFailure]);
-
   const pageRanges = useMemo(() => {
     const totalPages = data?.summary.totalPages ?? 0;
     const count = Math.ceil(totalPages / PAGES_PER_BATCH);
@@ -239,70 +222,9 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   function manualSelectionsForCurrentDocument() {
     if (!documentId) return [];
 
-    return manualSelections.filter((selection) => selection.documentId === documentId);
-  }
-
-  function showApplyFailureAlert() {
-    setApplyRedactionsError(null);
-    clearDecisionSaveError();
-    setShowApplyRedactionsFailure(true);
-    setIsApplyingRedactions(false);
-
-    window.scrollTo({
-      top: 0,
-      behavior: "auto",
-    });
-  }
-
-  async function handleApplyRedactions() {
-    if (!data || !documentId) return;
-
-    const currentDocumentSelections = manualSelectionsForCurrentDocument();
-    const hasPageDecisions = Object.keys(pageStatuses).length > 0;
-
-    if (currentDocumentSelections.length === 0 && !hasPageDecisions) return;
-
-    if (hasDecisionConflict) {
-      setApplyRedactionsError(
-        "Refresh the page to load the latest saved decisions before applying redactions."
-      );
-      return;
-    }
-
-    try {
-      setIsApplyingRedactions(true);
-      setApplyRedactionsError(null);
-      setShowApplyRedactionsFailure(false);
-
-      const savedRevision = await saveBeforeApply(
-        currentDocumentSelections,
-        pageStatuses,
-      );
-
-      const applyResponse = await fetchJson<ApplyRedactionsResponse>(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${data.documentId}/apply-redactions`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...buildApplyRedactionsRequest(
-              data.documentId,
-              currentDocumentSelections,
-              pageStatuses
-            ),
-            expectedRevision: savedRevision,
-          }),
-        }
-      );
-
-      router.push(
-        `/applying-redactions?documentId=${data.documentId}&runId=${applyResponse.runId}`
-      );
-    } catch {
-      showApplyFailureAlert();
-    }
+    return manualSelections.filter(
+      (selection) => selection.documentId === documentId
+    );
   }
 
   function addManualTextSelectionGroup(
