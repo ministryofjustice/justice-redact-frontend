@@ -48,6 +48,7 @@ import type {
   ReviewTableCell,
   ReviewMode,
 } from "./types";
+import { buildSelectedTableCellRanges } from "./tableSelectionRanges";
 import FindAndRedactModal from "./components/FindAndRedactModal";
 import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModal";
 import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
@@ -525,115 +526,28 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return true;
     }
 
-    const cells = table.rows
-      .flatMap((row) => row.cells)
-      .sort(
-        (left, right) =>
-          left.rowIndex - right.rowIndex ||
-          left.colIndex - right.colIndex
-      );
-
-    const startCellIndex = cells.findIndex(
-      (cell) => cell.cellId === startCellId
+    const cellRanges = buildSelectedTableCellRanges(
+      table.rows.flatMap((row) => row.cells),
+      startCellId,
+      endCellId,
+      () =>
+        getTextOffsetWithinItem(
+          startElement,
+          range.startContainer,
+          range.startOffset,
+        ),
+      () =>
+        getTextOffsetWithinItem(
+          endElement,
+          range.endContainer,
+          range.endOffset,
+        ),
     );
 
-    const endCellIndex = cells.findIndex(
-      (cell) => cell.cellId === endCellId
-    );
-
-    if (
-      startCellIndex < 0 ||
-      endCellIndex < 0
-    ) {
+    if (cellRanges === null) {
       selection.removeAllRanges();
       return true;
     }
-
-    const firstCellIndex = Math.min(
-      startCellIndex,
-      endCellIndex
-    );
-
-    const lastCellIndex = Math.max(
-      startCellIndex,
-      endCellIndex
-    );
-
-    const selectedCells = cells.slice(
-      firstCellIndex,
-      lastCellIndex + 1
-    );
-
-    const cellRanges = selectedCells.flatMap(
-      (cell, index) => {
-        const sourceText = cell.text;
-
-        if (!sourceText.trim()) {
-          return [];
-        }
-
-        const isFirstCell = index === 0;
-        const isLastCell =
-          index === selectedCells.length - 1;
-
-        let start = 0;
-        let end = sourceText.length;
-
-        if (isFirstCell) {
-          start = getTextOffsetWithinItem(
-            startElement,
-            range.startContainer,
-            range.startOffset
-          );
-        }
-
-        if (isLastCell) {
-          end = getTextOffsetWithinItem(
-            endElement,
-            range.endContainer,
-            range.endOffset
-          );
-        }
-
-        if (isFirstCell && isLastCell) {
-          start = getTextOffsetWithinItem(
-            startElement,
-            range.startContainer,
-            range.startOffset
-          );
-
-          end = getTextOffsetWithinItem(
-            endElement,
-            range.endContainer,
-            range.endOffset
-          );
-        }
-
-        const normalisedStart =
-          clampRangeValue(
-            Math.min(start, end),
-            sourceText.length
-          );
-
-        const normalisedEnd =
-          clampRangeValue(
-            Math.max(start, end),
-            sourceText.length
-          );
-
-        if (normalisedEnd <= normalisedStart) {
-          return [];
-        }
-
-        return [
-          {
-            cell,
-            start: normalisedStart,
-            end: normalisedEnd,
-          },
-        ];
-      }
-    );
 
     if (cellRanges.length > 0) {
       addManualTableSelectionGroup(
