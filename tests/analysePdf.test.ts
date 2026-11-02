@@ -11,11 +11,6 @@ import {
     analysePdf,
 } from "../features/documents/upload/analysePdf";
 
-/*
- * Mock PDF.js so these tests exercise Justice Redact's
- * analysis rules without needing real PDF documents,
- * a browser PDF worker or external services.
- */
 const pdfJsMock = vi.hoisted(() => ({
     getDocument: vi.fn(),
     OPS: {
@@ -41,13 +36,6 @@ function createFile(): File {
     } as unknown as File;
 }
 
-/*
- * PDF.js text coordinates are represented by the
- * sixth element of an item's transform array.
- *
- * For a 1,000-unit-high page, y=500 is within the
- * existing body-text boundaries.
- */
 function createPage(
     lines: string[] = [],
     hasImage = false,
@@ -77,12 +65,6 @@ function createPage(
 
 type MockPage = ReturnType<typeof createPage>;
 
-/*
- * Supply a predictable PDF.js loading task.
- *
- * Each test can control the page contents and
- * inspect whether resources were cleaned up.
- */
 function mockPdf(
     pages: MockPage[],
     metadataTitle = "",
