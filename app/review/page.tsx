@@ -21,6 +21,7 @@ import {
   addManualTextSelections,
 } from "../../features/documents/review/manualRedactionOperations";
 import {
+  addPartialFindRedactions,
   applyFindRedactionReplacements,
   prepareFindRedactionReplacements,
 } from "../../features/documents/review/findRedactionOperations";
@@ -60,16 +61,10 @@ import {
 import BetaBanner from "../components/BetaBanner";
 
 import {
-  buildPartialContentRanges,
   type FindInDocumentResult,
 } from "./findInDocument";
 import { discloseManualRedactions } from "./discloseManualRedactions";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
-import {
-  getManualDecisionContentRanges,
-} from "./contentRangeUtils";
-import { buildManualSelectionsFromContentRanges } from "./buildManualSelectionsFromContentRanges";
-import { subtractContentRanges } from "./subtractContentRanges";
 
 const PAGES_PER_BATCH = 50;
 
@@ -1305,89 +1300,39 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       end: number;
     }
   ): number {
-    if (
-      !documentId ||
-      !searchPages
-    ) {
+    if (!documentId || !searchPages) {
       return 0;
     }
 
-    const selectedResults = results.filter(
-      (result) =>
-        selectedResultIds.has(result.id)
+    const selectedResults = results.filter((result) =>
+      selectedResultIds.has(result.id)
     );
 
     if (selectedResults.length === 0) {
       return 0;
     }
 
-    const existingRanges =
-      getManualDecisionContentRanges(
-        manualSelections
-      );
-
-    const additions = selectedResults.flatMap(
-      (result) => {
-        const partialRanges =
-          buildPartialContentRanges(
-            searchPages,
-            result,
-            selectedRange
-          );
-
-        const uncoveredRanges =
-          partialRanges.flatMap((range) =>
-            subtractContentRanges(
-              range,
-              existingRanges
-            )
-          );
-
-        if (uncoveredRanges.length === 0) {
-          return [];
-        }
-
-        const redactionGroupId =
-          crypto.randomUUID();
-
-        const selections =
-          buildManualSelectionsFromContentRanges(
-            uncoveredRanges,
-            searchPages,
-            documentId,
-            () => crypto.randomUUID()
-          ).map((selection) => ({
-            ...selection,
-            redactionGroupId,
-          }));
-
-        if (selections.length === 0) {
-          return [];
-        }
-
-        return [
-          {
-            result,
-            selections,
-          },
-        ];
-      }
+    const preview = addPartialFindRedactions(
+      manualSelections,
+      selectedResults,
+      selectedRange,
+      searchPages,
+      documentId,
+      () => "preview-only"
     );
 
-    if (additions.length === 0) {
-      return 0;
-    }
-
-    const newSelections = additions.flatMap(
-      ({ selections }) => selections
+    setManualSelections((previous) =>
+      addPartialFindRedactions(
+        previous,
+        selectedResults,
+        selectedRange,
+        searchPages,
+        documentId,
+        () => crypto.randomUUID()
+      ).nextSelections
     );
 
-    setManualSelections((previous) => [
-      ...previous,
-      ...newSelections,
-    ]);
-
-    return additions.length;
+    return preview.addedResultCount;
   }
 
   function handleUndoSelected(

@@ -800,3 +800,271 @@ test("Find and Redact replaces an existing partial redaction with one persisted 
     ).toBeDisabled();
 });
 
+test("Find and redact part merges overlapping manual redactions and restores the merged decision", async ({
+    page,
+}) => {
+    const state = await mockReview(page);
+    await openReview(page);
+
+    await selectContent(
+        page,
+        TEXT_SELECTOR,
+        0,
+        TEXT_SELECTOR,
+        5,
+    );
+
+    await expect.poll(
+        () => state.saves.length,
+    ).toBe(1);
+
+    const initialSave = state.saves[0];
+
+    expect(initialSave.expectedRevision).toBe(4);
+    expect(initialSave.decisions).toHaveLength(1);
+
+    expect(initialSave.decisions[0]).toMatchObject({
+        kind: "text",
+        pageNumber: 1,
+        itemId: "item-1",
+        start: 0,
+        end: 5,
+        text: "the c",
+        action: "redact",
+        source: "manual",
+    });
+
+    const originalGroupId =
+        initialSave.decisions[0].redactionGroupId;
+
+    expect(originalGroupId).toBeTruthy();
+
+    async function selectPartialPhrase() {
+        await page.locator(
+            ".jr-partial-redaction-selection",
+        ).evaluate((container) => {
+            const visibleText = container.querySelector(
+                '[aria-hidden="true"]',
+            );
+
+            if (
+                !visibleText ||
+                visibleText.textContent !== "the cat"
+            ) {
+                throw new Error(
+                    "Could not locate the expected visible search phrase",
+                );
+            }
+
+            const walker = document.createTreeWalker(
+                visibleText,
+                NodeFilter.SHOW_TEXT,
+            );
+
+            const nodes: Text[] = [];
+
+            while (walker.nextNode()) {
+                nodes.push(walker.currentNode as Text);
+            }
+
+            function resolveOffset(offset: number) {
+                let consumed = 0;
+
+                for (const node of nodes) {
+                    const length =
+                        node.textContent?.length ?? 0;
+
+                    if (offset <= consumed + length) {
+                        return {
+                            node,
+                            offset: offset - consumed,
+                        };
+                    }
+
+                    consumed += length;
+                }
+
+                throw new Error(
+                    `Cannot resolve text offset ${offset}`,
+                );
+            }
+
+            const start = resolveOffset(2);
+            const end = resolveOffset(7);
+
+            const range = document.createRange();
+
+            range.setStart(
+                start.node,
+                start.offset,
+            );
+
+            range.setEnd(
+                end.node,
+                end.offset,
+            );
+
+            const selection = window.getSelection();
+
+            if (!selection) {
+                throw new Error(
+                    "Browser selection is unavailable",
+                );
+            }
+
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            container.dispatchEvent(
+                new MouseEvent("mouseup", {
+                    bubbles: true,
+                }),
+            );
+        });
+    }
+
+    async function openPartialFindResults() {
+        await page.getByRole("button", {
+            name: "Find",
+            exact: true,
+        }).click();
+
+        await page.getByRole("menuitem", {
+            name: "Find and redact part",
+            exact: true,
+        }).click();
+
+        await page.getByRole("textbox", {
+            name: "Enter a word or phrase to search for",
+        }).fill("the cat");
+
+        await page.getByRole("button", {
+            name: "Search",
+            exact: true,
+        }).click();
+
+        await expect(
+            page.getByRole("heading", {
+                name: "Select which part you want to redact",
+            }),
+        ).toBeVisible();
+
+        await selectPartialPhrase();
+
+        await page.getByRole("button", {
+            name: "Continue",
+            exact: true,
+        }).click();
+
+        await expect(
+            page.getByRole("heading", {
+                name: "Select what you want to redact",
+            }),
+        ).toBeVisible();
+
+        return page.getByRole("region", {
+            name: "Select what you want to redact",
+        }).locator('input[name="searchResults"]');
+    }
+
+    const resultCheckboxes =
+        await openPartialFindResults();
+
+    await expect(
+        resultCheckboxes.first(),
+    ).toBeVisible();
+
+    await expect(
+        resultCheckboxes.first(),
+    ).toBeEnabled();
+
+    await resultCheckboxes.first().check();
+
+    await page.getByRole("button", {
+        name: "Redact",
+        exact: true,
+    }).click();
+
+    await expect(
+        page.getByRole("button", {
+            name: "Close window",
+            exact: true,
+        }),
+    ).toBeVisible();
+
+    await expect.poll(
+        () => state.saves.length,
+    ).toBe(2);
+
+    const mergedSave = state.saves[1];
+
+    expect(mergedSave.documentId).toBe(DOCUMENT_ID);
+    expect(mergedSave.expectedRevision).toBe(5);
+    expect(mergedSave.decisions).toHaveLength(1);
+
+    expect(mergedSave.decisions[0]).toMatchObject({
+        kind: "text",
+        pageNumber: 1,
+        itemId: "item-1",
+        start: 0,
+        end: 7,
+        text: "the cat",
+        action: "redact",
+        source: "manual",
+    });
+
+    const mergedGroupId =
+        mergedSave.decisions[0].redactionGroupId;
+
+    expect(mergedGroupId).toBeTruthy();
+    expect(mergedGroupId).not.toBe(originalGroupId);
+
+    expect(
+        mergedSave.decisions.some(
+            (decision) => decision.kind === "table_cell",
+        ),
+    ).toBe(false);
+
+    await page.getByRole("button", {
+        name: "Close window",
+        exact: true,
+    }).click();
+
+    await page.reload();
+
+    await expect(
+        page.getByRole("heading", {
+            name: "Make redactions",
+            exact: true,
+        }),
+    ).toBeVisible();
+
+    await expect(
+        page.locator(TEXT_SELECTOR),
+    ).toBeVisible();
+
+    expect(state.revision).toBe(6);
+    expect(state.decisions).toHaveLength(1);
+
+    expect(state.decisions[0]).toMatchObject({
+        kind: "text",
+        itemId: "item-1",
+        start: 0,
+        end: 7,
+        text: "the cat",
+        redactionGroupId: mergedGroupId,
+    });
+
+    const restoredCheckboxes =
+        await openPartialFindResults();
+
+    await expect(
+        restoredCheckboxes.first(),
+    ).toBeChecked();
+
+    await expect(
+        restoredCheckboxes.first(),
+    ).toBeDisabled();
+});
+
+

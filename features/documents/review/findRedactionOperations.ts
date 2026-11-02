@@ -9,7 +9,10 @@ import { mergeContentRanges } from "../../../app/review/mergeContentRanges";
 import { subtractContentRanges } from "../../../app/review/subtractContentRanges";
 import { buildContentRangesFromFindResults } from "../../../app/review/buildContentRangesFromFindResults";
 import { buildManualSelectionsFromContentRanges } from "../../../app/review/buildManualSelectionsFromContentRanges";
-import type { FindInDocumentResult } from "../../../app/review/findInDocument";
+import {
+    buildPartialContentRanges,
+    type FindInDocumentResult,
+} from "../../../app/review/findInDocument";
 import type { ReviewPageData } from "../../../app/review/types";
 import type { ManualDecision } from "../../../app/review/types";
 
@@ -247,14 +250,6 @@ export function removeManualSelectionsWithinRanges(
     );
 }
 
-
-/**
- * Consolidate overlapping or adjacent replacement coverage
- * within the same source text item or table cell.
- *
- * Preserve logical grouping across multiple source items
- * when they originated from one Find result.
- */
 function mergeReplacementSelections(
     selections: ManualDecision[],
     pages: ReviewPageData[],
@@ -354,13 +349,6 @@ function mergeReplacementSelections(
     );
 }
 
-/**
- * Find gaps between new replacement selections that are
- * completely bridged by one existing logical redaction.
- *
- * Different existing redaction groups are not combined
- * merely because they are adjacent.
- */
 function findExistingRedactionBridges(
     previous: ManualDecision[],
     incomingRanges: ContentRange[],
@@ -623,3 +611,237 @@ export function applyFindRedactionReplacements(
         ...mergedReplacements,
     ];
 }
+
+
+export type PartialFindRedactionResult = {
+    nextSelections: ManualDecision[];
+    addedResultCount: number;
+};
+
+
+/**
+ * Two source ranges overlap only when they share at least
+ * one character in the same source item or table cell.
+ *
+ * Adjacent ranges are deliberately not considered overlapping.
+ */
+function partialRangesStrictlyOverlap(
+    first: ContentRange,
+    second: ContentRange,
+): boolean {
+    return (
+        getContentLocationKey(first) ===
+        getContentLocationKey(second) &&
+        first.start < second.end &&
+        second.start < first.end
+    );
+}
+
+/**
+ * Combines strictly overlapping source ranges.
+ * Unlike an adjacency-merging operation, [0, 4) and
+ * [4, 7) remain separate.
+ */
+function mergeStrictPartialRanges(
+    ranges: ContentRange[],
+): ContentRange[] {
+    const ordered = [...ranges].sort((first, second) => {
+        const locationComparison =
+            getContentLocationKey(first).localeCompare(
+                getContentLocationKey(second),
+            );
+
+        if (locationComparison !== 0) {
+            return locationComparison;
+        }
+
+        return (
+            first.start - second.start ||
+            first.end - second.end
+        );
+    });
+
+    const merged: ContentRange[] = [];
+
+    for (const range of ordered) {
+        const previous = merged[merged.length - 1];
+
+        if (
+            previous &&
+            partialRangesStrictlyOverlap(previous, range)
+        ) {
+            merged[merged.length - 1] = {
+                ...previous,
+                end: Math.max(previous.end, range.end),
+            };
+        } else {
+            merged.push(range);
+        }
+    }
+
+    return merged;
+}
+
+export function addPartialFindRedactions(
+    previous: ManualDecision[],
+    selectedResults: FindInDocumentResult[],
+    selectedRange: {
+        start: number;
+        end: number;
+    },
+    pages: ReviewPageData[],
+    documentId: string,
+    createId: () => string,
+): PartialFindRedactionResult {
+    if (
+        !documentId ||
+        selectedResults.length === 0 ||
+        selectedRange.end <= selectedRange.start
+    ) {
+        return {
+            nextSelections: previous,
+            addedResultCount: 0,
+        };
+    }
+
+    let nextSelections = previous;
+    let addedResultCount = 0;
+
+    for (const result of selectedResults) {
+        const partialRanges = buildPartialContentRanges(
+            pages,
+            result,
+            selectedRange,
+        );
+
+        const validCandidates =
+            buildManualSelectionsFromContentRanges(
+                partialRanges,
+                pages,
+                documentId,
+                () => "",
+            );
+
+        const requestedRanges =
+            getManualDecisionContentRanges(
+                validCandidates,
+            );
+
+        if (requestedRanges.length === 0) {
+            continue;
+        }
+
+        const occupiedRanges =
+            getManualDecisionContentRanges(
+                nextSelections,
+            );
+
+        const contributesNewCoverage =
+            requestedRanges.some(
+                (range) =>
+                    subtractContentRanges(
+                        range,
+                        occupiedRanges,
+                    ).length > 0,
+            );
+
+        let mergedRanges =
+            mergeStrictPartialRanges(requestedRanges);
+
+        const absorbedIndices = new Set<number>();
+
+        let foundAdditionalOverlap = true;
+
+        while (foundAdditionalOverlap) {
+            foundAdditionalOverlap = false;
+
+            for (
+                let index = 0;
+                index < nextSelections.length;
+                index++
+            ) {
+                if (absorbedIndices.has(index)) {
+                    continue;
+                }
+
+                const existingRange =
+                    getManualDecisionContentRange(
+                        nextSelections[index],
+                    );
+
+                if (!existingRange) {
+                    continue;
+                }
+
+                const overlaps = mergedRanges.some(
+                    (range) =>
+                        partialRangesStrictlyOverlap(
+                            range,
+                            existingRange,
+                        ),
+                );
+
+                if (!overlaps) {
+                    continue;
+                }
+
+                absorbedIndices.add(index);
+
+                mergedRanges = mergeStrictPartialRanges([
+                    ...mergedRanges,
+                    existingRange,
+                ]);
+
+                foundAdditionalOverlap = true;
+            }
+        }
+
+        if (
+            !contributesNewCoverage &&
+            absorbedIndices.size <= 1
+        ) {
+            continue;
+        }
+
+        const replacements =
+            buildManualSelectionsFromContentRanges(
+                mergedRanges,
+                pages,
+                documentId,
+                createId,
+            );
+
+        if (replacements.length === 0) {
+            continue;
+        }
+
+        const redactionGroupId = createId();
+
+        const groupedReplacements =
+            replacements.map((selection) => ({
+                ...selection,
+                redactionGroupId,
+            }));
+
+        const preserved =
+            removeManualSelectionsWithinRanges(
+                nextSelections,
+                mergedRanges,
+                createId,
+            );
+
+        nextSelections = [
+            ...preserved,
+            ...groupedReplacements,
+        ];
+
+        addedResultCount += 1;
+    }
+
+    return {
+        nextSelections,
+        addedResultCount,
+    };
+}
+
+
