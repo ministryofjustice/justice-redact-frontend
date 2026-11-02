@@ -16,7 +16,10 @@ import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
 import { useReviewPages } from "./useReviewPages";
 import { useReviewDecisionPersistence } from "../../features/documents/review/useReviewDecisionPersistence";
-import { addManualTextSelections } from "../../features/documents/review/manualRedactionOperations";
+import {
+  addManualTableSelections,
+  addManualTextSelections,
+} from "../../features/documents/review/manualRedactionOperations";
 import { usePageTitle } from "../components/PageTitle";
 import {
   getCachedReviewSearchPages,
@@ -576,71 +579,18 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return;
     }
 
-    const existingRanges =
-      getManualDecisionContentRanges(manualSelections);
-
-    const newSelections = cellRanges.flatMap(
-      ({ cell, start, end }) => {
-        const sourceText = cell.text;
-
-        const normalisedStart = clampRangeValue(
-          start,
-          sourceText.length
-        );
-
-        const normalisedEnd = clampRangeValue(
-          end,
-          sourceText.length
-        );
-
-        if (normalisedEnd <= normalisedStart) {
-          return [];
-        }
-
-        if (
-          !sourceText
-            .slice(normalisedStart, normalisedEnd)
-            .trim()
-        ) {
-          return [];
-        }
-
-        const selectedRange = {
-          kind: "table_cell" as const,
-          pageNumber,
-          itemId: null,
-          tableId,
-          cellId: cell.cellId,
-          start: normalisedStart,
-          end: normalisedEnd,
-        };
-
-        const uncoveredRanges =
-          subtractContentRanges(
-            selectedRange,
-            existingRanges
-          );
-
-        return buildManualSelectionsFromContentRanges(
-          uncoveredRanges,
-          visiblePages,
-          documentId,
-          () => crypto.randomUUID()
-        ).map((selection) => ({
-          ...selection,
-          redactionGroupId,
-        }));
-      }
+    setManualSelections((previous) =>
+      addManualTableSelections(
+        previous,
+        pageNumber,
+        tableId,
+        cellRanges,
+        visiblePages,
+        documentId,
+        redactionGroupId,
+        () => crypto.randomUUID()
+      )
     );
-
-    if (newSelections.length === 0) {
-      return;
-    }
-
-    setManualSelections((previous) => [
-      ...previous,
-      ...newSelections,
-    ]);
   }
 
   function handleTableCellSelection() {
