@@ -539,3 +539,98 @@ test("does not navigate to Review while abandonment is pending", async ({
     expect(reviewNavigations).toEqual([]);
 });
 
+
+test("failed abandonment resumes processing and allows another Back attempt", async ({
+    page,
+}) => {
+    const stage: { value: WorkflowStage } = {
+        value: "processing",
+    };
+
+    await mockWorkflow(page, stage);
+    await mockAuthenticatedUpload(page);
+
+    let statusRequests = 0;
+
+    await mockStatus(page, () => {
+        statusRequests += 1;
+
+        return {
+            status: "processing",
+            processingProgress: 40,
+        };
+    });
+
+    let abandonAttempts = 0;
+
+    await page.route(
+        `${API_BASE_URL}/documents/${DOCUMENT_ID}/abandon`,
+        async (route) => {
+            if (route.request().method() === "OPTIONS") {
+                await fulfillJson(route, null);
+                return;
+            }
+
+            expect(route.request().method()).toBe("POST");
+
+            abandonAttempts += 1;
+
+            if (abandonAttempts === 1) {
+                await fulfillJson(
+                    route,
+                    {
+                        detail: "Unable to abandon document",
+                    },
+                    503,
+                );
+                return;
+            }
+
+            await fulfillJson(route, {
+                documentId: DOCUMENT_ID,
+                status: "abandoned",
+            });
+        },
+    );
+
+    await page.goto(
+        `/processing?documentId=${DOCUMENT_ID}`,
+    );
+
+    const progress = page.getByRole("progressbar", {
+        name: "File processing progress",
+    });
+
+    await expect(progress).toHaveAttribute(
+        "aria-valuenow",
+        "40",
+    );
+
+    await page.getByRole("link", {
+        name: "Back",
+        exact: true,
+    }).click();
+
+    await expect.poll(
+        () => abandonAttempts,
+    ).toBe(1);
+
+    await expect.poll(
+        () => statusRequests,
+    ).toBeGreaterThanOrEqual(2);
+
+    const backLink = page.getByRole("link", {
+        name: "Back",
+        exact: true,
+    });
+
+    await expect(backLink).toBeVisible();
+
+    await backLink.click();
+
+    await expect(page).toHaveURL("/upload");
+
+    expect(abandonAttempts).toBe(2);
+});
+
+
