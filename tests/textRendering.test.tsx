@@ -2,7 +2,6 @@
 
 import {
     cleanup,
-    render,
 } from "@testing-library/react";
 import {
     afterEach,
@@ -12,8 +11,6 @@ import {
 } from "vitest";
 import {
     buildAccessibleReviewText,
-    renderStyledTextSegments,
-    renderTextSegments,
 } from "../app/review/textRendering";
 import type {
     ReviewFinding,
