@@ -35,7 +35,7 @@ import ReviewPageHeader from "./components/ReviewPageHeader";
 import ReviewPagination from "./components/ReviewPagination";
 import ReviewStatusMessages from "./components/ReviewStatusMessages";
 import QuickHelpModal from "./components/QuickHelpModal";
-import { clampRangeValue } from "./textRendering";
+import { resolveSelectedTextRanges } from "./textSelectionRanges";
 import HighlightKey from "./components/HighlightKey";
 import ApplyRedactionsFailureAlert from "./components/ApplyRedactionsFailureAlert";
 import {
@@ -578,170 +578,22 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return;
     }
 
-    const range = selection.getRangeAt(0);
-
-    const intersectedElements = Array.from(
-      document.querySelectorAll<HTMLElement>(
-        ".jr-review-block.redactable[data-page-number][data-item-id]"
-      )
-    ).filter((element) => {
-      try {
-        return range.intersectsNode(element);
-      } catch {
-        return false;
-      }
-    });
-
-    if (intersectedElements.length === 0) {
-      return;
-    }
-
-    const pageNumbers = new Set(
-      intersectedElements
-        .map(
-          (element) =>
-            element.dataset.pageNumber
-        )
-        .filter(
-          (pageNumber): pageNumber is string =>
-            Boolean(pageNumber)
-        )
+    const result = resolveSelectedTextRanges(
+      selection.getRangeAt(0),
+      visiblePages
     );
 
-    if (pageNumbers.size !== 1) {
-      selection.removeAllRanges();
+    if (result.kind === "ignore") {
       return;
     }
 
-    const pageNumberValue =
-      Array.from(pageNumbers)[0];
-
-    if (!pageNumberValue) {
-      selection.removeAllRanges();
-      return;
-    }
-
-    const pageNumber =
-      Number(pageNumberValue);
-
-    const page = visiblePages.find(
-      (candidate) =>
-        candidate.pageNumber === pageNumber
-    );
-
-    if (!page) {
-      selection.removeAllRanges();
-      return;
-    }
-
-    const spansToAdd: ManualSpan[] = [];
-
-    intersectedElements.forEach((element) => {
-      const itemId =
-        element.dataset.itemId;
-
-      if (!itemId) {
-        return;
-      }
-
-      const item = page.textItems.find(
-        (candidate) =>
-          candidate.itemId === itemId
+    if (result.kind === "apply") {
+      addManualTextSelectionGroup(
+        result.page,
+        result.spans,
+        crypto.randomUUID()
       );
-
-      if (!item) {
-        return;
-      }
-
-      const sourceText =
-        item.text;
-
-      let start = 0;
-      let end = sourceText.length;
-
-      const startElement =
-        getClosestElementWithAttribute(
-          range.startContainer,
-          "data-item-id"
-        );
-
-      const endElement =
-        getClosestElementWithAttribute(
-          range.endContainer,
-          "data-item-id"
-        );
-
-      if (
-        startElement?.dataset.itemId ===
-        itemId
-      ) {
-        start =
-          getTextOffsetWithinItem(
-            element,
-            range.startContainer,
-            range.startOffset
-          );
-      }
-
-      if (
-        endElement?.dataset.itemId ===
-        itemId
-      ) {
-        end =
-          getTextOffsetWithinItem(
-            element,
-            range.endContainer,
-            range.endOffset
-          );
-      }
-
-      const normalisedStart =
-        clampRangeValue(
-          Math.min(start, end),
-          sourceText.length
-        );
-
-      const normalisedEnd =
-        clampRangeValue(
-          Math.max(start, end),
-          sourceText.length
-        );
-
-      if (
-        normalisedEnd <=
-        normalisedStart
-      ) {
-        return;
-      }
-
-      if (
-        !sourceText
-          .slice(
-            normalisedStart,
-            normalisedEnd
-          )
-          .trim()
-      ) {
-        return;
-      }
-
-      spansToAdd.push({
-        pageNumber,
-        itemId,
-        start: normalisedStart,
-        end: normalisedEnd,
-      });
-    });
-
-    if (spansToAdd.length === 0) {
-      return;
     }
-
-    addManualTextSelectionGroup(
-      page,
-      spansToAdd,
-      crypto.randomUUID()
-    );
 
     selection.removeAllRanges();
   }
