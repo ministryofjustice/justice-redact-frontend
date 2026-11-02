@@ -20,7 +20,10 @@ import {
   addManualTableSelections,
   addManualTextSelections,
 } from "../../features/documents/review/manualRedactionOperations";
-import { removeManualSelectionsWithinRanges } from "../../features/documents/review/findRedactionOperations";
+import {
+  applyFindRedactionReplacements,
+  prepareFindRedactionReplacements,
+} from "../../features/documents/review/findRedactionOperations";
 import { usePageTitle } from "../components/PageTitle";
 import {
   getCachedReviewSearchPages,
@@ -49,7 +52,6 @@ import type {
 import FindAndRedactModal from "./components/FindAndRedactModal";
 import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModal";
 import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
-import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 import {
@@ -1273,70 +1275,26 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return 0;
     }
 
-    const replacements = selectedResults.flatMap(
-      (result) => {
-        const resultRanges =
-          buildContentRangesFromFindResults([result]);
-
-        if (resultRanges.length === 0) {
-          return [];
-        }
-
-        const redactionGroupId =
-          crypto.randomUUID();
-
-        const selections =
-          buildManualSelectionsFromContentRanges(
-            resultRanges,
-            searchPages,
-            documentId,
-            () => crypto.randomUUID()
-          ).map((selection) => ({
-            ...selection,
-            redactionGroupId,
-          }));
-
-        if (selections.length === 0) {
-          return [];
-        }
-
-        return [
-          {
-            ranges: resultRanges,
-            selections,
-          },
-        ];
-      }
+    const plan = prepareFindRedactionReplacements(
+      selectedResults,
+      searchPages,
+      documentId,
+      () => crypto.randomUUID()
     );
 
-    if (replacements.length === 0) {
+    if (plan.resultCount === 0) {
       return 0;
     }
 
-    const rangesToReplace = replacements.flatMap(
-      (replacement) => replacement.ranges
+    setManualSelections((previous) =>
+      applyFindRedactionReplacements(
+        previous,
+        plan,
+        () => crypto.randomUUID()
+      )
     );
 
-    const replacementSelections =
-      replacements.flatMap(
-        (replacement) => replacement.selections
-      );
-
-    setManualSelections((previous) => {
-      const preservedSelections =
-        removeManualSelectionsWithinRanges(
-          previous,
-          rangesToReplace,
-          () => crypto.randomUUID()
-        );
-
-      return [
-        ...preservedSelections,
-        ...replacementSelections,
-      ];
-    });
-
-    return replacements.length;
+    return plan.resultCount;
   }
 
   function handleFindAndPartiallyRedact(

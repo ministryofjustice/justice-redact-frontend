@@ -609,3 +609,194 @@ test("selection across table cells preserves each cell's offsets", async ({
         save.decisions[1].redactionGroupId,
     );
 });
+
+test("Find and Redact replaces an existing partial redaction with one persisted redaction", async ({
+    page,
+}) => {
+    const state = await mockReview(page);
+
+    await openReview(page);
+
+    await selectContent(
+        page,
+        TEXT_SELECTOR,
+        2,
+        TEXT_SELECTOR,
+        5,
+    );
+
+    await expect.poll(
+        () => state.saves.length,
+    ).toBe(1);
+
+    const initialSave = state.saves[0];
+
+    expect(initialSave.expectedRevision).toBe(4);
+
+    expect(initialSave.decisions).toHaveLength(1);
+
+    expect(initialSave.decisions[0]).toMatchObject({
+        kind: "text",
+        pageNumber: 1,
+        itemId: "item-1",
+        start: 2,
+        end: 5,
+        text: "e c",
+        action: "redact",
+        source: "manual",
+    });
+
+    const originalGroupId =
+        initialSave.decisions[0].redactionGroupId;
+
+    expect(originalGroupId).toBeTruthy();
+
+    await page.getByRole("button", {
+        name: "Find",
+        exact: true,
+    }).click();
+
+    await page.getByRole("menuitem", {
+        name: "Find and redact",
+        exact: true,
+    }).click();
+
+    await page.getByRole("textbox", {
+        name: "Enter a word or phrase to search for",
+    }).fill("the cat");
+
+    await page.getByRole("button", {
+        name: "Search",
+        exact: true,
+    }).click();
+
+    await expect(
+        page.getByRole("heading", {
+            name: "Select what you want to redact",
+        }),
+    ).toBeVisible();
+
+    const resultCheckboxes = page.locator(
+        '#find-and-redact-results input[name="searchResults"]',
+    );
+
+    await expect(
+        resultCheckboxes.first(),
+    ).toBeVisible();
+
+    await expect(
+        resultCheckboxes.first(),
+    ).toBeEnabled();
+
+    await resultCheckboxes.first().check();
+
+    await page.getByRole("button", {
+        name: "Redact",
+        exact: true,
+    }).click();
+
+    await expect(
+        page.getByRole("heading", {
+            name: "Your redactions have been made",
+        }),
+    ).toBeVisible();
+
+    await expect.poll(
+        () => state.saves.length,
+    ).toBe(2);
+
+    const mergedSave = state.saves[1];
+
+    expect(mergedSave.documentId).toBe(DOCUMENT_ID);
+
+    expect(mergedSave.expectedRevision).toBe(5);
+
+    expect(mergedSave.decisions).toHaveLength(1);
+
+    expect(mergedSave.decisions[0]).toMatchObject({
+        kind: "text",
+        pageNumber: 1,
+        itemId: "item-1",
+        start: 0,
+        end: 7,
+        text: "the cat",
+        action: "redact",
+        source: "manual",
+    });
+
+    const mergedGroupId =
+        mergedSave.decisions[0].redactionGroupId;
+
+    expect(mergedGroupId).toBeTruthy();
+
+    expect(mergedGroupId).not.toBe(originalGroupId);
+
+    expect(
+        mergedSave.decisions.some(
+            (decision) => decision.kind === "table_cell",
+        ),
+    ).toBe(false);
+
+    await page.getByRole("button", {
+        name: "Close window",
+        exact: true,
+    }).click();
+
+    await page.reload();
+
+    await expect(
+        page.getByRole("heading", {
+            name: "Make redactions",
+            exact: true,
+        }),
+    ).toBeVisible();
+
+    await expect(
+        page.locator(TEXT_SELECTOR),
+    ).toBeVisible();
+
+    expect(state.revision).toBe(6);
+
+    expect(state.decisions).toHaveLength(1);
+
+    expect(state.decisions[0]).toMatchObject({
+        kind: "text",
+        itemId: "item-1",
+        start: 0,
+        end: 7,
+        text: "the cat",
+        redactionGroupId: mergedGroupId,
+    });
+
+    await page.getByRole("button", {
+        name: "Find",
+        exact: true,
+    }).click();
+
+    await page.getByRole("menuitem", {
+        name: "Find and redact",
+        exact: true,
+    }).click();
+
+    await page.getByRole("textbox", {
+        name: "Enter a word or phrase to search for",
+    }).fill("the cat");
+
+    await page.getByRole("button", {
+        name: "Search",
+        exact: true,
+    }).click();
+
+    const restoredCheckboxes = page.locator(
+        '#find-and-redact-results input[name="searchResults"]',
+    );
+
+    await expect(
+        restoredCheckboxes.first(),
+    ).toBeChecked();
+
+    await expect(
+        restoredCheckboxes.first(),
+    ).toBeDisabled();
+});
+
