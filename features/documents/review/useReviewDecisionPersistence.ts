@@ -47,6 +47,9 @@ type ReviewDecisionPersistenceResult = {
         SetStateAction<Record<number, PageStatus>>
     >;
 
+    hasLoadedPersistedDecisions: boolean;
+    decisionLoadError: boolean;
+
     decisionSaveError: string | null;
     hasDecisionConflict: boolean;
 
@@ -78,6 +81,8 @@ export function useReviewDecisionPersistence(
         hasLoadedPersistedDecisions,
         setHasLoadedPersistedDecisions,
     ] = useState(false);
+
+    const [decisionLoadError, setDecisionLoadError] = useState(false);
 
     const [
         decisionSaveError,
@@ -151,6 +156,7 @@ export function useReviewDecisionPersistence(
                 decisionRevisionRef.current =
                     persisted.revision;
 
+                setDecisionLoadError(false);
                 setHasLoadedPersistedDecisions(true);
             } catch (error) {
                 if (!isActive) {
@@ -161,6 +167,8 @@ export function useReviewDecisionPersistence(
                     "Failed to load persisted redaction decisions",
                     error,
                 );
+
+                setDecisionLoadError(true);
             }
         }
 
@@ -381,6 +389,9 @@ export function useReviewDecisionPersistence(
 
         pageStatuses,
         setPageStatuses,
+
+        hasLoadedPersistedDecisions,
+        decisionLoadError,
 
         decisionSaveError,
         hasDecisionConflict,

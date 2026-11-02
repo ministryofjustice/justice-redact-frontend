@@ -117,6 +117,8 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     setManualSelections,
     pageStatuses,
     setPageStatuses,
+    hasLoadedPersistedDecisions,
+    decisionLoadError,
     decisionSaveError,
     hasDecisionConflict,
     clearDecisionSaveError,
@@ -1643,6 +1645,21 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     );
 
     return result.disclosedCount;
+  }
+
+  // Do not expose editable Review content until the
+  // persisted redaction decisions have been restored.
+  if (decisionLoadError) {
+    return (
+      <ServiceErrorPage
+        variant={500}
+        documentId={documentId}
+      />
+    );
+  }
+
+  if (data && !hasLoadedPersistedDecisions) {
+    return null;
   }
 
   return (

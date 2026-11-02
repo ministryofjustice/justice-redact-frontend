@@ -512,3 +512,72 @@ test("waits for an in-flight autosave before sending the final Apply request", a
         releaseFirstSave();
     }
 });
+
+test("blocks Review when persisted decisions cannot be loaded", async ({
+    page,
+}) => {
+    const state = await mockReview(page, {
+        initialRevision: 4,
+    });
+
+    const decisionsUrl =
+        `${API_BASE_URL}/documents/${DOCUMENT_ID}/redaction-decisions`;
+
+    await page.route(
+        decisionsUrl,
+        async (route) => {
+            if (route.request().method() !== "GET") {
+                await route.fallback();
+                return;
+            }
+
+            await fulfillJson(
+                route,
+                {
+                    detail:
+                        "Unable to load saved redaction decisions",
+                },
+                503,
+            );
+        },
+    );
+
+    const decisionsResponse = page.waitForResponse(
+        (response) =>
+            response.url() === decisionsUrl &&
+            response.request().method() === "GET",
+    );
+
+    await page.goto(
+        `/review?documentId=${DOCUMENT_ID}`,
+    );
+
+    const response = await decisionsResponse;
+
+    expect(response.status()).toBe(503);
+
+    await expect(
+        page.getByRole("heading", {
+            name: "Sorry, there is a problem",
+            exact: true,
+        }),
+    ).toBeVisible();
+
+    await expect(
+        page.getByRole("button", {
+            name: "Delete page 1",
+            exact: true,
+        }),
+    ).toHaveCount(0);
+
+    await expect(
+        page.getByRole("button", {
+            name: "Apply redactions",
+            exact: true,
+        }),
+    ).toHaveCount(0);
+
+    expect(state.saves).toHaveLength(0);
+    expect(state.applies).toHaveLength(0);
+});
+
