@@ -49,8 +49,6 @@ function tableRange(
     };
 }
 
-// Only the fields read by the tested utilities are
-// needed. This is not a complete backend Review fixture.
 const reviewPage = {
     pageNumber: 1,
     textItems: [
@@ -79,10 +77,6 @@ const reviewPage = {
 
 describe("manual redaction range subtraction", () => {
     it("adds only uncovered characters from an overlapping selection", () => {
-        // "the cat"
-        // Existing selection: "the c" = [0, 5)
-        // New selection:      "e cat" = [2, 7)
-        // Expected addition:  "at"    = [5, 7)
 
         const existing = textRange(0, 5);
         const requested = textRange(2, 7);
