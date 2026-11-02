@@ -2,7 +2,6 @@
 
 import {
   Suspense,
-  useCallback,
   useMemo,
   useState,
   useEffect,
@@ -13,6 +12,7 @@ import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
 import { useReviewPages } from "./useReviewPages";
 import { useReviewDecisionPersistence } from "../../features/documents/review/useReviewDecisionPersistence";
+import { useReviewFindWorkflows } from "../../features/documents/review/useReviewFindWorkflows";
 import { useRedactionInteractions } from "../../features/documents/review/useRedactionInteractions";
 import {
   addManualTableSelections,
@@ -24,10 +24,6 @@ import {
   prepareFindRedactionReplacements,
 } from "../../features/documents/review/findRedactionOperations";
 import { usePageTitle } from "../components/PageTitle";
-import {
-  getCachedReviewSearchPages,
-  loadReviewSearchPages,
-} from "./reviewDataCache";
 import EndOfDocumentActions from "./components/EndOfDocumentActions";
 import PageContent from "./components/PageContent";
 import ReviewControlsHeader from "./components/ReviewControlsHeader";
@@ -136,33 +132,27 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       return consumeApplyRedactionsFailure(documentId);
     });
   const [isQuickHelpOpen, setIsQuickHelpOpen] = useState(false);
-  const [isFindAndRedactOpen, setIsFindAndRedactOpen] = useState(false);
-  const [isFindAndDiscloseOpen, setIsFindAndDiscloseOpen] = useState(false);
-  const [isFindAndPartiallyRedactOpen, setIsFindAndPartiallyRedactOpen] = useState(false);
-  const [hasFindAndRedactError, setHasFindAndRedactError] =
-    useState(false);
-  const [hasFindAndPartiallyRedactError, setHasFindAndPartiallyRedactError] =
-    useState(false);
-  const [hasFindAndDiscloseError, setHasFindAndDiscloseError] =
-    useState(false);
-  const [searchPages, setSearchPages] =
-    useState<ReviewPageData[] | null>(() => {
-      if (!documentId) {
-        return null;
-      }
+  const {
+    isFindAndRedactOpen,
+    setIsFindAndRedactOpen,
+    isFindAndPartiallyRedactOpen,
+    setIsFindAndPartiallyRedactOpen,
+    isFindAndDiscloseOpen,
+    setIsFindAndDiscloseOpen,
+    hasFindAndRedactError,
+    setHasFindAndRedactError,
+    hasFindAndPartiallyRedactError,
+    setHasFindAndPartiallyRedactError,
+    hasFindAndDiscloseError,
+    setHasFindAndDiscloseError,
+    searchPages,
+    isSearchLoading,
+    searchError,
+    openFindAndRedact,
+    openFindAndPartiallyRedact,
+    openFindAndDisclose,
+  } = useReviewFindWorkflows(documentId);
 
-      return (
-        getCachedReviewSearchPages(
-          documentId
-        ) ?? null
-      );
-    });
-
-  const [isSearchLoading, setIsSearchLoading] =
-    useState(false);
-
-  const [searchError, setSearchError] =
-    useState<string | null>(null);
   const requestedPageStart =
     selectedRangeStart + 1;
 
@@ -227,86 +217,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       behavior: "auto",
     });
   }, [showApplyRedactionsFailure]);
-
-  const ensureSearchPages =
-    useCallback(async () => {
-      if (!documentId) {
-        return null;
-      }
-
-      if (searchPages) {
-        return searchPages;
-      }
-
-      try {
-        setIsSearchLoading(true);
-        setSearchError(null);
-
-        const pages =
-          await loadReviewSearchPages(
-            documentId
-          );
-
-        setSearchPages(pages);
-
-        return pages;
-      } catch (err) {
-        setSearchError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load document search data."
-        );
-
-        return null;
-      } finally {
-        setIsSearchLoading(false);
-      }
-    }, [
-      documentId,
-      searchPages,
-    ]);
-
-  const openFindAndRedact =
-    useCallback(async () => {
-      const pages =
-        await ensureSearchPages();
-
-      if (!pages) {
-        return;
-      }
-
-      setIsFindAndPartiallyRedactOpen(false);
-      setIsFindAndDiscloseOpen(false);
-      setIsFindAndRedactOpen(true);
-    }, [ensureSearchPages]);
-
-  const openFindAndPartiallyRedact =
-    useCallback(async () => {
-      const pages =
-        await ensureSearchPages();
-
-      if (!pages) {
-        return;
-      }
-
-      setIsFindAndRedactOpen(false);
-      setIsFindAndDiscloseOpen(false);
-      setIsFindAndPartiallyRedactOpen(true);
-    }, [ensureSearchPages]);
-
-  const openFindAndDisclose =
-    useCallback(async () => {
-      const pages =
-        await ensureSearchPages();
-
-      if (!pages) {
-        return;
-      }
-
-      setIsFindAndRedactOpen(false);
-      setIsFindAndPartiallyRedactOpen(false);
-      setIsFindAndDiscloseOpen(true);
-    }, [ensureSearchPages]);
 
   const pageRanges = useMemo(() => {
     const totalPages = data?.summary.totalPages ?? 0;
