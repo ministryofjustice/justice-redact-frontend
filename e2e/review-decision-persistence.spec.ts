@@ -581,3 +581,209 @@ test("blocks Review when persisted decisions cannot be loaded", async ({
     expect(state.applies).toHaveLength(0);
 });
 
+test("displays an error when autosaving redaction decisions fails", async ({
+    page,
+}) => {
+    const state = await mockReview(page, {
+        initialRevision: 4,
+    });
+
+    const decisionsUrl =
+        `${API_BASE_URL}/documents/${DOCUMENT_ID}/redaction-decisions`;
+
+    let failedSaveRequests = 0;
+
+    await page.route(
+        decisionsUrl,
+        async (route) => {
+            if (route.request().method() !== "PUT") {
+                await route.fallback();
+                return;
+            }
+
+            const request =
+                route.request().postDataJSON();
+
+            expect(request).toMatchObject({
+                documentId: DOCUMENT_ID,
+                decisions: [deletedPageDecision],
+                expectedRevision: 4,
+            });
+
+            failedSaveRequests += 1;
+
+            await fulfillJson(
+                route,
+                {
+                    detail:
+                        "The database is temporarily unavailable",
+                },
+                503,
+            );
+        },
+    );
+
+    await openReview(page);
+
+    const failedSaveResponse =
+        page.waitForResponse(
+            (response) =>
+                response.url() === decisionsUrl &&
+                response.request().method() === "PUT" &&
+                response.status() === 503,
+        );
+
+    await page.getByRole("button", {
+        name: "Delete page 1",
+        exact: true,
+    }).click();
+
+    await failedSaveResponse;
+
+    expect(failedSaveRequests).toBe(1);
+
+    const errorSummary = page
+        .getByRole("region", {
+            name: "There is a problem",
+        })
+        .getByRole("alert");
+
+    await expect(errorSummary).toBeVisible();
+
+    await expect(errorSummary).toContainText(
+        /redaction decisions.*(save|saved)|save.*redaction decisions/i,
+    );
+
+    expect(state.revision).toBe(4);
+
+    expect(state.applies).toHaveLength(0);
+
+    await expect(page).toHaveURL(
+        `/review?documentId=${DOCUMENT_ID}`,
+    );
+});
+
+test("recovers from a failed autosave and saves the latest decisions", async ({
+    page,
+}) => {
+    const state = await mockReview(page, {
+        initialRevision: 4,
+    });
+
+    const decisionsUrl =
+        `${API_BASE_URL}/documents/${DOCUMENT_ID}/redaction-decisions`;
+
+    let failedSaves = 0;
+
+    await page.route(decisionsUrl, async (route) => {
+        if (route.request().method() !== "PUT") {
+            await route.fallback();
+            return;
+        }
+
+        if (failedSaves === 0) {
+            failedSaves += 1;
+
+            expect(
+                route.request().postDataJSON(),
+            ).toEqual({
+                documentId: DOCUMENT_ID,
+                decisions: [deletedPageDecision],
+                expectedRevision: 4,
+            });
+
+            await fulfillJson(
+                route,
+                {
+                    detail: "Temporary database failure",
+                },
+                503,
+            );
+
+            return;
+        }
+
+        await route.fallback();
+    });
+
+    await openReview(page);
+
+    const failedResponse = page.waitForResponse(
+        (response) =>
+            response.url() === decisionsUrl &&
+            response.request().method() === "PUT" &&
+            response.status() === 503,
+    );
+
+    await page.getByRole("button", {
+        name: "Delete page 1",
+        exact: true,
+    }).click();
+
+    await failedResponse;
+
+    const errorSummary = page
+        .getByRole("region", {
+            name: "There is a problem",
+        })
+        .getByRole("alert");
+
+    await expect(errorSummary).toContainText(
+        "Unable to save redaction decisions",
+    );
+
+    expect(state.revision).toBe(4);
+    expect(failedSaves).toBe(1);
+
+    await page.getByRole("button", {
+        name: "Restore page 1",
+        exact: true,
+    }).click();
+
+    await page.getByRole("button", {
+        name: "Exempt page 1",
+        exact: true,
+    }).click();
+
+    const exemptedPageDecision: PageDecision = {
+        kind: "page",
+        pageNumber: 1,
+        action: "exempt",
+        source: "manual",
+    };
+
+    await expect.poll(
+        () => state.revision,
+    ).toBe(5);
+
+    expect(state.saves).toEqual([
+        {
+            documentId: DOCUMENT_ID,
+            decisions: [exemptedPageDecision],
+            expectedRevision: 4,
+        },
+    ]);
+
+    await expect(errorSummary).toHaveCount(0);
+
+    await page.getByRole("button", {
+        name: "Apply redactions",
+        exact: true,
+    }).click();
+
+    await expect.poll(
+        () => state.applies.length,
+    ).toBe(1);
+
+    expect(
+        state.saves.map(
+            (save) => save.expectedRevision,
+        ),
+    ).toEqual([4, 5]);
+
+    expect(state.applies[0]).toEqual({
+        documentId: DOCUMENT_ID,
+        decisions: [exemptedPageDecision],
+        expectedRevision: 6,
+    });
+});

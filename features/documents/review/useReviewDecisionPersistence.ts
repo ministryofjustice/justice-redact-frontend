@@ -241,7 +241,9 @@ export function useReviewDecisionPersistence(
                     error,
                 );
 
-                setDecisionSaveError(null);
+                setDecisionSaveError(
+                    "Unable to save redaction decisions. Your latest changes may not have been saved.",
+                );
 
                 throw error;
             }
