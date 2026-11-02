@@ -10,17 +10,17 @@ import {
 } from "react";
 import type { MouseEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ApiError, fetchJson } from "../lib/api";
+import { fetchJson } from "../lib/api";
 
 import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
 import { useReviewPages } from "./useReviewPages";
+import { useReviewDecisionPersistence } from "../../features/documents/review/useReviewDecisionPersistence";
 import { usePageTitle } from "../components/PageTitle";
 import {
   getCachedReviewSearchPages,
   loadReviewSearchPages,
 } from "./reviewDataCache";
-import { buildReviewStateFromPersistedDecisions } from "./redactionDecisionPersistence";
 import EndOfDocumentActions from "./components/EndOfDocumentActions";
 import PageContent from "./components/PageContent";
 import ReviewControlsHeader from "./components/ReviewControlsHeader";
@@ -38,11 +38,9 @@ import {
 import type {
   ManualDecision,
   ManualSpan,
-  PageStatus,
   ReviewPageData,
   ReviewTableCell,
   ReviewMode,
-  RedactionDecisionSet,
 } from "./types";
 import FindAndRedactModal from "./components/FindAndRedactModal";
 import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModal";
@@ -75,12 +73,6 @@ type ApplyRedactionsResponse = {
   documentId: string;
   runId: string;
   status: string;
-};
-
-type SaveRedactionDecisionsResponse = {
-  documentId: string;
-  status: string;
-  revision: number;
 };
 
 function ReviewContent() {
@@ -118,7 +110,21 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   const router = useRouter();
 
   const [selectedRangeStart, setSelectedRangeStart] = useState(0);
-  const [manualSelections, setManualSelections] = useState<ManualDecision[]>([]);
+  const { data, isLoading, error } = useReviewData(documentId);
+
+  const {
+    manualSelections,
+    setManualSelections,
+    pageStatuses,
+    setPageStatuses,
+    decisionSaveError,
+    hasDecisionConflict,
+    clearDecisionSaveError,
+    saveBeforeApply,
+  } = useReviewDecisionPersistence(
+    documentId,
+    Boolean(data),
+  );
   const [reviewMode, setReviewMode] = useState<ReviewMode>("redact");
   const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
   const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
@@ -130,7 +136,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
       return consumeApplyRedactionsFailure(documentId);
     });
-  const [pageStatuses, setPageStatuses] = useState<Record<number, PageStatus>>({});
   const [isQuickHelpOpen, setIsQuickHelpOpen] = useState(false);
   const [isFindAndRedactOpen, setIsFindAndRedactOpen] = useState(false);
   const [isFindAndDiscloseOpen, setIsFindAndDiscloseOpen] = useState(false);
@@ -159,10 +164,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   const [searchError, setSearchError] =
     useState<string | null>(null);
-  const [hasLoadedPersistedDecisions, setHasLoadedPersistedDecisions] =
-    useState(false);
-  const [decisionSaveError, setDecisionSaveError] = useState<string | null>(null);
-  const [hasDecisionConflict, setHasDecisionConflict] = useState(false);
   const [redactionRemoveMenu, setRedactionRemoveMenu] = useState<{
     manualId: string;
     redactionGroupId: string | null;
@@ -170,18 +171,9 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     y: number;
   } | null>(null);
 
-  const decisionRevisionRef = useRef(0);
-  const [
-    lastSavedDecisionState,
-    setLastSavedDecisionState,
-  ] = useState<string | null>(null);
   const redactionRemoveTriggerRef = useRef<HTMLElement | null>(null);
   const redactionRemoveMenuRef = useRef<HTMLButtonElement | null>(null);
-  const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeDecisionSaveRef =
-    useRef<Promise<SaveRedactionDecisionsResponse> | null>(null);
 
-  const { data, isLoading, error } = useReviewData(documentId);
 
   const requestedPageStart =
     selectedRangeStart + 1;
@@ -459,199 +451,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     };
   }, [redactionRemoveMenu]);
 
-  useEffect(() => {
-    if (!documentId || !data) {
-      return;
-    }
-
-    const currentDocumentId = documentId;
-    let isActive = true;
-
-    async function loadPersistedDecisions() {
-      try {
-        const persisted = await fetchJson<RedactionDecisionSet>(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${currentDocumentId}/redaction-decisions`
-        );
-
-        if (!isActive) {
-          return;
-        }
-
-        const restored = buildReviewStateFromPersistedDecisions(
-          currentDocumentId,
-          persisted.decisions
-        );
-
-        const restoredRequest =
-          buildApplyRedactionsRequest(
-            currentDocumentId,
-            restored.manualSelections,
-            restored.pageStatuses
-          );
-
-        setLastSavedDecisionState(
-          JSON.stringify(restoredRequest)
-        );
-
-        setManualSelections(restored.manualSelections);
-        setPageStatuses(restored.pageStatuses);
-        decisionRevisionRef.current = persisted.revision;
-        setHasLoadedPersistedDecisions(true);
-      } catch (error) {
-        console.error(
-          "Failed to load persisted redaction decisions",
-          error
-        );
-      }
-    }
-
-    void loadPersistedDecisions();
-
-    return () => {
-      isActive = false;
-    };
-  }, [documentId, data]);
-
-  const saveCurrentDecisions = useCallback(
-    async (
-      selections: ManualDecision[],
-      statuses: Record<number, PageStatus>,
-    ): Promise<SaveRedactionDecisionsResponse> => {
-      if (!documentId) {
-        throw new Error("Missing document ID.");
-      }
-
-      const request = buildApplyRedactionsRequest(
-        documentId,
-        selections,
-        statuses,
-      );
-
-      try {
-        const response = await fetchJson<SaveRedactionDecisionsResponse>(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/redaction-decisions`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              ...request,
-              expectedRevision: decisionRevisionRef.current,
-            }),
-          },
-        );
-
-        decisionRevisionRef.current =
-          response.revision;
-
-        setLastSavedDecisionState(
-          JSON.stringify(request)
-        );
-
-        setDecisionSaveError(null);
-
-        return response;
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 409) {
-          setHasDecisionConflict(true);
-          setDecisionSaveError(
-            "This document has been changed in another tab. Refresh the page to load the latest saved decisions.",
-          );
-
-          throw error;
-        }
-
-        console.error(
-          "Failed to save redaction decisions",
-          error,
-        );
-
-        setDecisionSaveError(null);
-
-        throw error;
-      }
-    },
-    [documentId],
-  );
-
-  useEffect(() => {
-    if (
-      !documentId ||
-      !hasLoadedPersistedDecisions ||
-      hasDecisionConflict
-    ) {
-      return;
-    }
-
-    const currentRequest =
-      buildApplyRedactionsRequest(
-        documentId,
-        manualSelections,
-        pageStatuses
-      );
-
-    const currentDecisionState =
-      JSON.stringify(currentRequest);
-
-    if (
-      currentDecisionState ===
-      lastSavedDecisionState
-    ) {
-      return;
-    }
-
-    if (autosaveTimeoutRef.current) {
-      clearTimeout(
-        autosaveTimeoutRef.current
-      );
-    }
-
-    autosaveTimeoutRef.current = setTimeout(() => {
-      const previousSave = activeDecisionSaveRef.current;
-
-      const savePromise = (async () => {
-        if (previousSave) {
-          try {
-            await previousSave;
-          } catch (error) {
-            if (error instanceof ApiError && error.status === 409) {
-              throw error;
-            }
-          }
-        }
-
-        return saveCurrentDecisions(
-          manualSelections,
-          pageStatuses,
-        );
-      })();
-
-      activeDecisionSaveRef.current = savePromise;
-
-      void savePromise
-        .catch(() => { }).finally(() => {
-          if (activeDecisionSaveRef.current === savePromise) {
-            activeDecisionSaveRef.current = null;
-          }
-        });
-    }, 500);
-
-    return () => {
-      if (autosaveTimeoutRef.current) {
-        clearTimeout(autosaveTimeoutRef.current);
-      }
-    };
-  }, [
-    documentId,
-    manualSelections,
-    pageStatuses,
-    hasLoadedPersistedDecisions,
-    hasDecisionConflict,
-    lastSavedDecisionState,
-    saveCurrentDecisions,
-  ]);
-
   const pageRanges = useMemo(() => {
     const totalPages = data?.summary.totalPages ?? 0;
     const count = Math.ceil(totalPages / PAGES_PER_BATCH);
@@ -678,7 +477,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   function showApplyFailureAlert() {
     setApplyRedactionsError(null);
-    setDecisionSaveError(null);
+    clearDecisionSaveError();
     setShowApplyRedactionsFailure(true);
     setIsApplyingRedactions(false);
 
@@ -708,22 +507,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       setApplyRedactionsError(null);
       setShowApplyRedactionsFailure(false);
 
-      if (autosaveTimeoutRef.current) {
-        clearTimeout(autosaveTimeoutRef.current);
-        autosaveTimeoutRef.current = null;
-      }
-
-      if (activeDecisionSaveRef.current) {
-        try {
-          await activeDecisionSaveRef.current;
-        } catch (error) {
-          if (error instanceof ApiError && error.status === 409) {
-            throw error;
-          }
-        }
-      }
-
-      await saveCurrentDecisions(
+      const savedRevision = await saveBeforeApply(
         currentDocumentSelections,
         pageStatuses,
       );
@@ -741,7 +525,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
               currentDocumentSelections,
               pageStatuses
             ),
-            expectedRevision: decisionRevisionRef.current,
+            expectedRevision: savedRevision,
           }),
         }
       );
