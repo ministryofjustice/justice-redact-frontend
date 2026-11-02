@@ -6,15 +6,14 @@ import {
   useMemo,
   useState,
   useEffect,
-  useRef,
 } from "react";
-import type { MouseEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchJson } from "../lib/api";
 import { buildApplyRedactionsRequest } from "./applyRedactions";
 import { useReviewData } from "./useReviewData";
 import { useReviewPages } from "./useReviewPages";
 import { useReviewDecisionPersistence } from "../../features/documents/review/useReviewDecisionPersistence";
+import { useRedactionInteractions } from "../../features/documents/review/useRedactionInteractions";
 import {
   addManualTableSelections,
   addManualTextSelections,
@@ -163,17 +162,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   const [searchError, setSearchError] =
     useState<string | null>(null);
-  const [redactionRemoveMenu, setRedactionRemoveMenu] = useState<{
-    manualId: string;
-    redactionGroupId: string | null;
-    x: number;
-    y: number;
-  } | null>(null);
-
-  const redactionRemoveTriggerRef = useRef<HTMLElement | null>(null);
-  const redactionRemoveMenuRef = useRef<HTMLButtonElement | null>(null);
-
-
   const requestedPageStart =
     selectedRangeStart + 1;
 
@@ -213,6 +201,20 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
   const isPreviewMode = reviewMode === "preview";
   const isRedactMode = reviewMode === "redact";
+
+  const {
+    redactionRemoveMenu,
+    redactionRemoveMenuRef,
+    setManualRedactionHover,
+    removeManualSelection,
+    closeRedactionRemoveMenu,
+    handleRedactionMouseOver,
+    handleRedactionMouseOut,
+    handleRedactionContextMenu,
+  } = useRedactionInteractions({
+    isRedactMode,
+    setManualSelections,
+  });
 
   useEffect(() => {
     if (!showApplyRedactionsFailure) {
@@ -304,151 +306,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       setIsFindAndPartiallyRedactOpen(false);
       setIsFindAndDiscloseOpen(true);
     }, [ensureSearchPages]);
-
-  useEffect(() => {
-    if (!isRedactMode || !data) {
-      return;
-    }
-
-    function handleDocumentMouseUp(
-      event: globalThis.MouseEvent
-    ) {
-      if (event.button !== 0) {
-        return;
-      }
-
-      const selection = window.getSelection();
-
-      if (
-        !selection ||
-        selection.rangeCount === 0 ||
-        selection.isCollapsed
-      ) {
-        return;
-      }
-
-      const range = selection.getRangeAt(0);
-
-      const intersectsRedactableContent =
-        Array.from(
-          document.querySelectorAll<HTMLElement>(
-            ".jr-review-block.redactable[data-page-number][data-item-id], [data-cell-id]"
-          )
-        ).some((element) => {
-          try {
-            return range.intersectsNode(element);
-          } catch {
-            return false;
-          }
-        });
-
-      if (!intersectsRedactableContent) {
-        return;
-      }
-
-      const handledTable =
-        handleTableCellSelection();
-
-      if (!handledTable) {
-        handleTextSelection();
-      }
-
-      window.requestAnimationFrame(() => {
-        window.getSelection()?.removeAllRanges();
-      });
-    }
-
-    document.addEventListener(
-      "mouseup",
-      handleDocumentMouseUp
-    );
-
-    return () => {
-      document.removeEventListener(
-        "mouseup",
-        handleDocumentMouseUp
-      );
-    };
-  });
-
-  useEffect(() => {
-    if (!redactionRemoveMenu) {
-      return;
-    }
-
-    const {
-      manualId,
-      redactionGroupId,
-    } = redactionRemoveMenu;
-
-    function clearRedactionHover() {
-      document
-        .querySelectorAll<HTMLElement>("[data-manual-id]")
-        .forEach((element) => {
-          const matches =
-            redactionGroupId !== null
-              ? element.dataset.redactionGroupId ===
-              redactionGroupId
-              : element.dataset.manualId === manualId;
-
-          if (matches) {
-            element.classList.remove(
-              "highlight--redaction-hover"
-            );
-          }
-        });
-    }
-
-    function dismissMenu(restoreFocus = false) {
-      clearRedactionHover();
-      setRedactionRemoveMenu(null);
-
-      if (restoreFocus) {
-        requestAnimationFrame(() => {
-          redactionRemoveTriggerRef.current?.focus();
-        });
-      }
-    }
-
-    function handleMouseDown(event: globalThis.MouseEvent) {
-      if (!(event.target instanceof Node)) {
-        return;
-      }
-
-      if (redactionRemoveMenuRef.current?.contains(event.target)) {
-        return;
-      }
-
-      dismissMenu();
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") {
-        return;
-      }
-
-      event.preventDefault();
-      dismissMenu(true);
-    }
-
-    function handleViewportChange() {
-      dismissMenu();
-    }
-
-    document.addEventListener("mousedown", handleMouseDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    window.addEventListener("scroll", handleViewportChange, true);
-    window.addEventListener("resize", handleViewportChange);
-
-    return () => {
-      document.removeEventListener("mousedown", handleMouseDown);
-      document.removeEventListener("keydown", handleKeyDown);
-
-      window.removeEventListener("scroll", handleViewportChange, true);
-      window.removeEventListener("resize", handleViewportChange);
-    };
-  }, [redactionRemoveMenu]);
 
   const pageRanges = useMemo(() => {
     const totalPages = data?.summary.totalPages ?? 0;
@@ -975,223 +832,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     selection.removeAllRanges();
   }
 
-  function removeManualSelection(
-    manualId: string,
-    redactionGroupId: string | null
-  ) {
-    setManualSelections((prev) =>
-      prev.filter((selection) => {
-        if (redactionGroupId) {
-          if (selection.kind === "image") {
-            return true;
-          }
-
-          return (
-            selection.redactionGroupId !==
-            redactionGroupId
-          );
-        }
-
-        return selection.id !== manualId;
-      })
-    );
-  }
-
-  function getRedactionTarget(target: EventTarget | null) {
-    if (!(target instanceof Element)) {
-      return null;
-    }
-
-    const element =
-      target.closest<HTMLElement>("[data-manual-id]");
-
-    const manualId = element?.dataset.manualId;
-
-    if (!element || !manualId) {
-      return null;
-    }
-
-    return {
-      manualId,
-      redactionGroupId:
-        element.dataset.redactionGroupId ?? null,
-    };
-  }
-
-  function isSameRedactionTarget(
-    left: {
-      manualId: string;
-      redactionGroupId: string | null;
-    } | null,
-    right: {
-      manualId: string;
-      redactionGroupId: string | null;
-    } | null
-  ) {
-    if (!left || !right) {
-      return false;
-    }
-
-    if (
-      left.redactionGroupId &&
-      right.redactionGroupId
-    ) {
-      return (
-        left.redactionGroupId ===
-        right.redactionGroupId
-      );
-    }
-
-    return left.manualId === right.manualId;
-  }
-
-  function setManualRedactionHover(
-    manualId: string,
-    redactionGroupId: string | null,
-    isHovered: boolean
-  ) {
-    document
-      .querySelectorAll<HTMLElement>("[data-manual-id]")
-      .forEach((element) => {
-        const matches =
-          redactionGroupId !== null
-            ? element.dataset.redactionGroupId ===
-            redactionGroupId
-            : element.dataset.manualId === manualId;
-
-        if (matches) {
-          element.classList.toggle(
-            "highlight--redaction-hover",
-            isHovered
-          );
-        }
-      });
-  }
-
   function handleReviewModeChange(nextMode: ReviewMode) {
     if (nextMode !== "redact") {
       closeRedactionRemoveMenu();
     }
 
     setReviewMode(nextMode);
-  }
-
-  function closeRedactionRemoveMenu(
-    restoreFocus = false
-  ) {
-    if (redactionRemoveMenu) {
-      setManualRedactionHover(
-        redactionRemoveMenu.manualId,
-        redactionRemoveMenu.redactionGroupId,
-        false
-      );
-    }
-
-    setRedactionRemoveMenu(null);
-
-    if (restoreFocus) {
-      requestAnimationFrame(() => {
-        redactionRemoveTriggerRef.current?.focus();
-      });
-    }
-  }
-
-  function handleRedactionMouseOver(event: MouseEvent<HTMLElement>) {
-    if (!isRedactMode) {
-      return;
-    }
-
-    const redactionTarget =
-      getRedactionTarget(event.target);
-
-    if (!redactionTarget) {
-      return;
-    }
-
-    const relatedTarget =
-      getRedactionTarget(event.relatedTarget);
-
-    if (
-      isSameRedactionTarget(
-        redactionTarget,
-        relatedTarget
-      )
-    ) {
-      return;
-    }
-
-    setManualRedactionHover(
-      redactionTarget.manualId,
-      redactionTarget.redactionGroupId,
-      true
-    );
-  }
-
-  function handleRedactionMouseOut(
-    event: MouseEvent<HTMLElement>
-  ) {
-    if (!isRedactMode) {
-      return;
-    }
-
-    const redactionTarget =
-      getRedactionTarget(event.target);
-
-    if (!redactionTarget) {
-      return;
-    }
-
-    const relatedTarget =
-      getRedactionTarget(event.relatedTarget);
-
-    if (
-      isSameRedactionTarget(
-        redactionTarget,
-        relatedTarget
-      )
-    ) {
-      return;
-    }
-
-    setManualRedactionHover(
-      redactionTarget.manualId,
-      redactionTarget.redactionGroupId,
-      false
-    );
-  }
-
-  function handleRedactionContextMenu(event: MouseEvent<HTMLElement>) {
-    if (!isRedactMode) {
-      return;
-    }
-
-    const target = event.target;
-
-    if (!(target instanceof Element)) {
-      return;
-    }
-
-    const element =
-      target.closest<HTMLElement>("[data-manual-id]");
-
-    const redactionTarget =
-      getRedactionTarget(target);
-
-    if (!element || !redactionTarget) {
-      return;
-    }
-
-    event.preventDefault();
-
-    redactionRemoveTriggerRef.current = element;
-
-    setRedactionRemoveMenu({
-      manualId: redactionTarget.manualId,
-      redactionGroupId:
-        redactionTarget.redactionGroupId,
-      x: event.clientX,
-      y: event.clientY,
-    });
   }
 
   function toggleImageRedaction(pageNumber: number, imageId: string) {
@@ -1360,6 +1006,72 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
     return preview.disclosedCount;
   }
+
+  useEffect(() => {
+    if (!isRedactMode || !data) {
+      return;
+    }
+
+    function handleDocumentMouseUp(
+      event: globalThis.MouseEvent
+    ) {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const selection = window.getSelection();
+
+      if (
+        !selection ||
+        selection.rangeCount === 0 ||
+        selection.isCollapsed
+      ) {
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+
+      const intersectsRedactableContent =
+        Array.from(
+          document.querySelectorAll<HTMLElement>(
+            ".jr-review-block.redactable[data-page-number][data-item-id], [data-cell-id]"
+          )
+        ).some((element) => {
+          try {
+            return range.intersectsNode(element);
+          } catch {
+            return false;
+          }
+        });
+
+      if (!intersectsRedactableContent) {
+        return;
+      }
+
+      const handledTable =
+        handleTableCellSelection();
+
+      if (!handledTable) {
+        handleTextSelection();
+      }
+
+      window.requestAnimationFrame(() => {
+        window.getSelection()?.removeAllRanges();
+      });
+    }
+
+    document.addEventListener(
+      "mouseup",
+      handleDocumentMouseUp
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mouseup",
+        handleDocumentMouseUp
+      );
+    };
+  });
 
   if (decisionLoadError) {
     return (
