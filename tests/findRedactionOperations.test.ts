@@ -259,3 +259,179 @@ describe("removeManualSelectionsWithinRanges", () => {
     expect(ranges).toEqual(rangesSnapshot);
   });
 });
+
+function getGroupId(decision: ManualDecision): string | null {
+  return decision.kind === "image"
+    ? null
+    : decision.redactionGroupId ?? null;
+}
+
+describe("Find replacement redaction group independence", () => {
+  it("assigns separate group IDs when one redaction splits into two fragments", () => {
+    const result = remove(
+      [originalText],
+      [textRange(2, 5)],
+    );
+
+    expect(result).toHaveLength(2);
+
+    const firstGroup = getGroupId(result[0]);
+    const secondGroup = getGroupId(result[1]);
+
+    expect(firstGroup).toBeTruthy();
+    expect(secondGroup).toBeTruthy();
+
+    expect(firstGroup).not.toBe(secondGroup);
+
+    expect(firstGroup).not.toBe("original-group");
+    expect(secondGroup).not.toBe("original-group");
+  });
+
+  it("retains the original group when only one fragment survives", () => {
+    const result = remove(
+      [originalText],
+      [textRange(0, 5)],
+    );
+
+    expect(result).toHaveLength(1);
+    expect(getGroupId(result[0])).toBe("original-group");
+
+    expect(result[0]).toMatchObject({
+      start: 5,
+      end: 7,
+      text: "at",
+    });
+  });
+
+  it("preserves a connected group spanning multiple text items", () => {
+    const continuation: ManualTextDecision = {
+      ...originalText,
+      id: "continuation",
+      itemId: "item-2",
+      start: 0,
+      end: 5,
+      text: "hello",
+    };
+
+    const result = remove(
+      [originalText, continuation],
+      [textRange(0, 2)],
+    );
+
+    expect(result).toHaveLength(2);
+
+    expect(result[0]).toMatchObject({
+      itemId: "item-1",
+      start: 2,
+      end: 7,
+    });
+
+    expect(getGroupId(result[0])).toBe("original-group");
+    expect(getGroupId(result[1])).toBe("original-group");
+
+    expect(result[1]).toBe(continuation);
+  });
+
+  it("splits a multi-item group while keeping trailing content together", () => {
+    const continuation: ManualTextDecision = {
+      ...originalText,
+      id: "continuation",
+      itemId: "item-2",
+      start: 0,
+      end: 5,
+      text: "hello",
+    };
+
+    const result = remove(
+      [originalText, continuation],
+      [textRange(2, 5)],
+    );
+
+    expect(result).toHaveLength(3);
+
+    expect(result[0]).toMatchObject({
+      itemId: "item-1",
+      start: 0,
+      end: 2,
+      text: "th",
+    });
+
+    expect(result[1]).toMatchObject({
+      itemId: "item-1",
+      start: 5,
+      end: 7,
+      text: "at",
+    });
+
+    expect(result[2]).toBe(continuation);
+
+    const leftGroup = getGroupId(result[0]);
+    const rightGroup = getGroupId(result[1]);
+    const continuationGroup = getGroupId(result[2]);
+
+    expect(leftGroup).toBeTruthy();
+    expect(rightGroup).toBeTruthy();
+
+    expect(leftGroup).not.toBe(rightGroup);
+
+    expect(rightGroup).toBe(continuationGroup);
+  });
+});
+
+
+describe("Find replacement fragment removal", () => {
+  it("removes only the selected fragment and preserves the other", () => {
+
+    const fragments = remove(
+      [originalText],
+      [textRange(2, 5)],
+    );
+
+    expect(fragments).toHaveLength(2);
+
+    const [left, right] = fragments;
+
+    expect(left).toMatchObject({
+      kind: "text",
+      start: 0,
+      end: 2,
+      text: "th",
+    });
+
+    expect(right).toMatchObject({
+      kind: "text",
+      start: 5,
+      end: 7,
+      text: "at",
+    });
+
+    if (
+      left.kind === "image" ||
+      right.kind === "image"
+    ) {
+      throw new Error("Expected text redactions");
+    }
+
+    expect(left.redactionGroupId).toBeTruthy();
+    expect(right.redactionGroupId).toBeTruthy();
+
+    const afterRemovingLeft = fragments.filter(
+      (selection) =>
+        selection.kind === "image" ||
+        selection.redactionGroupId !==
+        left.redactionGroupId,
+    );
+
+    expect(afterRemovingLeft).toEqual([right]);
+
+    const afterRemovingRight = fragments.filter(
+      (selection) =>
+        selection.kind === "image" ||
+        selection.redactionGroupId !==
+        right.redactionGroupId,
+    );
+
+    expect(afterRemovingRight).toEqual([left]);
+  });
+});
+
