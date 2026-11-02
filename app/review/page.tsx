@@ -20,6 +20,7 @@ import {
   addManualTableSelections,
   addManualTextSelections,
 } from "../../features/documents/review/manualRedactionOperations";
+import { removeManualSelectionsWithinRanges } from "../../features/documents/review/findRedactionOperations";
 import { usePageTitle } from "../components/PageTitle";
 import {
   getCachedReviewSearchPages,
@@ -40,7 +41,6 @@ import {
   getTextOffsetWithinItem,
 } from "./selectionUtils";
 import type {
-  ManualDecision,
   ManualSpan,
   ReviewPageData,
   ReviewTableCell,
@@ -64,9 +64,7 @@ import {
 import { discloseManualRedactions } from "./discloseManualRedactions";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
 import {
-  getManualDecisionContentRange,
   getManualDecisionContentRanges,
-  type ContentRange,
 } from "./contentRangeUtils";
 import { buildManualSelectionsFromContentRanges } from "./buildManualSelectionsFromContentRanges";
 import { subtractContentRanges } from "./subtractContentRanges";
@@ -1328,7 +1326,8 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
       const preservedSelections =
         removeManualSelectionsWithinRanges(
           previous,
-          rangesToReplace
+          rangesToReplace,
+          () => crypto.randomUUID()
         );
 
       return [
@@ -1338,69 +1337,6 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     });
 
     return replacements.length;
-  }
-
-  function removeManualSelectionsWithinRanges(
-    selections: ManualDecision[],
-    rangesToRemove: ContentRange[]
-  ): ManualDecision[] {
-    return selections.flatMap<ManualDecision>(
-      (selection) => {
-        if (selection.kind === "image") {
-          return [selection];
-        }
-
-        const sourceRange =
-          getManualDecisionContentRange(selection);
-
-        if (!sourceRange) {
-          return [selection];
-        }
-
-        const remainingRanges =
-          subtractContentRanges(
-            sourceRange,
-            rangesToRemove
-          );
-
-        if (
-          remainingRanges.length === 1 &&
-          remainingRanges[0].start === sourceRange.start &&
-          remainingRanges[0].end === sourceRange.end
-        ) {
-          return [selection];
-        }
-
-        return remainingRanges.flatMap<ManualDecision>(
-          (range) => {
-            const localStart =
-              range.start - sourceRange.start;
-
-            const localEnd =
-              range.end - sourceRange.start;
-
-            const text = selection.text.slice(
-              localStart,
-              localEnd
-            );
-
-            if (!text.trim()) {
-              return [];
-            }
-
-            return [
-              {
-                ...selection,
-                id: crypto.randomUUID(),
-                start: range.start,
-                end: range.end,
-                text,
-              },
-            ];
-          }
-        );
-      }
-    );
   }
 
   function handleFindAndPartiallyRedact(
