@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -69,10 +70,15 @@ export function useWorkflowGuard(
     const router = useRouter();
 
     const [isChecking, setIsChecking] = useState(true);
-    const [workflow, setWorkflow] = useState<WorkflowResponse | null>(null);
+
+    const [workflow, setWorkflow] =
+        useState<WorkflowResponse | null>(null);
+
     const [errorVariant, setErrorVariant] =
         useState<ServiceErrorVariant | null>(null);
-    const [isStaleRevision, setIsStaleRevision] = useState(false);
+
+    const [isStaleRevision, setIsStaleRevision] =
+        useState(false);
 
     useEffect(() => {
         if (!documentId) {
@@ -82,17 +88,24 @@ export function useWorkflowGuard(
 
         const guardedDocumentId = documentId;
 
-        const controller = new AbortController();
         let isActive = true;
 
-        async function checkWorkflow(showCheckingState = true) {
-            try {
-                if (showCheckingState) {
-                    setIsChecking(true);
-                }
-                setErrorVariant(null);
-                setIsStaleRevision(false);
+        let latestCheckId = 0;
 
+        let activeController: AbortController | null = null;
+
+        async function checkWorkflow() {
+            const checkId = ++latestCheckId;
+
+            activeController?.abort();
+
+            const controller = new AbortController();
+            activeController = controller;
+
+            setIsChecking(true);
+            setErrorVariant(null);
+
+            try {
                 const result = await fetchJson<WorkflowResponse>(
                     `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
                         guardedDocumentId,
@@ -103,39 +116,51 @@ export function useWorkflowGuard(
                     },
                 );
 
-                if (!isActive) {
+                if (
+                    !isActive ||
+                    controller.signal.aborted ||
+                    checkId !== latestCheckId
+                ) {
                     return;
                 }
 
                 setWorkflow(result);
 
-                if (currentPage === "export") {
-                    if (
-                        routeRedactionRunId &&
-                        routeRedactionRunId !== result.currentRedactionRunId
-                    ) {
-                        setIsStaleRevision(true);
-                        setIsChecking(false);
-                        return;
-                    }
-
-                    if (
-                        !routeRedactionRunId &&
-                        result.currentRedactionRunId &&
-                        result.allowedPages.includes("export")
-                    ) {
-                        router.replace(
-                            buildWorkflowUrl(
-                                "export",
-                                result.documentId,
-                                result.currentRedactionRunId,
-                            ),
-                        );
-                        return;
-                    }
+                if (
+                    currentPage === "export" &&
+                    routeRedactionRunId &&
+                    routeRedactionRunId !==
+                    result.currentRedactionRunId
+                ) {
+                    setIsStaleRevision(true);
+                    setIsChecking(false);
+                    return;
                 }
 
-                if (!isWorkflowPageAllowed(currentPage, result.allowedPages)) {
+                setIsStaleRevision(false);
+
+                if (
+                    currentPage === "export" &&
+                    !routeRedactionRunId &&
+                    result.currentRedactionRunId &&
+                    result.allowedPages.includes("export")
+                ) {
+                    router.replace(
+                        buildWorkflowUrl(
+                            "export",
+                            result.documentId,
+                            result.currentRedactionRunId,
+                        ),
+                    );
+                    return;
+                }
+
+                if (
+                    !isWorkflowPageAllowed(
+                        currentPage,
+                        result.allowedPages,
+                    )
+                ) {
                     router.replace(
                         buildWorkflowUrl(
                             result.preferredPage,
@@ -148,7 +173,8 @@ export function useWorkflowGuard(
 
                 if (
                     currentPage === "applying-redactions" &&
-                    routeRedactionRunId !== result.currentRedactionRunId
+                    routeRedactionRunId !==
+                    result.currentRedactionRunId
                 ) {
                     router.replace(
                         buildWorkflowUrl(
@@ -162,18 +188,28 @@ export function useWorkflowGuard(
 
                 setIsChecking(false);
             } catch (error) {
-                if (!isActive) {
+                if (
+                    !isActive ||
+                    controller.signal.aborted ||
+                    checkId !== latestCheckId
+                ) {
                     return;
                 }
 
-                if (error instanceof DOMException && error.name === "AbortError") {
+                if (
+                    error instanceof DOMException &&
+                    error.name === "AbortError"
+                ) {
                     return;
                 }
 
                 setWorkflow(null);
+                setIsStaleRevision(false);
+
                 setErrorVariant(
                     getErrorVariant(error, currentPage),
                 );
+
                 setIsChecking(false);
             }
         }
@@ -185,7 +221,7 @@ export function useWorkflowGuard(
                 currentPage === "export" &&
                 document.visibilityState === "visible"
             ) {
-                void checkWorkflow(false);
+                void checkWorkflow();
             }
         }
 
@@ -198,7 +234,9 @@ export function useWorkflowGuard(
 
         return () => {
             isActive = false;
-            controller.abort();
+
+            latestCheckId += 1;
+            activeController?.abort();
 
             if (currentPage === "export") {
                 document.removeEventListener(
@@ -207,7 +245,6 @@ export function useWorkflowGuard(
                 );
             }
         };
-
     }, [
         currentPage,
         documentId,
