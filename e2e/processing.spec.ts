@@ -16,7 +16,7 @@ const CORS_HEADERS = {
     "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization",
 };
 
-type WorkflowStage = "processing" | "ready_for_review";
+type WorkflowStage = "processing" | "ready_for_review" | "uploaded";
 
 type DocumentStatus = {
     status: string;
@@ -60,10 +60,14 @@ async function mockWorkflow(
                 currentRedactionRunId: null,
                 preferredPage: ready
                     ? "review"
-                    : "processing",
+                    : stage.value === "uploaded"
+                      ? "subject-details"
+                      : "processing",
                 allowedPages: ready
                     ? ["review"]
-                    : ["processing"],
+                    : stage.value === "uploaded"
+                      ? ["subject-details"]
+                      : ["processing"],
             });
         },
     );
@@ -81,6 +85,8 @@ async function mockStatus(
             await fulfillJson(route, {
                 documentId: DOCUMENT_ID,
                 filename: "test.pdf",
+                subjectName: "Test Subject",
+                subjectPrisonNumber: "A1234BC",
                 ...getStatus(),
             });
         },
@@ -335,8 +341,8 @@ test("failed document processing displays the service problem page", async ({
     );
 });
 
-// 5. Back abandons processing and returns to Upload
-test("Back abandons document processing before returning to Upload", async ({
+// 5. Back preserves the uploaded document and restores Subject details
+test("Back returns to Subject details without abandoning the document", async ({
     page,
 }) => {
     const stage: { value: WorkflowStage } = {
@@ -347,14 +353,25 @@ test("Back abandons document processing before returning to Upload", async ({
     await mockAuthenticatedUpload(page);
 
     await mockStatus(page, () => ({
-        status: "processing",
+        status: stage.value,
         processingProgress: 40,
     }));
 
+    let returnRequests = 0;
     let abandonRequests = 0;
 
     await page.route(
         `${API_BASE_URL}/documents/${DOCUMENT_ID}/abandon`,
+        async (route) => {
+            abandonRequests += 1;
+            await fulfillJson(route, {
+                detail: "Unexpected abandonment",
+            }, 500);
+        },
+    );
+
+    await page.route(
+        `${API_BASE_URL}/documents/${DOCUMENT_ID}/return-to-subject-details`,
         async (route) => {
             if (route.request().method() === "OPTIONS") {
                 await fulfillJson(route, null);
@@ -362,12 +379,15 @@ test("Back abandons document processing before returning to Upload", async ({
             }
 
             expect(route.request().method()).toBe("POST");
+            returnRequests += 1;
 
-            abandonRequests += 1;
+            stage.value = "uploaded";
 
             await fulfillJson(route, {
                 documentId: DOCUMENT_ID,
-                status: "abandoned",
+                status: "uploaded",
+                preferredPage: "subject-details",
+                allowedPages: ["subject-details"],
             });
         },
     );
@@ -388,14 +408,22 @@ test("Back abandons document processing before returning to Upload", async ({
         exact: true,
     }).click();
 
-    await expect(page).toHaveURL("/upload");
+    await expect(page).toHaveURL(
+        `/subject-details?documentId=${DOCUMENT_ID}`,
+    );
 
-    expect(abandonRequests).toBe(1);
+    await expect(
+        page.locator("#subject-name"),
+    ).toHaveValue("Test Subject");
+
+    expect(returnRequests).toBe(1);
+    expect(abandonRequests).toBe(0);
 });
 
-// 6. Abandonment during Review prefetch
 
-test("does not navigate to Review while abandonment is pending", async ({
+// 6. Processing completes while Back is pending
+
+test("waits for Back response before navigating to completed Review", async ({
     page,
 }) => {
     const stage: { value: WorkflowStage } = {
@@ -452,22 +480,22 @@ test("does not navigate to Review while abandonment is pending", async ({
         };
     });
 
-    let notifyAbandonStarted = () => { };
+    let notifyReturnStarted = () => { };
 
-    const abandonStarted = new Promise<void>((resolve) => {
-        notifyAbandonStarted = resolve;
+    const returnStarted = new Promise<void>((resolve) => {
+        notifyReturnStarted = resolve;
     });
 
-    let releaseAbandon = () => { };
+    let releaseReturn = () => { };
 
-    const abandonGate = new Promise<void>((resolve) => {
-        releaseAbandon = resolve;
+    const returnGate = new Promise<void>((resolve) => {
+        releaseReturn = resolve;
     });
 
-    let abandonRequests = 0;
+    let returnRequests = 0;
 
     await page.route(
-        `${API_BASE_URL}/documents/${DOCUMENT_ID}/abandon`,
+        `${API_BASE_URL}/documents/${DOCUMENT_ID}/return-to-subject-details`,
         async (route) => {
             if (route.request().method() === "OPTIONS") {
                 await fulfillJson(route, null);
@@ -476,14 +504,16 @@ test("does not navigate to Review while abandonment is pending", async ({
 
             expect(route.request().method()).toBe("POST");
 
-            abandonRequests += 1;
-            notifyAbandonStarted();
+            returnRequests += 1;
+            notifyReturnStarted();
 
-            await abandonGate;
+            await returnGate;
 
             await fulfillJson(route, {
                 documentId: DOCUMENT_ID,
-                status: "abandoned",
+                status: "ready_for_review",
+                    preferredPage: "review",
+                    allowedPages: ["review"],
             });
         },
     );
@@ -502,11 +532,11 @@ test("does not navigate to Review while abandonment is pending", async ({
             noWaitAfter: true,
         });
 
-        await abandonStarted;
+        await returnStarted;
 
         await expect(
             page.getByRole("link", {
-                name: "Stopping processing...",
+                name: "Returning to subject details...",
             }),
         ).toBeVisible();
 
@@ -530,13 +560,12 @@ test("does not navigate to Review while abandonment is pending", async ({
         expect(reviewNavigations).toEqual([]);
     } finally {
         releasePrefetch();
-        releaseAbandon();
+        releaseReturn();
     }
 
-    await expect(page).toHaveURL("/upload");
+    await expect(page).toHaveURL(`/review?documentId=${DOCUMENT_ID}`);
 
-    expect(abandonRequests).toBe(1);
-    expect(reviewNavigations).toEqual([]);
+    expect(returnRequests).toBe(1);
 });
 
 
