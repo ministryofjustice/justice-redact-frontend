@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { toSmartQuotes } from "../smartQuotes";
 import {
     buildAccessibleFindResultText,
     getFindResultExcerptRedactedDisplayRanges,
@@ -29,6 +30,8 @@ export default function FindResultExcerpt({
         hasLeadingEllipsis,
         hasTrailingEllipsis,
     } = result.display;
+
+    const displayText = toSmartQuotes(text);
 
     const redactedRanges =
         getFindResultExcerptRedactedDisplayRanges(
@@ -80,7 +83,7 @@ export default function FindResultExcerpt({
         }
 
         const value =
-            text.slice(start, end);
+            displayText.slice(start, end);
 
         const isRedacted =
             redactedRanges.some(
@@ -125,7 +128,7 @@ export default function FindResultExcerpt({
         <>
             <span className="govuk-visually-hidden">
                 {hasLeadingEllipsis && "…"}
-                {accessibleExcerpt}
+                {toSmartQuotes(accessibleExcerpt)}
                 {hasTrailingEllipsis && "…"}
             </span>
 
