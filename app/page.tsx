@@ -222,7 +222,7 @@ export default function StartPage() {
 
                 <p className="govuk-body">
                     Enter your email address to confirm you can use Justice Redact.
-                    You&apos;ll then receive an email with a link to access the service.
+                    You’ll then receive an email with a link to access the service.
                 </p>
 
                 <form onSubmit={handleSubmit} noValidate>

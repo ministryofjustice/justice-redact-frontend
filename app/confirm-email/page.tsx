@@ -147,7 +147,7 @@ export default function ConfirmEmailPage() {
 
                     <p className="govuk-body">
                         Select the link in the email you received to start using Justice Redact.
-                        You need to open the link in the same browser you&apos;re on now.
+                        You need to open the link in the same browser you’re on now.
                     </p>
 
                     <p className="govuk-body">
@@ -188,7 +188,7 @@ export default function ConfirmEmailPage() {
                     </p>
 
                     <p className="govuk-body">
-                        You need to open the link in the same browser you&apos;re on now.
+                        You need to open the link in the same browser you’re on now.
                     </p>
 
                     <h2 className="govuk-heading-m">

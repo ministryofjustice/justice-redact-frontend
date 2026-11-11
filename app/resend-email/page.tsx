@@ -135,7 +135,7 @@ export default function ResendEmailPage() {
                 <ol className="govuk-list govuk-list--number">
                     <li>
                         Check that you entered the email
-                        address correctly. If it&apos;s
+                        address correctly. If it’s
                         incorrect,{" "}
                         <Link
                             href="/"
@@ -152,7 +152,7 @@ export default function ResendEmailPage() {
                     </li>
 
                     <li>
-                        Look in your email account&apos;s
+                        Look in your email account’s
                         junk or spam folder.
                     </li>
                 </ol>

@@ -223,7 +223,7 @@ function SubjectDetailsContent() {
                 )}
 
                 <h1 className="govuk-heading-xl">
-                    Enter the person&apos;s details
+                    Enter the person’s details
                 </h1>
 
                 <p className="govuk-body">
