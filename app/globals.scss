@@ -16,23 +16,12 @@ body {
 }
 
 .jr-app-body {
-  min-height: 100vh;
-  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 
 .jr-app-content {
   width: 100%;
-  flex: 1 0 auto;
-}
-
-/*
- * Keep the footer at the bottom of the viewport while route guards,
- * Suspense boundaries or page-specific API requests are resolving.
- */
-.jr-app-body>.govuk-footer {
-  margin-top: auto;
 }
 
 main {
