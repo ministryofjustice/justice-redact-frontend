@@ -23,8 +23,8 @@ type ProcessDocumentResponse = {
 };
 
 type DocumentDetailsResponse = {
-    subjectName: string;
-    subjectPrisonNumber: string;
+    subjectName?: string | null;
+    subjectPrisonNumber?: string | null;
 };
 
 function SubjectDetailsContent() {
@@ -105,17 +105,25 @@ function SubjectDetailsContent() {
                 }
 
                 if (
-                    typeof details.subjectName !== "string" ||
-                    typeof details.subjectPrisonNumber !== "string"
+                    !details ||
+                    typeof details !== "object" ||
+                    (
+                        details.subjectName != null &&
+                        typeof details.subjectName !== "string"
+                    ) ||
+                    (
+                        details.subjectPrisonNumber != null &&
+                        typeof details.subjectPrisonNumber !== "string"
+                    )
                 ) {
                     throw new Error(
                         "Invalid document details response",
                     );
                 }
 
-                setSubjectName(details.subjectName);
+                setSubjectName(details.subjectName ?? "");
                 setSubjectPrisonNumber(
-                    details.subjectPrisonNumber,
+                    details.subjectPrisonNumber ?? "",
                 );
                 setLoadedDocumentId(documentId!);
             } catch (err) {

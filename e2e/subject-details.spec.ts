@@ -72,8 +72,11 @@ async function mockWorkflow(
             await fulfillJson(route, {
                 documentId: DOCUMENT_ID,
                 filename: "test.pdf",
-                status: "processing",
-                processingProgress: 30,
+                status: stage.value,
+                processingProgress:
+                    stage.value === "processing" ? 30 : 0,
+                subjectName: null,
+                subjectPrisonNumber: null,
             });
         },
     );
@@ -113,7 +116,7 @@ test("submitting subject details starts document processing", async ({
 
     await expect(
         page.getByRole("heading", {
-            name: "Enter the person's details",
+            name: "Enter the person’s details",
             exact: true,
         }),
     ).toBeVisible();
@@ -183,7 +186,7 @@ test("subject details can be submitted with both optional fields empty", async (
 
     await expect(
         page.getByRole("heading", {
-            name: "Enter the person's details",
+            name: "Enter the person’s details",
             exact: true,
         }),
     ).toBeVisible();
@@ -258,7 +261,7 @@ test("processing request failure displays an error and allows retry", async ({
 
     await expect(
         page.getByRole("heading", {
-            name: "Enter the person's details",
+            name: "Enter the person’s details",
             exact: true,
         }),
     ).toBeVisible();
@@ -338,7 +341,7 @@ test("Back abandons the uploaded document before returning to Upload", async ({
 
     await expect(
         page.getByRole("heading", {
-            name: "Enter the person's details",
+            name: "Enter the person’s details",
             exact: true,
         }),
     ).toBeVisible();

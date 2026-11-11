@@ -569,7 +569,7 @@ test("waits for Back response before navigating to completed Review", async ({
 });
 
 
-test("failed abandonment resumes processing and allows another Back attempt", async ({
+test("failed Back request resumes processing and allows retry", async ({
     page,
 }) => {
     const stage: { value: WorkflowStage } = {
@@ -585,15 +585,28 @@ test("failed abandonment resumes processing and allows another Back attempt", as
         statusRequests += 1;
 
         return {
-            status: "processing",
+            status: stage.value,
             processingProgress: 40,
         };
     });
 
-    let abandonAttempts = 0;
+    let returnAttempts = 0;
+    let abandonRequests = 0;
 
     await page.route(
         `${API_BASE_URL}/documents/${DOCUMENT_ID}/abandon`,
+        async (route) => {
+            abandonRequests += 1;
+            await fulfillJson(
+                route,
+                { detail: "Unexpected abandonment" },
+                500,
+            );
+        },
+    );
+
+    await page.route(
+        `${API_BASE_URL}/documents/${DOCUMENT_ID}/return-to-subject-details`,
         async (route) => {
             if (route.request().method() === "OPTIONS") {
                 await fulfillJson(route, null);
@@ -602,22 +615,26 @@ test("failed abandonment resumes processing and allows another Back attempt", as
 
             expect(route.request().method()).toBe("POST");
 
-            abandonAttempts += 1;
+            returnAttempts += 1;
 
-            if (abandonAttempts === 1) {
+            if (returnAttempts === 1) {
                 await fulfillJson(
                     route,
                     {
-                        detail: "Unable to abandon document",
+                        detail: "Unable to return to subject details",
                     },
                     503,
                 );
                 return;
             }
 
+            stage.value = "uploaded";
+
             await fulfillJson(route, {
                 documentId: DOCUMENT_ID,
-                status: "abandoned",
+                status: "uploaded",
+                preferredPage: "subject-details",
+                allowedPages: ["subject-details"],
             });
         },
     );
@@ -635,31 +652,46 @@ test("failed abandonment resumes processing and allows another Back attempt", as
         "40",
     );
 
-    await page.getByRole("link", {
-        name: "Back",
-        exact: true,
-    }).click();
-
-    await expect.poll(
-        () => abandonAttempts,
-    ).toBe(1);
-
-    await expect.poll(
-        () => statusRequests,
-    ).toBeGreaterThanOrEqual(2);
-
     const backLink = page.getByRole("link", {
         name: "Back",
         exact: true,
     });
 
-    await expect(backLink).toBeVisible();
-
+    // First attempt fails.
     await backLink.click();
 
-    await expect(page).toHaveURL("/upload");
+    await expect.poll(
+        () => returnAttempts,
+    ).toBe(1);
 
-    expect(abandonAttempts).toBe(2);
+    // Error is recoverable: the processing page remains visible.
+    await expect(
+        page.locator("p.govuk-error-message[role='alert']"),
+    ).toHaveText("Unable to return to subject details");
+
+    await expect(backLink).toBeVisible();
+
+    await expect(page).toHaveURL(
+        `/processing?documentId=${DOCUMENT_ID}`,
+    );
+
+    // Processing polling must resume after the failure.
+    await expect.poll(
+        () => statusRequests,
+    ).toBeGreaterThanOrEqual(2);
+
+    // Second attempt succeeds.
+    await backLink.click();
+
+    await expect(page).toHaveURL(
+        `/subject-details?documentId=${DOCUMENT_ID}`,
+    );
+
+    await expect(
+        page.locator("#subject-name"),
+    ).toHaveValue("Test Subject");
+
+    expect(returnAttempts).toBe(2);
+    expect(abandonRequests).toBe(0);
 });
-
 

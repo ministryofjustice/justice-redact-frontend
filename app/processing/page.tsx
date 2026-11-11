@@ -22,6 +22,7 @@ function ProcessingContent() {
   const {
     processingProgress,
     error,
+    returnError,
     isReturning,
     handleBackToSubjectDetails,
   } = useDocumentProcessing(
@@ -64,6 +65,12 @@ function ProcessingContent() {
               ? "Returning to subject details..."
               : "Back"}
           </BackLink>
+
+          {returnError && (
+            <p className="govuk-error-message" role="alert">
+              {returnError}
+            </p>
+          )}
 
           <h1
             className="govuk-heading-xl"

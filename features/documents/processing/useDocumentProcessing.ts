@@ -28,6 +28,7 @@ type WorkflowNavigationResponse = {
 type DocumentProcessingResult = {
     processingProgress: number;
     error: string | null;
+    returnError: string | null;
     isReturning: boolean;
     handleBackToSubjectDetails: () => Promise<void>;
 };
@@ -48,6 +49,9 @@ export function useDocumentProcessing(
     const [error, setError] =
         useState<string | null>(null);
 
+    const [returnError, setReturnError] =
+        useState<string | null>(null);
+
     const [isReturning, setIsReturning] =
         useState(false);
 
@@ -61,7 +65,7 @@ export function useDocumentProcessing(
         isReturningRef.current = true;
 
         setIsReturning(true);
-        setError(null);
+        setReturnError(null);
 
         try {
             const workflow =
@@ -95,10 +99,10 @@ export function useDocumentProcessing(
                 "Unable to return to the previous page.",
             );
         } catch (err) {
-            setError(
+            setReturnError(
                 err instanceof Error
                     ? err.message
-                    : "Unable to stop processing. Try again.",
+                    : "Unable to return to subject details. Try again.",
             );
 
             isReturningRef.current = false;
@@ -287,6 +291,7 @@ export function useDocumentProcessing(
     return {
         processingProgress,
         error,
+        returnError,
         isReturning,
         handleBackToSubjectDetails,
     };
