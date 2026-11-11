@@ -232,7 +232,11 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     spansToAdd: ManualSpan[],
     redactionGroupId: string
   ) {
-    if (!documentId || spansToAdd.length === 0) {
+    if (
+      !documentId ||
+      spansToAdd.length === 0 ||
+      pageStatuses[page.pageNumber]
+    ) {
       return;
     }
 
@@ -258,7 +262,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     }>,
     redactionGroupId: string
   ) {
-    if (!documentId || !data || cellRanges.length === 0) {
+    if (
+      !documentId ||
+      !data ||
+      cellRanges.length === 0 ||
+      pageStatuses[pageNumber]
+    ) {
       return;
     }
 
@@ -439,7 +448,11 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   }
 
   function toggleImageRedaction(pageNumber: number, imageId: string) {
-    if (!documentId || !isRedactMode) return;
+    if (
+      !documentId ||
+      !isRedactMode ||
+      pageStatuses[pageNumber]
+    ) return;
 
     setManualSelections((prev) => {
       const existing = prev.find(
@@ -629,12 +642,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
       const range = selection.getRangeAt(0);
 
-      const intersectsRedactableContent =
+      const intersectedRedactableElements =
         Array.from(
           document.querySelectorAll<HTMLElement>(
             ".jr-review-block.redactable[data-page-number][data-item-id], [data-cell-id]"
           )
-        ).some((element) => {
+        ).filter((element) => {
           try {
             return range.intersectsNode(element);
           } catch {
@@ -642,7 +655,18 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           }
         });
 
-      if (!intersectsRedactableContent) {
+      if (intersectedRedactableElements.length === 0) {
+        return;
+      }
+
+      const intersectsInactivePage =
+        intersectedRedactableElements.some((element) =>
+          Boolean(
+            pageStatuses[Number(element.dataset.pageNumber)]
+          )
+        );
+
+      if (intersectsInactivePage) {
         return;
       }
 
@@ -854,6 +878,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
                           manualSelections={manualSelectionsForPage}
                           documentManualSelections={manualSelectionsForCurrentDocument()}
                           isPreviewMode={isPreviewMode}
+                          isReadOnly
                           onToggleImageRedaction={toggleImageRedaction}
                         />
                       </div>
