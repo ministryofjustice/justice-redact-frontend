@@ -19,11 +19,17 @@ type DocumentStatusResponse = {
     processingProgress: number;
 };
 
+type WorkflowNavigationResponse = {
+    documentId: string;
+    status: string;
+    preferredPage: string;
+};
+
 type DocumentProcessingResult = {
     processingProgress: number;
     error: string | null;
-    isAbandoning: boolean;
-    handleBackToUpload: () => Promise<void>;
+    isReturning: boolean;
+    handleBackToSubjectDetails: () => Promise<void>;
 };
 
 const POLLING_INTERVAL_MS = 2000;
@@ -42,32 +48,52 @@ export function useDocumentProcessing(
     const [error, setError] =
         useState<string | null>(null);
 
-    const [isAbandoning, setIsAbandoning] =
+    const [isReturning, setIsReturning] =
         useState(false);
 
-    const isAbandoningRef = useRef(false);
+    const isReturningRef = useRef(false);
 
-    async function handleBackToUpload(): Promise<void> {
-        if (!documentId || isAbandoningRef.current) {
+    async function handleBackToSubjectDetails(): Promise<void> {
+        if (!documentId || isReturningRef.current) {
             return;
         }
 
-        isAbandoningRef.current = true;
+        isReturningRef.current = true;
 
-        setIsAbandoning(true);
+        setIsReturning(true);
         setError(null);
 
         try {
-            await fetchJson(
+            const workflow =
+                await fetchJson<WorkflowNavigationResponse>(
                 `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
                     documentId,
-                )}/abandon`,
+                )}/return-to-subject-details`,
                 {
                     method: "POST",
                 },
             );
 
-            router.push("/upload");
+            const documentQuery =
+                `documentId=${encodeURIComponent(documentId)}`;
+
+            if (workflow.preferredPage === "subject-details") {
+                router.replace(
+                    `/subject-details?${documentQuery}`,
+                );
+                return;
+            }
+
+            if (workflow.preferredPage === "review") {
+                router.replace(
+                    `/review?${documentQuery}`,
+                );
+                return;
+            }
+
+            throw new Error(
+                "Unable to return to the previous page.",
+            );
         } catch (err) {
             setError(
                 err instanceof Error
@@ -75,13 +101,13 @@ export function useDocumentProcessing(
                     : "Unable to stop processing. Try again.",
             );
 
-            isAbandoningRef.current = false;
-            setIsAbandoning(false);
+            isReturningRef.current = false;
+            setIsReturning(false);
         }
     }
 
     useEffect(() => {
-        if (!documentId || !enabled || isAbandoning) {
+        if (!documentId || !enabled || isReturning) {
             return;
         }
 
@@ -98,7 +124,7 @@ export function useDocumentProcessing(
         function scheduleNextPoll() {
             if (
                 !isActive ||
-                isAbandoningRef.current
+                isReturningRef.current
             ) {
                 return;
             }
@@ -111,7 +137,7 @@ export function useDocumentProcessing(
         async function pollStatus() {
             if (
                 !isActive ||
-                isAbandoningRef.current
+                isReturningRef.current
             ) {
                 return;
             }
@@ -132,7 +158,7 @@ export function useDocumentProcessing(
 
                 if (
                     !isActive ||
-                    isAbandoningRef.current
+                    isReturningRef.current
                 ) {
                     return;
                 }
@@ -192,7 +218,7 @@ export function useDocumentProcessing(
 
                     if (
                         !isActive ||
-                        isAbandoningRef.current
+                        isReturningRef.current
                     ) {
                         return;
                     }
@@ -217,7 +243,7 @@ export function useDocumentProcessing(
             } catch (err) {
                 if (
                     !isActive ||
-                    isAbandoningRef.current
+                    isReturningRef.current
                 ) {
                     return;
                 }
@@ -254,14 +280,14 @@ export function useDocumentProcessing(
     }, [
         documentId,
         enabled,
-        isAbandoning,
+        isReturning,
         router,
     ]);
 
     return {
         processingProgress,
         error,
-        isAbandoning,
-        handleBackToUpload,
+        isReturning,
+        handleBackToSubjectDetails,
     };
 }

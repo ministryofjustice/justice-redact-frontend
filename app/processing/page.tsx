@@ -22,8 +22,8 @@ function ProcessingContent() {
   const {
     processingProgress,
     error,
-    isAbandoning,
-    handleBackToUpload,
+    isReturning,
+    handleBackToSubjectDetails,
   } = useDocumentProcessing(
     documentId,
     !isCheckingWorkflow && !workflowErrorVariant,
@@ -56,12 +56,12 @@ function ProcessingContent() {
       <div className="govuk-grid-column-two-thirds">
         <section aria-labelledby="processing-heading">
           <BackLink
-            href="/upload"
-            onBack={handleBackToUpload}
-            disabled={isAbandoning}
+            href={`/subject-details?documentId=${encodeURIComponent(documentId)}`}
+            onBack={handleBackToSubjectDetails}
+            disabled={isReturning}
           >
-            {isAbandoning
-              ? "Stopping processing..."
+            {isReturning
+              ? "Returning to subject details..."
               : "Back"}
           </BackLink>
 
