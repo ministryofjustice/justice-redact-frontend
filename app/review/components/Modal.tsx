@@ -71,12 +71,10 @@ export default function Modal({
                 ? document.activeElement
                 : null;
 
-        const previousOverflow = document.body.style.overflow;
         const previousRootOverflow =
             document.documentElement.style.overflow;
 
         document.documentElement.style.overflow = "hidden";
-        document.body.style.overflow = "hidden";
 
         const modalRoot = backdropRef.current;
         const backgroundElements = Array.from(document.body.children).filter(
@@ -109,7 +107,6 @@ export default function Modal({
         return () => {
             document.documentElement.style.overflow =
                 previousRootOverflow;
-            document.body.style.overflow = previousOverflow;
 
             previousBackgroundState.forEach(
                 ({ element, inert, ariaHidden }) => {
