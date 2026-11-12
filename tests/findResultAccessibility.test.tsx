@@ -342,3 +342,129 @@ describe("Find result AI suggestion rendering", () => {
         ).toBe("Smith");
     });
 });
+
+
+describe("Find result table-cell AI suggestions", () => {
+    it("highlights only the matching table cell", () => {
+        const cellText = "John Smith";
+
+        const tablePages: ReviewPageData[] = [
+            {
+                pageNumber: 1,
+                textItems: [],
+                images: [],
+                tables: [
+                    {
+                        tableId: "table-1",
+                        bbox: null,
+                        rows: [
+                            {
+                                rowIndex: 0,
+                                cells: ["cell-1", "cell-2"].map(
+                                    (cellId, colIndex) => ({
+                                        cellId,
+                                        tableId: "table-1",
+                                        rowIndex: 0,
+                                        colIndex,
+                                        text: cellText,
+                                        renderText: cellText,
+                                        bbox: null,
+                                        isHeader: false,
+                                        isNumeric: false,
+                                    })
+                                ),
+                            },
+                        ],
+                    },
+                ],
+            },
+        ];
+
+        const cellResult: FindInDocumentResult = {
+            id: "table-result-1",
+            kind: "table_cell",
+            pageNumber: 1,
+            itemId: null,
+            tableId: "table-1",
+            cellId: "cell-2",
+            display: {
+                text: cellText,
+                matchStart: 0,
+                matchEnd: cellText.length,
+                hasLeadingEllipsis: false,
+                hasTrailingEllipsis: false,
+            },
+            segments: [
+                {
+                    kind: "table_cell",
+                    pageNumber: 1,
+                    itemId: null,
+                    tableId: "table-1",
+                    cellId: "cell-2",
+                    start: 0,
+                    end: cellText.length,
+                },
+            ],
+            displaySegments: [
+                {
+                    kind: "table_cell",
+                    pageNumber: 1,
+                    itemId: null,
+                    tableId: "table-1",
+                    cellId: "cell-2",
+                    start: 0,
+                    end: cellText.length,
+                    displayStart: 0,
+                    displayEnd: cellText.length,
+                    sourceNormalisedStart: 0,
+                    sourceNormalisedEnd: cellText.length,
+                },
+            ],
+        };
+
+        const finding = makeAiFinding({
+            kind: "table_cell",
+            itemId: null,
+            tableId: "table-1",
+            cellId: "cell-1",
+            entityText: "Smith",
+            entityStart: 5,
+            entityEnd: 10,
+        });
+
+        const { container, rerender } = render(
+            <FindResultExcerpt
+                result={cellResult}
+                pages={tablePages}
+                manualSelections={[]}
+                findings={[finding]}
+            />
+        );
+
+        // Finding belongs to cell-1, but result is cell-2.
+        expect(
+            container.querySelector(".highlight--suggestion")
+        ).toBeNull();
+
+        rerender(
+            <FindResultExcerpt
+                result={cellResult}
+                pages={tablePages}
+                manualSelections={[]}
+                findings={[
+                    {
+                        ...finding,
+                        cellId: "cell-2",
+                    },
+                ]}
+            />
+        );
+
+        // Once the finding belongs to cell-2, highlight it.
+        expect(
+            container.querySelector(
+                ".highlight--suggestion"
+            )?.textContent
+        ).toBe("Smith");
+    });
+});
