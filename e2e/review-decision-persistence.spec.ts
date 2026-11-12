@@ -787,3 +787,76 @@ test("recovers from a failed autosave and saves the latest decisions", async ({
         expectedRevision: 6,
     });
 });
+
+test("end-of-document bar fits its container at narrow viewport widths", async ({
+    page,
+}) => {
+    await mockReview(page);
+    await openReview(page);
+
+    const endOfDocument = page.locator(".end-of-page");
+
+    await expect(endOfDocument).toBeVisible();
+
+    for (const width of [320, 375, 640, 768, 1280]) {
+        await page.setViewportSize({
+            width,
+            height: 900,
+        });
+
+        await expect(
+            endOfDocument.getByRole("heading", {
+                name: /reached the end of the document/i,
+            }),
+        ).toBeVisible();
+
+        await expect(
+            endOfDocument.getByRole("button", {
+                name: "Apply redactions",
+            }),
+        ).toBeVisible();
+
+        const geometry = await endOfDocument.evaluate((element) => {
+            const parent = element.parentElement;
+
+            if (!parent) {
+                throw new Error(
+                    "End-of-document container has no parent",
+                );
+            }
+
+            const barRect = element.getBoundingClientRect();
+            const parentRect = parent.getBoundingClientRect();
+
+            return {
+                barLeft: barRect.left,
+                barRight: barRect.right,
+                parentLeft: parentRect.left,
+                parentRight: parentRect.right,
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+            };
+        });
+
+        expect(
+            geometry.barLeft,
+            `Bar overflows left at ${width}px`,
+        ).toBeGreaterThanOrEqual(
+            geometry.parentLeft - 1,
+        );
+
+        expect(
+            geometry.barRight,
+            `Bar overflows right at ${width}px`,
+        ).toBeLessThanOrEqual(
+            geometry.parentRight + 1,
+        );
+
+        expect(
+            geometry.scrollWidth,
+            `Bar content overflows at ${width}px`,
+        ).toBeLessThanOrEqual(
+            geometry.clientWidth + 1,
+        );
+    }
+});
