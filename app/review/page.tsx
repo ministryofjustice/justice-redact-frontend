@@ -867,7 +867,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
                     <details className="govuk-details jr-review-page__details">
                       <summary className="govuk-details__summary">
                         <span className="govuk-details__summary-text">
-                          View original page content
+                          View original content from page {page.pageNumber}
                         </span>
                       </summary>
 
