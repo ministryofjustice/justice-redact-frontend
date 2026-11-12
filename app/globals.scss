@@ -5,6 +5,17 @@
   --moj-assets-path: "/moj/assets/";
 }
 
+/* GOV.UK focus styling for programmatically focused headings. */
+.govuk-main-wrapper h1[tabindex="-1"]:focus {
+  @include govuk.govuk-focused-text;
+}
+
+/* Visible focus on the entire inline error summary. */
+.govuk-main-wrapper .govuk-error-summary:focus {
+  outline: 3px solid govuk.govuk-functional-colour("focus");
+  outline-offset: 0;
+}
+
 /* Base layout */
 html {
   min-height: 100%;
