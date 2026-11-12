@@ -5,6 +5,7 @@ import {
   useMemo,
   useState,
   useEffect,
+  useRef,
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { useReviewData } from "./useReviewData";
@@ -61,6 +62,7 @@ const PAGES_PER_BATCH = 50;
 function ReviewContent() {
   const searchParams = useSearchParams();
   const documentId = searchParams.get("documentId");
+  const returnToEnd = searchParams.get("returnTo") === "end";
 
   const {
     isChecking: isCheckingWorkflow,
@@ -82,17 +84,44 @@ function ReviewContent() {
 
   return (
     <ReviewDocument
-      key={documentId ?? "missing-document-id"}
+      key={`${documentId ?? "missing-document-id"}-${returnToEnd ? "end" : "default"}`}
       documentId={documentId}
+      returnToEnd={returnToEnd}
     />
   );
 }
 
-function ReviewDocument({ documentId }: { documentId: string | null }) {
-
-
+function ReviewDocument({
+  documentId,
+  returnToEnd,
+}: {
+  documentId: string | null;
+  returnToEnd: boolean;
+}) {
   const [selectedRangeStart, setSelectedRangeStart] = useState(0);
+  const [isReturnToEndReady, setIsReturnToEndReady] =
+    useState(!returnToEnd);
+  const hasScrolledToEndRef = useRef(false);
+
   const { data, isLoading, error } = useReviewData(documentId);
+
+  useEffect(() => {
+    if (!returnToEnd || !data || isReturnToEndReady) {
+      return;
+    }
+
+    const lastPageIndex = Math.max(
+      0,
+      data.summary.totalPages - 1
+    );
+
+    const finalRangeStart =
+      Math.floor(lastPageIndex / PAGES_PER_BATCH) *
+      PAGES_PER_BATCH;
+
+    setSelectedRangeStart(finalRangeStart);
+    setIsReturnToEndReady(true);
+  }, [data, returnToEnd, isReturnToEndReady]);
 
   const {
     manualSelections,
@@ -166,7 +195,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     documentId,
     requestedPageStart,
     requestedPageEnd,
-    Boolean(data)
+    Boolean(data) && isReturnToEndReady
   );
 
   usePageTitle(
@@ -218,6 +247,50 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
     return selectedRangeStart + PAGES_PER_BATCH >= data.summary.totalPages;
   }, [data, selectedRangeStart]);
+
+  useEffect(() => {
+    if (
+      !returnToEnd ||
+      !isReturnToEndReady ||
+      hasScrolledToEndRef.current ||
+      !data ||
+      !hasLoadedPersistedDecisions ||
+      isPagesLoading ||
+      pagesError ||
+      !isLastBatch ||
+      visiblePages[visiblePages.length - 1]?.pageNumber !==
+        data.summary.totalPages
+    ) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const endOfDocument =
+        document.querySelector<HTMLElement>(".end-of-page");
+
+      if (!endOfDocument) {
+        return;
+      }
+
+      endOfDocument.scrollIntoView({
+        behavior: "instant",
+        block: "end",
+      });
+
+      hasScrolledToEndRef.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    returnToEnd,
+    isReturnToEndReady,
+    data,
+    hasLoadedPersistedDecisions,
+    isPagesLoading,
+    pagesError,
+    isLastBatch,
+    visiblePages,
+  ]);
 
   function manualSelectionsForCurrentDocument() {
     if (!documentId) return [];

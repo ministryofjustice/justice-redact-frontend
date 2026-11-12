@@ -80,7 +80,7 @@ function ApplyingRedactionsContent() {
             );
 
             router.replace(
-                `/review?documentId=${encodeURIComponent(documentId)}`
+                `/review?documentId=${encodeURIComponent(documentId)}&returnTo=end`
             );
         } catch (err) {
             cancellationRequestedRef.current = false;
