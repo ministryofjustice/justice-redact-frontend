@@ -429,7 +429,7 @@ test("409 revision conflict prevents applying stale decisions", async ({
     await expect(
         page
             .getByRole("region", {
-                name: "You've reached the end of the document",
+                name: "You’ve reached the end of the document",
             })
             .getByRole("alert"),
     ).toContainText(
