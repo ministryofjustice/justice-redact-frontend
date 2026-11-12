@@ -109,7 +109,7 @@ test("focuses the entire MOJ technical error alert with yellow styling", async (
     await page.goto("/upload");
 
     // An invalid PDF triggers the existing client-side PDF analysis error.
-    await page.locator("#file-upload-1").setInputFiles({
+    await page.locator('input[type="file"][name="fileUpload1"]').setInputFiles({
         name: "invalid.pdf",
         mimeType: "application/pdf",
         buffer: Buffer.from("This is not a valid PDF"),
