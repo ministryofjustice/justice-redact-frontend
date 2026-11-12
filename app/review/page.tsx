@@ -776,6 +776,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         isOpen={isFindAndRedactOpen}
         pages={searchPages ?? []}
         manualSelections={manualSelections}
+        findings={data?.findings ?? []}
         onClose={() => setIsFindAndRedactOpen(false)}
         onErrorChange={setHasFindAndRedactError}
         onHighlightSelected={handleHighlightSelected}
@@ -784,6 +785,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         isOpen={isFindAndPartiallyRedactOpen}
         pages={searchPages ?? []}
         manualSelections={manualSelections}
+        findings={data?.findings ?? []}
         onClose={() => setIsFindAndPartiallyRedactOpen(false)}
         onErrorChange={setHasFindAndPartiallyRedactError}
         onHighlightSelected={handleFindAndPartiallyRedact}
@@ -792,6 +794,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         isOpen={isFindAndDiscloseOpen}
         pages={searchPages ?? []}
         manualSelections={manualSelections}
+        findings={data?.findings ?? []}
         onClose={() => setIsFindAndDiscloseOpen(false)}
         onErrorChange={setHasFindAndDiscloseError}
         onUndoSelected={handleUndoSelected}

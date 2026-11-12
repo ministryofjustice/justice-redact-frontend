@@ -467,8 +467,8 @@ main {
  * Search matches use the same visual treatment as a redaction,
  * but are examples within the results list rather than interactive redactions.
  */
-.jr-find-and-redact-result__match,
-.jr-find-and-redact-result__match:hover {
+.jr-find-and-redact-result .jr-find-and-redact-result__match,
+.jr-find-and-redact-result .jr-find-and-redact-result__match:hover {
   cursor: text;
   border-top-width: 2px;
   border-bottom-width: 2px;
