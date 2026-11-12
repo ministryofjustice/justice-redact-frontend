@@ -30,7 +30,7 @@ export default function ReviewPageHeader({
                         <strong
                             className={`govuk-tag ${pageStatus === "deleted"
                                     ? "govuk-tag--red"
-                                    : "govuk-tag--blue"
+                                    : "govuk-tag--yellow"
                                 }`}
                         >
                             {pageStatus === "deleted" ? "Deleted" : "Exempted"}

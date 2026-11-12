@@ -20,6 +20,7 @@ import type {
     ManualDecision,
     ReviewPageData,
 } from "../types";
+import type { ReviewFinding } from "../types";
 import FindResultExcerpt from "./FindResultExcerpt";
 import Modal from "./Modal";
 
@@ -27,6 +28,7 @@ type FindAndRedactModalProps = {
     isOpen: boolean;
     pages: ReviewPageData[];
     manualSelections: ManualDecision[];
+    findings: ReviewFinding[];
     onClose: () => void;
     onErrorChange: (hasError: boolean) => void;
     onHighlightSelected: (
@@ -41,6 +43,7 @@ export default function FindAndRedactModal({
     isOpen,
     pages,
     manualSelections,
+    findings,
     onClose,
     onErrorChange,
     onHighlightSelected,
@@ -654,6 +657,7 @@ export default function FindAndRedactModal({
                                                                     result={result}
                                                                     pages={pages}
                                                                     manualSelections={manualSelections}
+                                                                    findings={findings}
                                                                 />
 
                                                                 <span className="govuk-visually-hidden">

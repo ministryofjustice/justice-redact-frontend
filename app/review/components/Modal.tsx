@@ -72,6 +72,10 @@ export default function Modal({
                 : null;
 
         const previousOverflow = document.body.style.overflow;
+        const previousRootOverflow =
+            document.documentElement.style.overflow;
+
+        document.documentElement.style.overflow = "hidden";
         document.body.style.overflow = "hidden";
 
         const modalRoot = backdropRef.current;
@@ -103,6 +107,8 @@ export default function Modal({
         });
 
         return () => {
+            document.documentElement.style.overflow =
+                previousRootOverflow;
             document.body.style.overflow = previousOverflow;
 
             previousBackgroundState.forEach(

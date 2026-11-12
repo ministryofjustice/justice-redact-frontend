@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import MojCrest from "./components/MojCrest";
 import GovukInit from "./components/GovukInit";
+import PageFocusManager from "./components/PageFocusManager";
 import GovukFooter from "./components/GovukFooter";
 import BetaBanner from "./components/BetaBanner";
 
@@ -24,6 +25,7 @@ export default function RootLayout({
 
       <body className="govuk-template__body govuk-frontend-supported jr-app-body">
         <GovukInit />
+        <PageFocusManager />
 
         <a href="#main-content" className="govuk-skip-link">
           Skip to main content

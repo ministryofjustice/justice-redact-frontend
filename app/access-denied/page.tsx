@@ -17,7 +17,7 @@ export default function AccessDeniedPage() {
                 </p>
 
                 <p className="govuk-body">
-                    You&apos;ll hear from your operational managers when it&apos;s more widely available.
+                    You’ll hear from your operational managers when it’s more widely available.
                 </p>
             </div>
         </div>

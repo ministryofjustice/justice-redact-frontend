@@ -5,6 +5,7 @@ import {
   useMemo,
   useState,
   useEffect,
+  useRef,
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { useReviewData } from "./useReviewData";
@@ -61,6 +62,7 @@ const PAGES_PER_BATCH = 50;
 function ReviewContent() {
   const searchParams = useSearchParams();
   const documentId = searchParams.get("documentId");
+  const returnToEnd = searchParams.get("returnTo") === "end";
 
   const {
     isChecking: isCheckingWorkflow,
@@ -82,17 +84,44 @@ function ReviewContent() {
 
   return (
     <ReviewDocument
-      key={documentId ?? "missing-document-id"}
+      key={`${documentId ?? "missing-document-id"}-${returnToEnd ? "end" : "default"}`}
       documentId={documentId}
+      returnToEnd={returnToEnd}
     />
   );
 }
 
-function ReviewDocument({ documentId }: { documentId: string | null }) {
-
-
+function ReviewDocument({
+  documentId,
+  returnToEnd,
+}: {
+  documentId: string | null;
+  returnToEnd: boolean;
+}) {
   const [selectedRangeStart, setSelectedRangeStart] = useState(0);
+  const [isReturnToEndReady, setIsReturnToEndReady] =
+    useState(!returnToEnd);
+  const hasScrolledToEndRef = useRef(false);
+
   const { data, isLoading, error } = useReviewData(documentId);
+
+  useEffect(() => {
+    if (!returnToEnd || !data || isReturnToEndReady) {
+      return;
+    }
+
+    const lastPageIndex = Math.max(
+      0,
+      data.summary.totalPages - 1
+    );
+
+    const finalRangeStart =
+      Math.floor(lastPageIndex / PAGES_PER_BATCH) *
+      PAGES_PER_BATCH;
+
+    setSelectedRangeStart(finalRangeStart);
+    setIsReturnToEndReady(true);
+  }, [data, returnToEnd, isReturnToEndReady]);
 
   const {
     manualSelections,
@@ -166,7 +195,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     documentId,
     requestedPageStart,
     requestedPageEnd,
-    Boolean(data)
+    Boolean(data) && isReturnToEndReady
   );
 
   usePageTitle(
@@ -219,6 +248,50 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     return selectedRangeStart + PAGES_PER_BATCH >= data.summary.totalPages;
   }, [data, selectedRangeStart]);
 
+  useEffect(() => {
+    if (
+      !returnToEnd ||
+      !isReturnToEndReady ||
+      hasScrolledToEndRef.current ||
+      !data ||
+      !hasLoadedPersistedDecisions ||
+      isPagesLoading ||
+      pagesError ||
+      !isLastBatch ||
+      visiblePages[visiblePages.length - 1]?.pageNumber !==
+        data.summary.totalPages
+    ) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const endOfDocument =
+        document.querySelector<HTMLElement>(".end-of-page");
+
+      if (!endOfDocument) {
+        return;
+      }
+
+      endOfDocument.scrollIntoView({
+        behavior: "instant",
+        block: "end",
+      });
+
+      hasScrolledToEndRef.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    returnToEnd,
+    isReturnToEndReady,
+    data,
+    hasLoadedPersistedDecisions,
+    isPagesLoading,
+    pagesError,
+    isLastBatch,
+    visiblePages,
+  ]);
+
   function manualSelectionsForCurrentDocument() {
     if (!documentId) return [];
 
@@ -232,7 +305,11 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     spansToAdd: ManualSpan[],
     redactionGroupId: string
   ) {
-    if (!documentId || spansToAdd.length === 0) {
+    if (
+      !documentId ||
+      spansToAdd.length === 0 ||
+      pageStatuses[page.pageNumber]
+    ) {
       return;
     }
 
@@ -258,7 +335,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
     }>,
     redactionGroupId: string
   ) {
-    if (!documentId || !data || cellRanges.length === 0) {
+    if (
+      !documentId ||
+      !data ||
+      cellRanges.length === 0 ||
+      pageStatuses[pageNumber]
+    ) {
       return;
     }
 
@@ -439,7 +521,11 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
   }
 
   function toggleImageRedaction(pageNumber: number, imageId: string) {
-    if (!documentId || !isRedactMode) return;
+    if (
+      !documentId ||
+      !isRedactMode ||
+      pageStatuses[pageNumber]
+    ) return;
 
     setManualSelections((prev) => {
       const existing = prev.find(
@@ -629,12 +715,12 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
 
       const range = selection.getRangeAt(0);
 
-      const intersectsRedactableContent =
+      const intersectedRedactableElements =
         Array.from(
           document.querySelectorAll<HTMLElement>(
             ".jr-review-block.redactable[data-page-number][data-item-id], [data-cell-id]"
           )
-        ).some((element) => {
+        ).filter((element) => {
           try {
             return range.intersectsNode(element);
           } catch {
@@ -642,7 +728,18 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
           }
         });
 
-      if (!intersectsRedactableContent) {
+      if (intersectedRedactableElements.length === 0) {
+        return;
+      }
+
+      const intersectsInactivePage =
+        intersectedRedactableElements.some((element) =>
+          Boolean(
+            pageStatuses[Number(element.dataset.pageNumber)]
+          )
+        );
+
+      if (intersectsInactivePage) {
         return;
       }
 
@@ -752,6 +849,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         isOpen={isFindAndRedactOpen}
         pages={searchPages ?? []}
         manualSelections={manualSelections}
+        findings={data?.findings ?? []}
         onClose={() => setIsFindAndRedactOpen(false)}
         onErrorChange={setHasFindAndRedactError}
         onHighlightSelected={handleHighlightSelected}
@@ -760,6 +858,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         isOpen={isFindAndPartiallyRedactOpen}
         pages={searchPages ?? []}
         manualSelections={manualSelections}
+        findings={data?.findings ?? []}
         onClose={() => setIsFindAndPartiallyRedactOpen(false)}
         onErrorChange={setHasFindAndPartiallyRedactError}
         onHighlightSelected={handleFindAndPartiallyRedact}
@@ -768,6 +867,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
         isOpen={isFindAndDiscloseOpen}
         pages={searchPages ?? []}
         manualSelections={manualSelections}
+        findings={data?.findings ?? []}
         onClose={() => setIsFindAndDiscloseOpen(false)}
         onErrorChange={setHasFindAndDiscloseError}
         onUndoSelected={handleUndoSelected}
@@ -843,7 +943,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
                     <details className="govuk-details jr-review-page__details">
                       <summary className="govuk-details__summary">
                         <span className="govuk-details__summary-text">
-                          View original page content
+                          View original content from page {page.pageNumber}
                         </span>
                       </summary>
 
@@ -854,6 +954,7 @@ function ReviewDocument({ documentId }: { documentId: string | null }) {
                           manualSelections={manualSelectionsForPage}
                           documentManualSelections={manualSelectionsForCurrentDocument()}
                           isPreviewMode={isPreviewMode}
+                          isReadOnly
                           onToggleImageRedaction={toggleImageRedaction}
                         />
                       </div>

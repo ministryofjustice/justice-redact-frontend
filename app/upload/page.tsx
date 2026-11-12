@@ -287,7 +287,7 @@ export default function UploadPage() {
 
           <p className="govuk-body-l">
             Justice Redact uses artificial intelligence (AI) to suggest what to
-            pay attention to when you&apos;re redacting a file.
+            pay attention to when you’re redacting a file.
           </p>
 
           <h2 className="govuk-heading-m">
@@ -314,7 +314,7 @@ export default function UploadPage() {
               </span>
 
               <p className="govuk-body govuk-!-font-weight-bold govuk-!-margin-bottom-1">
-                You&apos;re responsible for:
+                You’re responsible for:
               </p>
 
               <ul className="govuk-list govuk-list--bullet govuk-!-font-weight-bold govuk-!-margin-bottom-0">
@@ -344,7 +344,7 @@ export default function UploadPage() {
 
           <p className="govuk-body">
             You cannot upload vetted documents. Instead, use Adobe Acrobat to make
-            changes to the document - you&apos;ll need to sanitise the document
+            changes to the document - you’ll need to sanitise the document
             when exporting it.
           </p>
 

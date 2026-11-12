@@ -43,7 +43,7 @@ export default function EndOfDocumentActions({
                 id="end-of-document-heading"
                 className="govuk-heading-m"
             >
-                You&apos;ve reached the end of the document
+                You’ve reached the end of the document
             </h2>
 
             {error && (

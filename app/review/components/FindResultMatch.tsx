@@ -1,3 +1,4 @@
+import { toSmartQuotes } from "../smartQuotes";
 import {
     buildFindInDocumentExcerpt,
     type FindInDocumentResult,
@@ -25,6 +26,8 @@ export default function FindResultMatch({
     const match =
         buildFindInDocumentExcerpt(result).match;
 
+    const displayMatch = toSmartQuotes(match);
+
     const redactedRanges =
         getFindResultRedactedDisplayRanges(
             result,
@@ -39,7 +42,7 @@ export default function FindResultMatch({
         );
 
     if (redactedRanges.length === 0) {
-        return <strong>{match}</strong>;
+        return <strong>{displayMatch}</strong>;
     }
 
     const nodes: React.ReactNode[] = [];
@@ -49,7 +52,7 @@ export default function FindResultMatch({
         if (cursor < range.start) {
             nodes.push(
                 <span key={`plain-${cursor}-${range.start}`}>
-                    {match.slice(cursor, range.start)}
+                    {displayMatch.slice(cursor, range.start)}
                 </span>
             );
         }
@@ -62,7 +65,7 @@ export default function FindResultMatch({
                 <span className="govuk-visually-hidden">
                     Redaction:{" "}
                 </span>
-                {match.slice(range.start, range.end)}
+                {displayMatch.slice(range.start, range.end)}
             </span>
         );
 
@@ -72,7 +75,7 @@ export default function FindResultMatch({
     if (cursor < match.length) {
         nodes.push(
             <span key={`plain-${cursor}-end`}>
-                {match.slice(cursor)}
+                {displayMatch.slice(cursor)}
             </span>
         );
     }
@@ -80,7 +83,7 @@ export default function FindResultMatch({
     return (
         <strong>
             <span className="govuk-visually-hidden">
-                {accessibleMatch}
+                {toSmartQuotes(accessibleMatch)}
             </span>
 
             <span aria-hidden="true">

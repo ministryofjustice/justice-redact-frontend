@@ -29,6 +29,7 @@ import type {
     ReviewPageData,
 } from "../types";
 import Modal from "./Modal";
+import type { ReviewFinding } from "../types";
 import FindResultExcerpt from "./FindResultExcerpt";
 import {
     buildAccessibleReviewText,
@@ -40,6 +41,7 @@ type FindAndPartiallyRedactModalProps = {
     isOpen: boolean;
     pages: ReviewPageData[];
     manualSelections: ManualDecision[];
+    findings: ReviewFinding[];
     onClose: () => void;
     onErrorChange: (hasError: boolean) => void;
 
@@ -68,6 +70,7 @@ export default function FindAndPartiallyRedactModal({
     isOpen,
     pages,
     manualSelections,
+    findings,
     onClose,
     onErrorChange,
     onHighlightSelected,
@@ -1046,6 +1049,7 @@ export default function FindAndPartiallyRedactModal({
                                                                         result={result}
                                                                         pages={pages}
                                                                         manualSelections={manualSelections}
+                                                                        findings={findings}
                                                                     />
 
                                                                     <span className="govuk-visually-hidden">

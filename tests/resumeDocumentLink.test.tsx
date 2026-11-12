@@ -129,7 +129,7 @@ describe("resume document links", () => {
 
         expect(
             screen.getByText(
-                "You need to open the link in the same browser you're on now.",
+                "You need to open the link in the same browser you’re on now.",
             ),
         ).toBeTruthy();
 
@@ -173,7 +173,7 @@ describe("resume document links", () => {
 
         expect(
             screen.getByText(
-                "Instead, use Adobe Acrobat to make changes to the document - you'll need to sanitise the document when exporting it.",
+                "Instead, use Adobe Acrobat to make changes to the document - you’ll need to sanitise the document when exporting it.",
             ),
         ).toBeTruthy();
 

@@ -339,6 +339,8 @@ function ExportContent() {
             data.allFilesExportUrl
         );
 
+    const hasExemptExport = Boolean(data.exemptExportUrl);
+
     return (
         <>
             <div className="govuk-grid-row">
@@ -432,19 +434,21 @@ function ExportContent() {
                                 </td>
                             </tr>
 
-                            <tr className="govuk-table__row">
-                                <th
-                                    scope="row"
-                                    className="govuk-table__header"
-                                >
-                                    Exempted
-                                </th>
+                            {hasExemptExport && (
+                                <tr className="govuk-table__row">
+                                    <th
+                                        scope="row"
+                                        className="govuk-table__header"
+                                    >
+                                        Exempted
+                                    </th>
 
-                                <td className="govuk-table__cell">
-                                    All the pages you exempted with AI
-                                    suggestions highlighted.
-                                </td>
-                            </tr>
+                                    <td className="govuk-table__cell">
+                                        All the pages you exempted with AI
+                                        suggestions highlighted.
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
 

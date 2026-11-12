@@ -290,7 +290,7 @@ test("workflow 404 shows the unrecognised link error page", async ({
 
     await expect(
         page.getByText(
-            "You need to open the link in the same browser you're on now.",
+            "You need to open the link in the same browser you’re on now.",
         ),
     ).toBeVisible();
 

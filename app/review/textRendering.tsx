@@ -1,4 +1,5 @@
 import React from "react";
+import { toSmartQuotes } from "./smartQuotes";
 import type { RenderRange, ReviewFinding, ReviewTextSpan } from "./types";
 
 export function clampRangeValue(value: number, max: number) {
@@ -393,6 +394,8 @@ export function renderTextSegments(
     isPreviewMode: boolean,
     boldRanges: Array<{ start: number; end: number }> = []
 ) {
+    const displayText = toSmartQuotes(text);
+
     const ranges = buildRenderRanges(
         text,
         suggestions,
@@ -410,7 +413,7 @@ export function renderTextSegments(
             nodes.push(
                 <span key={`plain-${cursor}-${range.start}`}>
                     {renderSliceWithBoldRanges(
-                        text,
+                        displayText,
                         cursor,
                         range.start,
                         boldRanges,
@@ -429,7 +432,7 @@ export function renderTextSegments(
             >
 
                 {renderSliceWithBoldRanges(
-                    text,
+                    displayText,
                     range.start,
                     range.end,
                     boldRanges,
@@ -445,7 +448,7 @@ export function renderTextSegments(
         nodes.push(
             <span key={`plain-${cursor}-end`}>
                 {renderSliceWithBoldRanges(
-                    text,
+                    displayText,
                     cursor,
                     text.length,
                     boldRanges,
@@ -470,6 +473,7 @@ export function renderStyledTextSegments(
     isPreviewMode: boolean
 ) {
     const sourceText = textSpans.map((span) => span.text).join("");
+    const displayText = toSmartQuotes(sourceText);
 
     const ranges = buildRenderRanges(
         sourceText,
@@ -490,9 +494,10 @@ export function renderStyledTextSegments(
 
             if (overlapEnd <= overlapStart) return;
 
-            const localStart = overlapStart - span.start;
-            const localEnd = overlapEnd - span.start;
-            const content = span.text.slice(localStart, localEnd);
+            const content = displayText.slice(
+                overlapStart,
+                overlapEnd
+            );
 
             if (!content) return;
 

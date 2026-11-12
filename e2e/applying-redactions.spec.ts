@@ -139,7 +139,7 @@ test("Back cancels the exact redaction run and returns to Review", async ({
                         otherPhrases: [],
                     },
                     summary: {
-                        totalPages: 1,
+                        totalPages: 120,
                         totalFindings: 0,
                     },
                 }),
@@ -167,10 +167,22 @@ test("Back cancels the exact redaction run and returns to Review", async ({
         },
     );
 
+    const requestedPageRanges: string[] = [];
+
     await page.route(
-        `http://127.0.0.1:8000/documents/${documentId}/review/pages?pageStart=1&pageEnd=1`,
+        `**/documents/${documentId}/review/pages**`,
         async (route) => {
             expect(route.request().method()).toBe("GET");
+
+            const url = new URL(route.request().url());
+            const pageStart = Number(
+                url.searchParams.get("pageStart"),
+            );
+            const pageEnd = Number(
+                url.searchParams.get("pageEnd"),
+            );
+
+            requestedPageRanges.push(`${pageStart}-${pageEnd}`);
 
             await route.fulfill({
                 status: 200,
@@ -181,14 +193,15 @@ test("Back cancels the exact redaction run and returns to Review", async ({
                 },
                 body: JSON.stringify({
                     documentId,
-                    pages: [
-                        {
-                            pageNumber: 1,
+                    pages: Array.from(
+                        { length: 20 },
+                        (_, index) => ({
+                            pageNumber: 101 + index,
                             textItems: [],
                             tables: [],
                             images: [],
-                        },
-                    ],
+                        }),
+                    ),
                 }),
             });
         },
@@ -210,7 +223,7 @@ test("Back cancels the exact redaction run and returns to Review", async ({
     }).click();
 
     await expect(page).toHaveURL(
-        `/review?documentId=${documentId}`,
+        `/review?documentId=${documentId}&returnTo=end`,
     );
 
     expect(cancelledRunId).toBe(runId);
@@ -219,6 +232,54 @@ test("Back cancels the exact redaction run and returns to Review", async ({
         page.getByRole("heading", {
             name: "Make redactions",
             exact: true,
+        }),
+    ).toBeVisible();
+
+    // Review must load the final batch, not the first 50 pages.
+    await expect(
+        page.locator(
+            '.jr-review-page[aria-labelledby="review-page-120-heading"]',
+        ),
+    ).toBeVisible();
+
+    await expect(
+        page.locator(".jr-review-page"),
+    ).toHaveCount(20);
+
+    await expect(
+        page.getByRole("button", {
+            name: "Pages 101 to 120",
+        }),
+    ).toHaveAttribute("aria-current", "page");
+
+    expect(requestedPageRanges.length).toBeGreaterThan(0);
+    expect(
+        requestedPageRanges.every(
+            (range) => range === "101-120",
+        ),
+    ).toBe(true);
+
+    // The end-of-document actions must be inside the viewport,
+    // not merely present somewhere below the visible area.
+    const endOfDocument = page.locator(".end-of-page");
+
+    await expect(endOfDocument).toBeVisible();
+
+    await expect.poll(async () =>
+        endOfDocument.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+
+            return (
+                window.scrollY > 0 &&
+                rect.top < window.innerHeight &&
+                rect.bottom <= window.innerHeight + 1
+            );
+        }),
+    ).toBe(true);
+
+    await expect(
+        endOfDocument.getByRole("button", {
+            name: "Apply redactions",
         }),
     ).toBeVisible();
 });

@@ -55,7 +55,7 @@ export default function HighlightKey() {
 
                 <div className="govuk-details__text">
                     <p className="govuk-body">
-                        Justice redact exports three documents:
+                        Justice Redact exports three documents:
                     </p>
 
                     <dl className="govuk-summary-list">

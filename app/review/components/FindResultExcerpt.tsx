@@ -1,13 +1,16 @@
 import type { ReactNode } from "react";
+import { toSmartQuotes } from "../smartQuotes";
 import {
-    buildAccessibleFindResultText,
+    buildAccessibleFindResultTextWithSuggestions,
     getFindResultExcerptRedactedDisplayRanges,
+    getFindResultExcerptSuggestionDisplayRanges,
 } from "../findResultRedactionDisplay";
 import type {
     FindInDocumentResult,
 } from "../findInDocument";
 import type {
     ManualDecision,
+    ReviewFinding,
     ReviewPageData,
 } from "../types";
 
@@ -15,12 +18,14 @@ type FindResultExcerptProps = {
     result: FindInDocumentResult;
     pages: ReviewPageData[];
     manualSelections: ManualDecision[];
+    findings?: ReviewFinding[];
 };
 
 export default function FindResultExcerpt({
     result,
     pages,
     manualSelections,
+    findings = [],
 }: FindResultExcerptProps) {
     const {
         text,
@@ -30,6 +35,8 @@ export default function FindResultExcerpt({
         hasTrailingEllipsis,
     } = result.display;
 
+    const displayText = toSmartQuotes(text);
+
     const redactedRanges =
         getFindResultExcerptRedactedDisplayRanges(
             result,
@@ -37,10 +44,18 @@ export default function FindResultExcerpt({
             manualSelections
         );
 
+    const suggestionRanges =
+        getFindResultExcerptSuggestionDisplayRanges(
+            result,
+            pages,
+            findings
+        );
+
     const accessibleExcerpt =
-        buildAccessibleFindResultText(
+        buildAccessibleFindResultTextWithSuggestions(
             text,
-            redactedRanges
+            redactedRanges,
+            suggestionRanges
         );
 
     const boundaries = Array.from(
@@ -49,6 +64,10 @@ export default function FindResultExcerpt({
             text.length,
             matchStart,
             matchEnd,
+            ...suggestionRanges.flatMap((range) => [
+                range.start,
+                range.end,
+            ]),
             ...redactedRanges.flatMap(
                 (range) => [
                     range.start,
@@ -80,10 +99,17 @@ export default function FindResultExcerpt({
         }
 
         const value =
-            text.slice(start, end);
+            displayText.slice(start, end);
 
         const isRedacted =
             redactedRanges.some(
+                (range) =>
+                    range.start <= start &&
+                    range.end >= end
+            );
+
+        const isSuggested =
+            suggestionRanges.some(
                 (range) =>
                     range.start <= start &&
                     range.end >= end
@@ -95,14 +121,19 @@ export default function FindResultExcerpt({
 
         let node: ReactNode = value;
 
-        if (isRedacted) {
+        if (isRedacted || isSuggested) {
+            const classes = [
+                "highlight",
+                isSuggested && "highlight--suggestion",
+                isRedacted && "highlight--redaction",
+                isRedacted &&
+                    "jr-find-and-redact-result__match",
+            ]
+                .filter(Boolean)
+                .join(" ");
+
             node = (
-                <span
-                    className="highlight highlight--redaction jr-find-and-redact-result__match"
-                >
-                    <span className="govuk-visually-hidden">
-                        Redaction:{" "}
-                    </span>
+                <span className={classes}>
                     {node}
                 </span>
             );
@@ -125,7 +156,7 @@ export default function FindResultExcerpt({
         <>
             <span className="govuk-visually-hidden">
                 {hasLeadingEllipsis && "…"}
-                {accessibleExcerpt}
+                {toSmartQuotes(accessibleExcerpt)}
                 {hasTrailingEllipsis && "…"}
             </span>
 

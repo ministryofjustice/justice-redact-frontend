@@ -39,7 +39,7 @@ export default function CheckEmailPage() {
                 </h1>
 
                 <p className="govuk-body">
-                    We&apos;ve sent an email to{" "}
+                    We’ve sent an email to{" "}
                     <strong>{email}</strong>.
                 </p>
 

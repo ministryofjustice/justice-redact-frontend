@@ -22,6 +22,11 @@ type ProcessDocumentResponse = {
     status: string;
 };
 
+type DocumentDetailsResponse = {
+    subjectName?: string | null;
+    subjectPrisonNumber?: string | null;
+};
+
 function SubjectDetailsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -45,6 +50,12 @@ function SubjectDetailsContent() {
         setSubjectPrisonNumber,
     ] = useState("");
 
+    const [loadedDocumentId, setLoadedDocumentId] =
+        useState<string | null>(null);
+
+    const [detailsLoadError, setDetailsLoadError] =
+        useState(false);
+
     const [error, setError] =
         useState<string | null>(null);
 
@@ -62,6 +73,82 @@ function SubjectDetailsContent() {
         Boolean(error),
         !isCheckingWorkflow && !workflowErrorVariant,
     );
+
+    useEffect(() => {
+        if (
+            !documentId ||
+            isCheckingWorkflow ||
+            workflowErrorVariant
+        ) {
+            return;
+        }
+
+        const controller = new AbortController();
+
+        setDetailsLoadError(false);
+
+        async function loadSubjectDetails() {
+            try {
+                const details =
+                    await fetchJson<DocumentDetailsResponse>(
+                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                            documentId!,
+                        )}/status`,
+                        {
+                            cache: "no-store",
+                            signal: controller.signal,
+                        },
+                    );
+
+                if (controller.signal.aborted) {
+                    return;
+                }
+
+                if (
+                    !details ||
+                    typeof details !== "object" ||
+                    (
+                        details.subjectName != null &&
+                        typeof details.subjectName !== "string"
+                    ) ||
+                    (
+                        details.subjectPrisonNumber != null &&
+                        typeof details.subjectPrisonNumber !== "string"
+                    )
+                ) {
+                    throw new Error(
+                        "Invalid document details response",
+                    );
+                }
+
+                setSubjectName(details.subjectName ?? "");
+                setSubjectPrisonNumber(
+                    details.subjectPrisonNumber ?? "",
+                );
+                setLoadedDocumentId(documentId!);
+            } catch (err) {
+                if (controller.signal.aborted) {
+                    return;
+                }
+
+                console.error(
+                    "Unable to load subject details",
+                    err,
+                );
+                setDetailsLoadError(true);
+            }
+        }
+
+        void loadSubjectDetails();
+
+        return () => {
+            controller.abort();
+        };
+    }, [
+        documentId,
+        isCheckingWorkflow,
+        workflowErrorVariant,
+    ]);
 
     useEffect(() => {
         if (
@@ -94,6 +181,19 @@ function SubjectDetailsContent() {
                 documentId={documentId}
             />
         );
+    }
+
+    if (detailsLoadError) {
+        return (
+            <ServiceErrorPage
+                variant={500}
+                documentId={documentId}
+            />
+        );
+    }
+
+    if (!documentId || loadedDocumentId !== documentId) {
+        return null;
     }
 
     async function handleBackToUpload() {
@@ -223,7 +323,7 @@ function SubjectDetailsContent() {
                 )}
 
                 <h1 className="govuk-heading-xl">
-                    Enter the person&apos;s details
+                    Enter the person’s details
                 </h1>
 
                 <p className="govuk-body">

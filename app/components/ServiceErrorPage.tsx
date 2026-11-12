@@ -32,7 +32,7 @@ const ERROR_CONTENT: Record<
                 </p>
 
                 <p className="govuk-body">
-                    We saved the work you&apos;ve done so far. You can go back to continue
+                    We saved the work you’ve done so far. You can go back to continue
                     marking redactions.
                 </p>
             </>
@@ -77,8 +77,8 @@ const ERROR_CONTENT: Record<
                 </p>
 
                 <p className="govuk-body">
-                    Otherwise, if it&apos;s been over 30 days since you uploaded your file,
-                    the link will have expired. You&apos;ll need to upload the file to start
+                    Otherwise, if it’s been over 30 days since you uploaded your file,
+                    the link will have expired. You’ll need to upload the file to start
                     again.
                 </p>
             </>
@@ -137,7 +137,7 @@ const ERROR_CONTENT: Record<
                 </p>
 
                 <p className="govuk-body">
-                    You need to open the link in the same browser you&apos;re on now.
+                    You need to open the link in the same browser you’re on now.
                 </p>
             </>
         ),
@@ -152,7 +152,7 @@ const ERROR_CONTENT: Record<
                 </p>
 
                 <p className="govuk-body">
-                    Instead, use Adobe Acrobat to make changes to the document - you&apos;ll need to
+                    Instead, use Adobe Acrobat to make changes to the document - you’ll need to
                     sanitise the document when exporting it.
                 </p>
             </>

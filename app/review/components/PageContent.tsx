@@ -24,6 +24,7 @@ type PageContentProps = {
     manualSelections: ManualDecision[];
     documentManualSelections?: ManualDecision[];
     isPreviewMode: boolean;
+    isReadOnly?: boolean;
     onToggleImageRedaction: (pageNumber: number, imageId: string) => void;
 };
 
@@ -194,6 +195,7 @@ export default function PageContent({
     manualSelections,
     documentManualSelections = manualSelections,
     isPreviewMode,
+    isReadOnly = false,
     onToggleImageRedaction,
 }: PageContentProps) {
     const textFindings = findings.filter(
@@ -352,6 +354,7 @@ export default function PageContent({
                                                             pageNumber={page.pageNumber}
                                                             isPreviewMode={isPreviewMode}
                                                             isManuallyRedacted={rowImageManual}
+                                                            showButton={!isReadOnly}
                                                             onToggle={onToggleImageRedaction}
                                                         />
                                                     </td>
@@ -505,6 +508,7 @@ export default function PageContent({
                             pageNumber={page.pageNumber}
                             isPreviewMode={isPreviewMode}
                             isManuallyRedacted={manualForImage}
+                            showButton={!isReadOnly}
                             onToggle={onToggleImageRedaction}
                         />
                     </div>
