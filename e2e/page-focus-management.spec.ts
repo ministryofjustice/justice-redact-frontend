@@ -1,4 +1,18 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+
+async function mockAuthenticatedUpload(page: Page): Promise<void> {
+    await page.route("**/auth/me", async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                authenticated: true,
+                email: "tester@justice.gov.uk",
+            }),
+        });
+    });
+}
+
 
 test("focuses the page heading with GOV.UK yellow styling", async ({
     page,
@@ -55,6 +69,7 @@ test("focuses the heading on a dedicated error page", async ({
 test("focuses the entire Upload validation summary and preserves Tab order", async ({
     page,
 }) => {
+    await mockAuthenticatedUpload(page);
     await page.goto("/upload");
 
     await page.getByRole("button", {
@@ -90,6 +105,7 @@ test("focuses the entire Upload validation summary and preserves Tab order", asy
 test("focuses the entire MOJ technical error alert with yellow styling", async ({
     page,
 }) => {
+    await mockAuthenticatedUpload(page);
     await page.goto("/upload");
 
     // An invalid PDF triggers the existing client-side PDF analysis error.
