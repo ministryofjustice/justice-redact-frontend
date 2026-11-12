@@ -58,6 +58,12 @@ main {
   display: none;
 }
 
+/* Visible GOV.UK focus for technical error alerts. */
+.govuk-main-wrapper .moj-alert--error[tabindex="-1"]:focus {
+  outline: 3px solid govuk.govuk-colour("yellow");
+  outline-offset: 2px;
+}
+
 /* Header */
 .moj-header__logo {
   display: flex;
