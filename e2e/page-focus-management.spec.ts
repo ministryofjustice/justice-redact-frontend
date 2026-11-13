@@ -24,9 +24,11 @@ test("focuses the page heading with GOV.UK yellow styling", async ({
     await expect(heading).toBeVisible();
     await expect(heading).toBeFocused();
     await expect(heading).toHaveAttribute("tabindex", "-1");
+    await expect(heading).toHaveCSS("outline-style", "none");
+    await expect(heading).toHaveCSS("box-shadow", "none");
     await expect(heading).toHaveCSS(
         "background-color",
-        "rgb(255, 221, 0)",
+        "rgba(0, 0, 0, 0)",
     );
 });
 
@@ -60,9 +62,11 @@ test("focuses the heading on a dedicated error page", async ({
 
     await expect(heading).toBeFocused();
     await expect(heading).toHaveAttribute("tabindex", "-1");
+    await expect(heading).toHaveCSS("outline-style", "none");
+    await expect(heading).toHaveCSS("box-shadow", "none");
     await expect(heading).toHaveCSS(
         "background-color",
-        "rgb(255, 221, 0)",
+        "rgba(0, 0, 0, 0)",
     );
 });
 
