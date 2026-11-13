@@ -1,8 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
+import { usePageTitle } from "../components/PageTitle";
 import { fetchJson } from "../lib/api";
+import { analysePdf, type PdfAnalysisResult } from "../../features/documents/upload/analysePdf";
 
 const NO_FILE_ERROR =
   "Select a PDF file";
@@ -19,18 +25,6 @@ const BODY_TEXT_INLINE_ERROR =
 const UPLOAD_ERROR =
   "There was a problem uploading the file. Try again.";
 
-const MINIMUM_BODY_CHARACTERS = 50;
-const MAX_VALIDATION_PAGES = 20;
-const LEADING_VALIDATION_PAGES = 10;
-
-type DocumentType = "nomis" | "dps" | "unidentified";
-
-type PdfAnalysisResult = {
-  hasBodyText: boolean;
-  mightBeScannedDocument: boolean;
-  documentType: DocumentType;
-};
-
 type UploadDocumentResponse = {
   documentId: string;
   status: string;
@@ -45,6 +39,10 @@ export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const isSubmittingRef = useRef(false);
+  const technicalErrorRef =
+    useRef<HTMLDivElement>(null);
+  const validationErrorRef =
+    useRef<HTMLDivElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [
@@ -56,6 +54,26 @@ export default function UploadPage() {
     technicalError,
     setTechnicalError,
   ] = useState<string | null>(null);
+
+  usePageTitle(
+    "Upload a file",
+    Boolean(validationError || technicalError),
+  );
+
+  useEffect(() => {
+    if (!technicalError && !validationError) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      if (technicalError) {
+        technicalErrorRef.current?.focus();
+        return;
+      }
+
+      validationErrorRef.current?.focus();
+    });
+  }, [technicalError, validationError]);
 
   function handleFileChange() {
     setValidationError(null);
@@ -72,321 +90,6 @@ export default function UploadPage() {
       file.type === "application/pdf" ||
       file.name.toLowerCase().endsWith(".pdf")
     );
-  }
-
-  function normaliseText(text: string) {
-    return text.replace(/\s+/g, " ").trim();
-  }
-
-  function getValidationPageNumbers(
-    totalPages: number
-  ): number[] {
-    if (totalPages <= MAX_VALIDATION_PAGES) {
-      return Array.from(
-        { length: totalPages },
-        (_, index) => index + 1
-      );
-    }
-
-    const pageNumbers = new Set<number>();
-
-    const leadingPageCount = Math.min(
-      LEADING_VALIDATION_PAGES,
-      totalPages
-    );
-
-    for (
-      let pageNumber = 1;
-      pageNumber <= leadingPageCount;
-      pageNumber += 1
-    ) {
-      pageNumbers.add(pageNumber);
-    }
-
-    const remainingSampleCount =
-      MAX_VALIDATION_PAGES - leadingPageCount;
-
-    for (
-      let index = 1;
-      index <= remainingSampleCount;
-      index += 1
-    ) {
-      const pageNumber =
-        leadingPageCount +
-        Math.round(
-          ((totalPages - leadingPageCount) * index) /
-          remainingSampleCount
-        );
-
-      pageNumbers.add(
-        Math.min(totalPages, pageNumber)
-      );
-    }
-
-    return Array.from(pageNumbers).sort(
-      (left, right) => left - right
-    );
-  }
-
-  async function analysePdf(
-    file: File
-  ): Promise<PdfAnalysisResult> {
-    const pdfjsLib = await import(
-      "pdfjs-dist/legacy/build/pdf.mjs"
-    );
-
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "/pdf.worker.min.mjs";
-
-    const buffer = await file.arrayBuffer();
-
-    const loadingTask = pdfjsLib.getDocument({
-      data: buffer,
-    });
-
-    try {
-      const pdf = await loadingTask.promise;
-
-      const metadata = await pdf
-        .getMetadata()
-        .catch(() => null);
-
-      const metadataTitle =
-        "info" in (metadata ?? {}) &&
-          metadata?.info &&
-          "Title" in metadata.info &&
-          typeof metadata.info.Title === "string"
-          ? metadata.info.Title
-          : "";
-
-      const firstPageLines: string[] = [];
-      const sampledDocumentLines: string[] = [];
-
-      let bodyTextLength = 0;
-      let sampledPagesWithImages = 0;
-
-      const validationPageNumbers =
-        getValidationPageNumbers(
-          pdf.numPages
-        );
-
-      for (
-        const pageNumber
-        of validationPageNumbers
-      ) {
-        const page =
-          await pdf.getPage(pageNumber);
-
-        try {
-          const viewport =
-            page.getViewport({
-              scale: 1,
-            });
-
-          const textContent =
-            await page.getTextContent();
-
-          const pageLines = textContent.items
-            .map((item) => {
-              if (
-                !("str" in item) ||
-                typeof item.str !== "string"
-              ) {
-                return null;
-              }
-
-              const text =
-                normaliseText(item.str);
-
-              const y =
-                Array.isArray(item.transform)
-                  ? item.transform[5]
-                  : undefined;
-
-              if (
-                !text ||
-                typeof y !== "number"
-              ) {
-                return null;
-              }
-
-              return {
-                text,
-                y,
-              };
-            })
-            .filter(
-              (
-                item
-              ): item is {
-                text: string;
-                y: number;
-              } => item !== null
-            );
-
-          const pageTextLines =
-            pageLines.map(
-              ({ text }) => text
-            );
-
-          sampledDocumentLines.push(
-            ...pageTextLines
-          );
-
-          if (pageNumber === 1) {
-            firstPageLines.push(
-              ...pageTextLines
-            );
-          }
-
-          const topBoundary =
-            viewport.height * 0.85;
-
-          const bottomBoundary =
-            viewport.height * 0.15;
-
-          const meaningfulBodyLines =
-            pageLines
-              .filter(
-                ({ y }) =>
-                  y < topBoundary &&
-                  y > bottomBoundary
-              )
-              .map(({ text }) => text)
-              .filter((line) => {
-                const isTooShort =
-                  line.length < 3;
-
-                const isPageNumber =
-                  /^\d+$/.test(line);
-
-                const hasWords =
-                  /[a-zA-Z]{2,}/.test(
-                    line
-                  );
-
-                return (
-                  !isTooShort &&
-                  !isPageNumber &&
-                  hasWords
-                );
-              });
-
-          bodyTextLength +=
-            meaningfulBodyLines.join(
-              " "
-            ).length;
-
-          /*
-           * Once there is substantial body text,
-           * this cannot meet the scanned-document
-           * rule, so avoid the relatively expensive
-           * operator-list inspection.
-           */
-          if (bodyTextLength < 500) {
-            const operatorList =
-              await page.getOperatorList();
-
-            const pageHasImage =
-              operatorList.fnArray.some(
-                (fn) =>
-                  fn ===
-                  pdfjsLib.OPS
-                    .paintImageXObject ||
-                  fn ===
-                  pdfjsLib.OPS
-                    .paintInlineImageXObject ||
-                  fn ===
-                  pdfjsLib.OPS
-                    .paintImageXObjectRepeat
-              );
-
-            if (pageHasImage) {
-              sampledPagesWithImages += 1;
-            }
-          }
-        } finally {
-          page.cleanup();
-        }
-      }
-
-      const firstPageText =
-        normaliseText(
-          firstPageLines.join(" ")
-        ).toLowerCase();
-
-      const sampledDocumentText =
-        normaliseText(
-          sampledDocumentLines.join(" ")
-        ).toLowerCase();
-
-      const title =
-        metadataTitle.toLowerCase();
-
-      const isNomisDocument =
-        firstPageText.includes("nomis") ||
-        firstPageText.includes("noms") ||
-        sampledDocumentText.includes(
-          "module: sar_"
-        );
-
-      const isDpsDocument =
-        (
-          firstPageText.includes(
-            "location"
-          ) &&
-          firstPageText.includes(
-            "category"
-          ) &&
-          firstPageText.includes(
-            "csra"
-          ) &&
-          firstPageText.includes(
-            "incentive level"
-          )
-        ) ||
-        title.includes("dps") ||
-        (
-          sampledDocumentText.includes(
-            "created by:"
-          ) &&
-          sampledDocumentText.includes(
-            "happened:"
-          )
-        );
-
-      const hasBodyText =
-        bodyTextLength >=
-        MINIMUM_BODY_CHARACTERS;
-
-      const mightBeScannedDocument =
-        bodyTextLength < 500 &&
-        validationPageNumbers.length > 0 &&
-        sampledPagesWithImages ===
-        validationPageNumbers.length;
-
-      const documentType: DocumentType =
-        isNomisDocument
-          ? "nomis"
-          : isDpsDocument
-            ? "dps"
-            : "unidentified";
-
-      return {
-        hasBodyText,
-        mightBeScannedDocument,
-        documentType,
-      };
-    } finally {
-      try {
-        await loadingTask.destroy();
-      } catch (cleanupError) {
-        console.warn(
-          "Failed to clean up PDF.js loading task",
-          cleanupError
-        );
-      }
-    }
   }
 
   async function handleUpload() {
@@ -515,10 +218,12 @@ export default function UploadPage() {
 
           {technicalError && (
             <div
+              ref={technicalErrorRef}
               role="alert"
               className="moj-alert moj-alert--error jr-upload-api-alert"
               aria-label={`error: ${technicalError}`}
               data-module="moj-alert"
+              tabIndex={-1}
             >
               <div>
                 <svg
@@ -547,6 +252,7 @@ export default function UploadPage() {
 
           {validationError && (
             <div
+              ref={validationErrorRef}
               className="govuk-error-summary"
               data-module="govuk-error-summary"
               aria-labelledby="error-summary-title"
@@ -576,14 +282,12 @@ export default function UploadPage() {
           )}
 
           <h1 className="govuk-heading-xl">
-            {validationError
-              ? "Upload a document"
-              : "Upload a file"}
+            Upload a file
           </h1>
 
           <p className="govuk-body-l">
             Justice Redact uses artificial intelligence (AI) to suggest what to
-            pay attention to when you&apos;re redacting a file.
+            pay attention to when you’re redacting a file.
           </p>
 
           <h2 className="govuk-heading-m">
@@ -610,7 +314,7 @@ export default function UploadPage() {
               </span>
 
               <p className="govuk-body govuk-!-font-weight-bold govuk-!-margin-bottom-1">
-                You&apos;re responsible for:
+                You’re responsible for:
               </p>
 
               <ul className="govuk-list govuk-list--bullet govuk-!-font-weight-bold govuk-!-margin-bottom-0">
@@ -640,7 +344,7 @@ export default function UploadPage() {
 
           <p className="govuk-body">
             You cannot upload vetted documents. Instead, use Adobe Acrobat to make
-            changes to the document - you&apos;ll need to sanitise the document
+            changes to the document - you’ll need to sanitise the document
             when exporting it.
           </p>
 

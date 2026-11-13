@@ -1,8 +1,10 @@
+import { toSmartQuotes } from "../smartQuotes";
 import {
     buildFindInDocumentExcerpt,
     type FindInDocumentResult,
 } from "../findInDocument";
 import {
+    buildAccessibleFindResultText,
     getFindResultRedactedDisplayRanges,
 } from "../findResultRedactionDisplay";
 import type {
@@ -24,6 +26,8 @@ export default function FindResultMatch({
     const match =
         buildFindInDocumentExcerpt(result).match;
 
+    const displayMatch = toSmartQuotes(match);
+
     const redactedRanges =
         getFindResultRedactedDisplayRanges(
             result,
@@ -31,8 +35,14 @@ export default function FindResultMatch({
             manualSelections
         );
 
+    const accessibleMatch =
+        buildAccessibleFindResultText(
+            match,
+            redactedRanges
+        );
+
     if (redactedRanges.length === 0) {
-        return <strong>{match}</strong>;
+        return <strong>{displayMatch}</strong>;
     }
 
     const nodes: React.ReactNode[] = [];
@@ -42,7 +52,7 @@ export default function FindResultMatch({
         if (cursor < range.start) {
             nodes.push(
                 <span key={`plain-${cursor}-${range.start}`}>
-                    {match.slice(cursor, range.start)}
+                    {displayMatch.slice(cursor, range.start)}
                 </span>
             );
         }
@@ -52,7 +62,10 @@ export default function FindResultMatch({
                 key={`redacted-${index}-${range.start}-${range.end}`}
                 className="highlight highlight--redaction jr-find-and-redact-result__match"
             >
-                {match.slice(range.start, range.end)}
+                <span className="govuk-visually-hidden">
+                    Redaction:{" "}
+                </span>
+                {displayMatch.slice(range.start, range.end)}
             </span>
         );
 
@@ -62,10 +75,20 @@ export default function FindResultMatch({
     if (cursor < match.length) {
         nodes.push(
             <span key={`plain-${cursor}-end`}>
-                {match.slice(cursor)}
+                {displayMatch.slice(cursor)}
             </span>
         );
     }
 
-    return <strong>{nodes}</strong>;
+    return (
+        <strong>
+            <span className="govuk-visually-hidden">
+                {toSmartQuotes(accessibleMatch)}
+            </span>
+
+            <span aria-hidden="true">
+                {nodes}
+            </span>
+        </strong>
+    );
 }

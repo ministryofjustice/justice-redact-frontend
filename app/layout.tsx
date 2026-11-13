@@ -4,12 +4,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import MojCrest from "./components/MojCrest";
 import GovukInit from "./components/GovukInit";
+import PageFocusManager from "./components/PageFocusManager";
 import GovukFooter from "./components/GovukFooter";
 import BetaBanner from "./components/BetaBanner";
 
 export const metadata: Metadata = {
-  title: "Justice Redact",
-  description: "Show and tell demo",
+  title: {
+    default: "Start using Justice Redact - Justice Redact",
+    template: "%s - Justice Redact",
+  },
 };
 
 export default function RootLayout({
@@ -22,6 +25,7 @@ export default function RootLayout({
 
       <body className="govuk-template__body govuk-frontend-supported jr-app-body">
         <GovukInit />
+        <PageFocusManager />
 
         <a href="#main-content" className="govuk-skip-link">
           Skip to main content
@@ -43,7 +47,7 @@ export default function RootLayout({
 
                   <Link
                     className="moj-header__link moj-header__link--service-name"
-                    href="/before-you-start"
+                    href="/"
                   >
                     Justice Redact
                   </Link>

@@ -13,6 +13,7 @@ import {
 import { mergeContentRanges } from "./mergeContentRanges";
 import type {
     ManualDecision,
+    ReviewFinding,
     ReviewPageData,
 } from "./types";
 
@@ -92,6 +93,84 @@ function mergeDisplayRanges(
     });
 
     return merged;
+}
+
+export function buildAccessibleFindResultText(
+    text: string,
+    redactedRanges: FindResultDisplayRange[]
+): string {
+    const ranges = mergeDisplayRanges(
+        redactedRanges.map((range) => ({
+            start: Math.max(
+                0,
+                Math.min(text.length, range.start)
+            ),
+            end: Math.max(
+                0,
+                Math.min(text.length, range.end)
+            ),
+        }))
+    );
+
+    if (ranges.length === 0) {
+        return text;
+    }
+
+    let accessibleText = "";
+    let cursor = 0;
+
+    ranges.forEach((range) => {
+        if (cursor < range.start) {
+            accessibleText += text.slice(
+                cursor,
+                range.start
+            );
+        }
+
+        if (
+            accessibleText.length > 0 &&
+            !/\s$/.test(accessibleText)
+        ) {
+            accessibleText += " ";
+        }
+
+        accessibleText += "Redaction start ";
+
+        accessibleText += text.slice(
+            range.start,
+            range.end
+        );
+
+        if (
+            accessibleText.length > 0 &&
+            !/\s$/.test(accessibleText)
+        ) {
+            accessibleText += " ";
+        }
+
+        accessibleText += "Redaction end";
+
+        const nextCharacter =
+            text[range.end] ?? "";
+
+        if (
+            nextCharacter &&
+            !/[\s.,;:!?)}\]]/.test(nextCharacter)
+        ) {
+            accessibleText += " ";
+        }
+
+        cursor = range.end;
+    });
+
+    if (cursor < text.length) {
+        accessibleText += text.slice(cursor);
+    }
+
+    return accessibleText
+        .replace(/\r\n|\r|\n/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .trim();
 }
 
 export function isFindResultFullyRedacted(
@@ -373,4 +452,264 @@ export function getFindResultExcerptRedactedDisplayRanges(
     return mergeDisplayRanges(
         displayRanges
     );
+}
+
+
+/**
+ * Map AI suggestion offsets from their original text item or table cell
+ * into the normalised excerpt displayed by Find results.
+ *
+ * Suggestions are visual annotations, not manual redaction decisions.
+ */
+export function getFindResultExcerptSuggestionDisplayRanges(
+    result: FindInDocumentResult,
+    pages: ReviewPageData[],
+    findings: ReviewFinding[]
+): FindResultDisplayRange[] {
+    const displayRanges: FindResultDisplayRange[] = [];
+
+    result.displaySegments.forEach((segment) => {
+        const sourceText = getSourceTextForRange(
+            pages,
+            segment
+        );
+
+        if (sourceText === null) {
+            return;
+        }
+
+        findings.forEach((finding) => {
+            if (
+                finding.kind !== segment.kind ||
+                finding.pageNumber !== segment.pageNumber
+            ) {
+                return;
+            }
+
+            if (segment.kind === "text") {
+                if (
+                    !finding.itemId ||
+                    finding.itemId !== segment.itemId
+                ) {
+                    return;
+                }
+            } else if (
+                !finding.tableId ||
+                !finding.cellId ||
+                finding.tableId !== segment.tableId ||
+                finding.cellId !== segment.cellId
+            ) {
+                return;
+            }
+
+            const suggestionStart = finding.entityStart;
+            const suggestionEnd = finding.entityEnd;
+
+            if (
+                typeof suggestionStart !== "number" ||
+                typeof suggestionEnd !== "number" ||
+                !Number.isFinite(suggestionStart) ||
+                !Number.isFinite(suggestionEnd) ||
+                suggestionEnd <= suggestionStart
+            ) {
+                return;
+            }
+
+            const overlapStart = Math.max(
+                segment.start,
+                suggestionStart
+            );
+
+            const overlapEnd = Math.min(
+                segment.end,
+                suggestionEnd
+            );
+
+            if (overlapEnd <= overlapStart) {
+                return;
+            }
+
+            const normalisedStart =
+                mapOriginalOffsetToNormalisedOffset(
+                    sourceText,
+                    overlapStart
+                );
+
+            const normalisedEnd =
+                mapOriginalOffsetToNormalisedOffset(
+                    sourceText,
+                    overlapEnd
+                );
+
+            const start = Math.max(
+                segment.displayStart,
+                segment.displayStart +
+                    normalisedStart -
+                    segment.sourceNormalisedStart
+            );
+
+            const end = Math.min(
+                segment.displayEnd,
+                segment.displayStart +
+                    normalisedEnd -
+                    segment.sourceNormalisedStart
+            );
+
+            if (end <= start) {
+                return;
+            }
+
+            displayRanges.push({
+                start,
+                end,
+            });
+        });
+    });
+
+    return mergeDisplayRanges(displayRanges);
+}
+
+
+/**
+ * Announce both AI suggestions and manual redactions in Find excerpts.
+ * Preserve the existing redaction-only output when no suggestions exist.
+ */
+export function buildAccessibleFindResultTextWithSuggestions(
+    text: string,
+    redactedRanges: FindResultDisplayRange[],
+    suggestionRanges: FindResultDisplayRange[]
+): string {
+    if (suggestionRanges.length === 0) {
+        return buildAccessibleFindResultText(
+            text,
+            redactedRanges
+        );
+    }
+
+    const normaliseRanges = (
+        ranges: FindResultDisplayRange[]
+    ) =>
+        mergeDisplayRanges(
+            ranges.map((range) => ({
+                start: Math.max(
+                    0,
+                    Math.min(text.length, range.start)
+                ),
+                end: Math.max(
+                    0,
+                    Math.min(text.length, range.end)
+                ),
+            }))
+        );
+
+    const redactions = normaliseRanges(redactedRanges);
+    const suggestions = normaliseRanges(suggestionRanges);
+
+    const boundaries = Array.from(
+        new Set([
+            0,
+            text.length,
+            ...redactions.flatMap((range) => [
+                range.start,
+                range.end,
+            ]),
+            ...suggestions.flatMap((range) => [
+                range.start,
+                range.end,
+            ]),
+        ])
+    ).sort((a, b) => a - b);
+
+    let accessibleText = "";
+
+    function appendStart(marker: string) {
+        if (
+            accessibleText.length > 0 &&
+            !/\s$/.test(accessibleText)
+        ) {
+            accessibleText += " ";
+        }
+
+        accessibleText += `${marker} `;
+    }
+
+    function appendEnd(
+        marker: string,
+        nextCharacter: string
+    ) {
+        if (
+            accessibleText.length > 0 &&
+            !/\s$/.test(accessibleText)
+        ) {
+            accessibleText += " ";
+        }
+
+        accessibleText += marker;
+
+        if (
+            nextCharacter &&
+            !/[\s.,;:!?)}\]]/.test(nextCharacter)
+        ) {
+            accessibleText += " ";
+        }
+    }
+
+    for (
+        let index = 0;
+        index < boundaries.length - 1;
+        index++
+    ) {
+        const start = boundaries[index];
+        const end = boundaries[index + 1];
+
+        if (end <= start) {
+            continue;
+        }
+
+        if (
+            redactions.some(
+                (range) => range.start === start
+            )
+        ) {
+            appendStart("Redaction start");
+        }
+
+        if (
+            suggestions.some(
+                (range) => range.start === start
+            )
+        ) {
+            appendStart("AI suggestion start");
+        }
+
+        accessibleText += text
+            .slice(start, end)
+            .replace(/\r\n|\r|\n/g, " ");
+
+        if (
+            suggestions.some(
+                (range) => range.end === end
+            )
+        ) {
+            appendEnd(
+                "AI suggestion end",
+                text[end] ?? ""
+            );
+        }
+
+        if (
+            redactions.some(
+                (range) => range.end === end
+            )
+        ) {
+            appendEnd(
+                "Redaction end",
+                text[end] ?? ""
+            );
+        }
+    }
+
+    return accessibleText
+        .replace(/[ \t]+/g, " ")
+        .trim();
 }

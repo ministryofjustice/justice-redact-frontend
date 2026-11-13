@@ -144,6 +144,12 @@ describe("authentication start page", () => {
         const errorSummary =
             screen.getByRole("alert");
 
+        await waitFor(() => {
+            expect(document.activeElement).toBe(
+                errorSummary,
+            );
+        });
+
         expect(
             errorSummary.textContent,
         ).toContain("There is a problem");

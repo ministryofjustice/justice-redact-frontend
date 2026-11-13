@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
     Suspense,
     useEffect,
+    useRef,
     useState,
 } from "react";
 import {
@@ -18,6 +19,7 @@ import {
 
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import { usePageTitle } from "../components/PageTitle";
 import BackLink from "../components/BackLink";
 
 type PageCounts = {
@@ -111,6 +113,39 @@ function ExportContent() {
 
     const [error, setError] =
         useState<string | null>(null);
+
+    const errorSummaryRef =
+        useRef<HTMLDivElement>(null);
+
+    usePageTitle(
+        "Redactions applied",
+        Boolean(error),
+        !isCheckingWorkflow &&
+        !workflowErrorVariant &&
+        !isStaleRevision,
+    );
+
+    useEffect(() => {
+        if (
+            !error ||
+            isLoading ||
+            isCheckingWorkflow ||
+            workflowErrorVariant ||
+            isStaleRevision
+        ) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            errorSummaryRef.current?.focus();
+        });
+    }, [
+        error,
+        isLoading,
+        isCheckingWorkflow,
+        workflowErrorVariant,
+        isStaleRevision,
+    ]);
 
     useEffect(() => {
         if (
@@ -270,6 +305,7 @@ function ExportContent() {
             <div className="govuk-grid-row">
                 <div className="govuk-grid-column-two-thirds">
                     <div
+                        ref={errorSummaryRef}
                         className="govuk-error-summary"
                         data-module="govuk-error-summary"
                         aria-labelledby="export-error-title"
@@ -302,6 +338,8 @@ function ExportContent() {
         buildDownloadUrl(
             data.allFilesExportUrl
         );
+
+    const hasExemptExport = Boolean(data.exemptExportUrl);
 
     return (
         <>
@@ -396,19 +434,21 @@ function ExportContent() {
                                 </td>
                             </tr>
 
-                            <tr className="govuk-table__row">
-                                <th
-                                    scope="row"
-                                    className="govuk-table__header"
-                                >
-                                    Exempted
-                                </th>
+                            {hasExemptExport && (
+                                <tr className="govuk-table__row">
+                                    <th
+                                        scope="row"
+                                        className="govuk-table__header"
+                                    >
+                                        Exempted
+                                    </th>
 
-                                <td className="govuk-table__cell">
-                                    All the pages you exempted with AI
-                                    suggestions highlighted.
-                                </td>
-                            </tr>
+                                    <td className="govuk-table__cell">
+                                        All the pages you exempted with AI
+                                        suggestions highlighted.
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
 

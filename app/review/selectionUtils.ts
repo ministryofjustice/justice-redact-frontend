@@ -12,16 +12,25 @@ export function mergeSpans(spans: ManualSpan[]) {
         const last = merged[merged.length - 1];
 
         if (!last) {
-            merged.push({ start: span.start, end: span.end });
+            merged.push({
+                start: span.start,
+                end: span.end,
+            });
             continue;
         }
 
         if (span.start <= last.end) {
-            last.end = Math.max(last.end, span.end);
+            last.end = Math.max(
+                last.end,
+                span.end
+            );
             continue;
         }
 
-        merged.push({ start: span.start, end: span.end });
+        merged.push({
+            start: span.start,
+            end: span.end,
+        });
     }
 
     return merged;
@@ -34,7 +43,10 @@ export function getClosestElementWithAttribute(
     let current: Node | null = node;
 
     while (current) {
-        if (current instanceof HTMLElement && current.hasAttribute(attribute)) {
+        if (
+            current instanceof HTMLElement &&
+            current.hasAttribute(attribute)
+        ) {
             return current;
         }
 
@@ -42,6 +54,22 @@ export function getClosestElementWithAttribute(
     }
 
     return null;
+}
+
+export function getSelectionSourceTextLength(
+    range: Range
+): number {
+    const fragment = range.cloneContents();
+
+    fragment
+        .querySelectorAll(
+            "[data-selection-offset-ignore]"
+        )
+        .forEach((element) => {
+            element.remove();
+        });
+
+    return fragment.textContent?.length ?? 0;
 }
 
 export function getTextOffsetWithinItem(
@@ -52,7 +80,10 @@ export function getTextOffsetWithinItem(
     const range = document.createRange();
 
     range.setStart(container, 0);
-    range.setEnd(targetNode, targetOffset);
+    range.setEnd(
+        targetNode,
+        targetOffset
+    );
 
-    return range.toString().length;
+    return getSelectionSourceTextLength(range);
 }

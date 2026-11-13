@@ -145,7 +145,7 @@ export default function ModeToggleGroup({
 
                 <ul
                     id={menuId}
-                    className="moj-button-menu__wrapper moj-button-menu__wrapper--right"
+                    className="moj-button-menu__wrapper"
                     role="menu"
                     hidden={!isOpen}
                     onKeyDown={handleMenuKeyDown}

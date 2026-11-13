@@ -28,7 +28,7 @@ export default function QuickHelpModal({
             </p>
 
             <p className="govuk-body">
-                The AI is only there to help. It won&apos;t make any decisions
+                The AI is only there to help. It won’t make any decisions
                 for you.
             </p>
 

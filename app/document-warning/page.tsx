@@ -1,10 +1,16 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import {
+    Suspense,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchJson } from "../lib/api";
 import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import { usePageTitle } from "../components/PageTitle";
 import type { WorkflowResponse } from "../lib/workflowNavigation";
 
 function DocumentWarningContent() {
@@ -14,6 +20,8 @@ function DocumentWarningContent() {
     const [isContinuing, setIsContinuing] = useState(false);
     const [isAbandoning, setIsAbandoning] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const errorMessageRef =
+        useRef<HTMLParagraphElement>(null);
 
     const documentId = searchParams.get("documentId");
     const filename = searchParams.get("filename") || "Uploaded document";
@@ -22,6 +30,30 @@ function DocumentWarningContent() {
         isChecking: isCheckingWorkflow,
         errorVariant: workflowErrorVariant,
     } = useWorkflowGuard("document-warning", documentId);
+
+    usePageTitle(
+        "This document cannot be processed",
+        Boolean(errorMessage),
+        !isCheckingWorkflow && !workflowErrorVariant,
+    );
+
+    useEffect(() => {
+        if (
+            !errorMessage ||
+            isCheckingWorkflow ||
+            workflowErrorVariant
+        ) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            errorMessageRef.current?.focus();
+        });
+    }, [
+        errorMessage,
+        isCheckingWorkflow,
+        workflowErrorVariant,
+    ]);
 
     if (isCheckingWorkflow) {
         return null;
@@ -130,8 +162,10 @@ function DocumentWarningContent() {
 
                         {errorMessage && (
                             <p
+                                ref={errorMessageRef}
                                 className="govuk-error-message"
                                 role="alert"
+                                tabIndex={-1}
                             >
                                 <span className="govuk-visually-hidden">
                                     Error:

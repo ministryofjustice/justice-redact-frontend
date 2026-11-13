@@ -1,3 +1,10 @@
+"use client";
+
+import {
+    useEffect,
+    useRef,
+} from "react";
+
 type EndOfDocumentActionsProps = {
     canApplyRedactions: boolean;
     isApplyingRedactions: boolean;
@@ -11,7 +18,21 @@ export default function EndOfDocumentActions({
     error,
     onApplyRedactions,
 }: EndOfDocumentActionsProps) {
-    const isDisabled = !canApplyRedactions || isApplyingRedactions;
+    const isDisabled =
+        !canApplyRedactions || isApplyingRedactions;
+
+    const errorRef =
+        useRef<HTMLParagraphElement>(null);
+
+    useEffect(() => {
+        if (!error) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            errorRef.current?.focus();
+        });
+    }, [error]);
 
     return (
         <section
@@ -22,12 +43,19 @@ export default function EndOfDocumentActions({
                 id="end-of-document-heading"
                 className="govuk-heading-m"
             >
-                You&apos;ve reached the end of the document
+                You’ve reached the end of the document
             </h2>
 
             {error && (
-                <p className="govuk-error-message" role="alert">
-                    <span className="govuk-visually-hidden">Error:</span>{" "}
+                <p
+                    ref={errorRef}
+                    className="govuk-error-message"
+                    role="alert"
+                    tabIndex={-1}
+                >
+                    <span className="govuk-visually-hidden">
+                        Error:
+                    </span>{" "}
                     {error}
                 </p>
             )}

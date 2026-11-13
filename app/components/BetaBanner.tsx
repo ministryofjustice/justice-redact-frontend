@@ -36,8 +36,13 @@ export default function BetaBanner({
                     <Link
                         href="/contact"
                         className="govuk-link govuk-link--no-visited-state"
+                        target="_blank"
+                        rel="noopener noreferrer"
                     >
                         contact the Justice Redact team
+                        <span className="govuk-visually-hidden">
+                            {" "} (opens in a new tab)
+                        </span>
                     </Link>
                     .
                 </span>

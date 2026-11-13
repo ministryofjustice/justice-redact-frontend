@@ -1,3 +1,9 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "Privacy notice",
+};
+
 export default function PrivacyPage() {
     return (
         <div className="govuk-grid-row">

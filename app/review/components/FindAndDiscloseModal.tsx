@@ -17,6 +17,7 @@ import type {
     ManualDecision,
     ReviewPageData,
 } from "../types";
+import type { ReviewFinding } from "../types";
 import FindResultExcerpt from "./FindResultExcerpt";
 import Modal from "./Modal";
 
@@ -24,7 +25,9 @@ type FindAndDiscloseModalProps = {
     isOpen: boolean;
     pages: ReviewPageData[];
     manualSelections: ManualDecision[];
+    findings: ReviewFinding[];
     onClose: () => void;
+    onErrorChange: (hasError: boolean) => void;
     onUndoSelected: (
         results: FindInManualRedactionResult[]
     ) => number;
@@ -37,7 +40,9 @@ export default function FindAndDiscloseModal({
     isOpen,
     pages,
     manualSelections,
+    findings,
     onClose,
+    onErrorChange,
     onUndoSelected,
 }: FindAndDiscloseModalProps) {
     const [searchTerm, setSearchTerm] = useState("");
@@ -53,6 +58,17 @@ export default function FindAndDiscloseModal({
     );
     const [error, setError] = useState<string | null>(null);
     const [resultsError, setResultsError] = useState<string | null>(null);
+
+    useEffect(() => {
+        onErrorChange(
+            isOpen && Boolean(error || resultsError)
+        );
+    }, [
+        error,
+        isOpen,
+        onErrorChange,
+        resultsError,
+    ]);
 
     const inputId = useId();
     const resultsHeadingId = useId();
@@ -617,6 +633,7 @@ export default function FindAndDiscloseModal({
                                                                     result={result}
                                                                     pages={pages}
                                                                     manualSelections={manualSelections}
+                                                                    findings={findings}
                                                                 />
 
                                                                 <span className="govuk-visually-hidden">

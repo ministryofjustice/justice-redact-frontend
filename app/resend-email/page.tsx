@@ -3,10 +3,12 @@
 import Link from "next/link";
 import {
     useEffect,
+    useRef,
     useState,
     useSyncExternalStore,
 } from "react";
 import { useRouter } from "next/navigation";
+import { usePageTitle } from "../components/PageTitle";
 
 import { fetchJson } from "../lib/api";
 
@@ -28,6 +30,23 @@ export default function ResendEmailPage() {
         useState(false);
     const [hasServiceError, setHasServiceError] =
         useState(false);
+    const errorSummaryRef =
+        useRef<HTMLDivElement>(null);
+
+    usePageTitle(
+        "Check your email account",
+        hasServiceError,
+    );
+
+    useEffect(() => {
+        if (!hasServiceError) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            errorSummaryRef.current?.focus();
+        });
+    }, [hasServiceError]);
 
     useEffect(() => {
         if (!email) {
@@ -76,10 +95,12 @@ export default function ResendEmailPage() {
             <div className="govuk-grid-column-two-thirds">
                 {hasServiceError && (
                     <div
+                        ref={errorSummaryRef}
                         className="govuk-error-summary"
                         data-module="govuk-error-summary"
                         role="alert"
                         aria-labelledby="error-summary-title"
+                        tabIndex={-1}
                     >
                         <h2
                             className="govuk-error-summary__title"
@@ -114,7 +135,7 @@ export default function ResendEmailPage() {
                 <ol className="govuk-list govuk-list--number">
                     <li>
                         Check that you entered the email
-                        address correctly. If it&apos;s
+                        address correctly. If it’s
                         incorrect,{" "}
                         <Link
                             href="/"
@@ -131,7 +152,7 @@ export default function ResendEmailPage() {
                     </li>
 
                     <li>
-                        Look in your email account&apos;s
+                        Look in your email account’s
                         junk or spam folder.
                     </li>
                 </ol>

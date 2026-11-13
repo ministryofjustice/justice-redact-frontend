@@ -8,7 +8,7 @@ import {
 import { buildContentRangesFromFindResults } from "./buildContentRangesFromFindResults";
 import type { FindInManualRedactionResult } from "./findInManualRedactions";
 import { mergeContentRanges } from "./mergeContentRanges";
-import { subtractContentRanges } from "./subtractContentRanges";
+import { buildRemainingRedactionFragments } from "./buildRemainingRedactionFragments";
 import type { ManualDecision } from "./types";
 
 type DiscloseManualRedactionsResult = {
@@ -24,68 +24,13 @@ type FragmentRecord = {
 function buildRemainingFragments(
     selection: ManualDecision,
     rangesToRemove: ContentRange[],
-    createId: () => string
+    createId: () => string,
 ): ManualDecision[] {
-    if (selection.kind === "image") {
-        return [selection];
-    }
-
-    const sourceRange =
-        getManualDecisionContentRange(selection);
-
-    if (!sourceRange) {
-        return [selection];
-    }
-
-    const remainingRanges =
-        subtractContentRanges(
-            sourceRange,
-            rangesToRemove
-        );
-
-    /*
-     * Nothing from this decision was disclosed.
-     * Preserve its existing id and metadata.
-     */
-    if (
-        remainingRanges.length === 1 &&
-        remainingRanges[0].start === sourceRange.start &&
-        remainingRanges[0].end === sourceRange.end
-    ) {
-        return [
-            {
-                ...selection,
-            },
-        ];
-    }
-
-    return remainingRanges.flatMap<ManualDecision>(
-        (range) => {
-            const localStart =
-                range.start - sourceRange.start;
-
-            const localEnd =
-                range.end - sourceRange.start;
-
-            const text = selection.text.slice(
-                localStart,
-                localEnd
-            );
-
-            if (!text.trim()) {
-                return [];
-            }
-
-            return [
-                {
-                    ...selection,
-                    id: createId(),
-                    start: range.start,
-                    end: range.end,
-                    text,
-                },
-            ];
-        }
+    return buildRemainingRedactionFragments(
+        selection,
+        rangesToRemove,
+        createId,
+        "copy",
     );
 }
 
@@ -145,22 +90,12 @@ function splitRedactionGroups(
                         createId
                     );
 
-                /*
-                 * Initialise this source decision in the lookup.
-                 * If it has been completely disclosed it will
-                 * correctly remain an empty array.
-                 */
                 transformedSelections.set(
                     selection.id,
                     []
                 );
 
                 if (fragments.length === 0) {
-                    /*
-                     * This entire part of the original logical
-                     * redaction has disappeared. Anything surviving
-                     * afterwards must belong to a new logical group.
-                     */
                     currentPiece = null;
                     gapBeforeNextSelection = true;
                     return;
@@ -171,11 +106,6 @@ function splitRedactionGroups(
                         fragments[0]
                     );
 
-                /*
-                 * If content was removed from the beginning of this
-                 * decision, a previous surviving decision and this
-                 * fragment are now separated by disclosed content.
-                 */
                 if (
                     gapBeforeNextSelection ||
                     (
@@ -199,12 +129,6 @@ function splitRedactionGroups(
                             decision: fragment,
                         });
 
-                        /*
-                         * subtractContentRanges can split one decision
-                         * into two fragments. Those fragments are on
-                         * opposite sides of disclosed content and must
-                         * therefore become different logical redactions.
-                         */
                         if (
                             fragmentIndex <
                             fragments.length - 1
@@ -234,13 +158,6 @@ function splitRedactionGroups(
                 }
             });
 
-            /*
-             * If the original group still consists of one connected
-             * piece, retain its original group id.
-             *
-             * If disclosure split it into multiple pieces, give each
-             * resulting piece its own new group id.
-             */
             pieces.forEach((piece) => {
                 const redactionGroupId =
                     pieces.length > 1
@@ -289,12 +206,16 @@ export function discloseManualRedactions(
         )
     );
 
-    /*
-     * A result remains valid as long as some part of the
-     * searched occurrence is currently redacted.
-     */
+    const seenResultIds = new Set<string>();
+
     const validResults = selectedResults.filter(
         (result) => {
+            if (seenResultIds.has(result.id)) {
+                return false;
+            }
+
+            seenResultIds.add(result.id);
+
             const resultRanges =
                 getFindResultContentRanges(result);
 
@@ -317,20 +238,11 @@ export function discloseManualRedactions(
         };
     }
 
-    /*
-     * Find and disclose removes redaction coverage only from
-     * the searched occurrences selected by the user.
-     */
     const rangesToRemove =
         buildContentRangesFromFindResults(
             validResults
         );
 
-    /*
-     * Transform grouped redactions as complete logical
-     * selections so that a disclosure in the middle creates
-     * two genuinely independent redaction groups.
-     */
     const groupedTransform =
         splitRedactionGroups(
             manualSelections,
@@ -345,11 +257,6 @@ export function discloseManualRedactions(
                     return [selection];
                 }
 
-                /*
-                 * Grouped selections were handled together above so
-                 * their new grouping can account for splits across
-                 * multiple text items.
-                 */
                 if (selection.redactionGroupId) {
                     return (
                         groupedTransform.get(
@@ -358,12 +265,6 @@ export function discloseManualRedactions(
                     );
                 }
 
-                /*
-                 * Legacy/ungrouped decisions use their individual ids
-                 * for removal. If one is split into two, the resulting
-                 * fragments already receive separate ids and therefore
-                 * behave as independent redactions.
-                 */
                 return buildRemainingFragments(
                     selection,
                     rangesToRemove,

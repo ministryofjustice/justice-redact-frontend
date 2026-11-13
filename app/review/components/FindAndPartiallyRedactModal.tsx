@@ -29,14 +29,21 @@ import type {
     ReviewPageData,
 } from "../types";
 import Modal from "./Modal";
+import type { ReviewFinding } from "../types";
 import FindResultExcerpt from "./FindResultExcerpt";
-import { renderTextSegments } from "../textRendering";
+import {
+    buildAccessibleReviewText,
+    renderTextSegments,
+} from "../textRendering";
+import { getSelectionSourceTextLength } from "../selectionUtils";
 
 type FindAndPartiallyRedactModalProps = {
     isOpen: boolean;
     pages: ReviewPageData[];
     manualSelections: ManualDecision[];
+    findings: ReviewFinding[];
     onClose: () => void;
+    onErrorChange: (hasError: boolean) => void;
 
     onHighlightSelected: (
         results: FindInDocumentResult[],
@@ -63,7 +70,9 @@ export default function FindAndPartiallyRedactModal({
     isOpen,
     pages,
     manualSelections,
+    findings,
     onClose,
+    onErrorChange,
     onHighlightSelected,
 }: FindAndPartiallyRedactModalProps) {
     const [searchTerm, setSearchTerm] = useState("");
@@ -82,6 +91,24 @@ export default function FindAndPartiallyRedactModal({
         useState<string | null>(null);
     const [resultsError, setResultsError] =
         useState<string | null>(null);
+
+    useEffect(() => {
+        onErrorChange(
+            isOpen &&
+            Boolean(
+                error ||
+                selectionError ||
+                resultsError
+            )
+        );
+    }, [
+        error,
+        isOpen,
+        onErrorChange,
+        resultsError,
+        selectionError,
+    ]);
+
     const [highlightedCount, setHighlightedCount] =
         useState<number | null>(null);
     const [partialRedactionRemoveMenu, setPartialRedactionRemoveMenu] =
@@ -620,8 +647,15 @@ export default function FindAndPartiallyRedactModal({
         );
 
         const start =
-            rangeBeforeSelection.toString().length;
-        const end = start + range.toString().length;
+            getSelectionSourceTextLength(
+                rangeBeforeSelection
+            );
+
+        const end =
+            start +
+            getSelectionSourceTextLength(
+                range
+            );
 
         if (
             start < 0 ||
@@ -1015,6 +1049,7 @@ export default function FindAndPartiallyRedactModal({
                                                                         result={result}
                                                                         pages={pages}
                                                                         manualSelections={manualSelections}
+                                                                        findings={findings}
                                                                     />
 
                                                                     <span className="govuk-visually-hidden">
@@ -1186,20 +1221,42 @@ export default function FindAndPartiallyRedactModal({
                             onMouseOut={handlePartialRedactionMouseOut}
                             onContextMenu={handlePartialRedactionContextMenu}
                         >
-                            {renderTextSegments(
-                                submittedSearchTerm,
-                                [],
-                                selectedRange
-                                    ? [
-                                        {
-                                            id: "partial-redaction-selection",
-                                            start: selectedRange.start,
-                                            end: selectedRange.end,
-                                        },
-                                    ]
-                                    : [],
-                                false
-                            )}
+                            <span
+                                className="govuk-visually-hidden"
+                                data-selection-offset-ignore
+                            >
+                                {buildAccessibleReviewText(
+                                    submittedSearchTerm,
+                                    [],
+                                    selectedRange
+                                        ? [
+                                            {
+                                                id: "partial-redaction-selection",
+                                                start: selectedRange.start,
+                                                end: selectedRange.end,
+                                            },
+                                        ]
+                                        : [],
+                                    false
+                                )}
+                            </span>
+
+                            <span aria-hidden="true">
+                                {renderTextSegments(
+                                    submittedSearchTerm,
+                                    [],
+                                    selectedRange
+                                        ? [
+                                            {
+                                                id: "partial-redaction-selection",
+                                                start: selectedRange.start,
+                                                end: selectedRange.end,
+                                            },
+                                        ]
+                                        : [],
+                                    false
+                                )}
+                            </span>
                         </div>
                         {partialRedactionRemoveMenu && (
                             <button

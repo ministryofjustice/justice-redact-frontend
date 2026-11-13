@@ -1,4 +1,5 @@
 import React from "react";
+import { toSmartQuotes } from "./smartQuotes";
 import type { RenderRange, ReviewFinding, ReviewTextSpan } from "./types";
 
 export function clampRangeValue(value: number, max: number) {
@@ -225,6 +226,162 @@ export function buildRenderRanges(
     return ranges;
 }
 
+export function buildAccessibleReviewText(
+    text: string,
+    suggestions: ReviewFinding[],
+    manualSelections: Array<{
+        id: string;
+        start: number;
+        end: number;
+        redactionGroupId?: string;
+        announceStart?: boolean;
+        announceEnd?: boolean;
+    }>,
+    isPreviewMode: boolean
+) {
+    const clamp = (value: number) =>
+        clampRangeValue(value, text.length);
+
+    const manualRanges = manualSelections
+        .map((selection) => ({
+            id: selection.id,
+            start: clamp(selection.start),
+            end: clamp(selection.end),
+            announceStart:
+                selection.announceStart !== false,
+            announceEnd:
+                selection.announceEnd !== false,
+        }))
+        .filter((range) => range.end > range.start);
+
+    const suggestionRanges = isPreviewMode
+        ? []
+        : suggestions
+            .filter(
+                (suggestion) =>
+                    typeof suggestion.entityStart === "number" &&
+                    typeof suggestion.entityEnd === "number"
+            )
+            .map((suggestion) => ({
+                id: suggestion.id,
+                start: clamp(suggestion.entityStart as number),
+                end: clamp(suggestion.entityEnd as number),
+            }))
+            .filter((range) => range.end > range.start);
+
+    const boundaries = Array.from(
+        new Set([
+            0,
+            text.length,
+            ...manualRanges.flatMap((range) => [
+                range.start,
+                range.end,
+            ]),
+            ...suggestionRanges.flatMap((range) => [
+                range.start,
+                range.end,
+            ]),
+        ])
+    ).sort((left, right) => left - right);
+
+    let accessibleText = "";
+
+    function appendStartMarker(marker: string) {
+        if (
+            accessibleText.length > 0 &&
+            !/\s$/.test(accessibleText)
+        ) {
+            accessibleText += " ";
+        }
+
+        accessibleText += `${marker} `;
+    }
+
+    function appendEndMarker(
+        marker: string,
+        nextCharacter: string
+    ) {
+        if (
+            accessibleText.length > 0 &&
+            !/\s$/.test(accessibleText)
+        ) {
+            accessibleText += " ";
+        }
+
+        accessibleText += marker;
+
+        if (
+            nextCharacter &&
+            !/[\s.,;:!?)}\]]/.test(nextCharacter)
+        ) {
+            accessibleText += " ";
+        }
+    }
+
+    for (
+        let index = 0;
+        index < boundaries.length - 1;
+        index += 1
+    ) {
+        const start = boundaries[index];
+        const end = boundaries[index + 1];
+
+        if (end <= start) {
+            continue;
+        }
+
+        const redactionStartsHere = manualRanges.some(
+            (range) =>
+                range.start === start &&
+                range.announceStart
+        );
+
+        const suggestionStartsHere = suggestionRanges.some(
+            (range) => range.start === start
+        );
+
+        const suggestionEndsHere = suggestionRanges.some(
+            (range) => range.end === end
+        );
+
+        const redactionEndsHere = manualRanges.some(
+            (range) =>
+                range.end === end &&
+                range.announceEnd
+        );
+
+        if (redactionStartsHere) {
+            appendStartMarker("Redaction start");
+        }
+
+        if (suggestionStartsHere) {
+            appendStartMarker("AI suggestion start");
+        }
+
+        accessibleText += text
+            .slice(start, end)
+            .replace(/\r\n|\r|\n/g, " ");
+
+        if (suggestionEndsHere) {
+            appendEndMarker(
+                "AI suggestion end",
+                text[end] ?? ""
+            );
+        }
+
+        if (redactionEndsHere) {
+            appendEndMarker(
+                "Redaction end",
+                text[end] ?? ""
+            );
+        }
+    }
+
+    return accessibleText
+        .replace(/[ \t]+/g, " ")
+        .trim();
+}
+
 export function renderTextSegments(
     text: string,
     suggestions: ReviewFinding[],
@@ -237,6 +394,8 @@ export function renderTextSegments(
     isPreviewMode: boolean,
     boldRanges: Array<{ start: number; end: number }> = []
 ) {
+    const displayText = toSmartQuotes(text);
+
     const ranges = buildRenderRanges(
         text,
         suggestions,
@@ -254,7 +413,7 @@ export function renderTextSegments(
             nodes.push(
                 <span key={`plain-${cursor}-${range.start}`}>
                     {renderSliceWithBoldRanges(
-                        text,
+                        displayText,
                         cursor,
                         range.start,
                         boldRanges,
@@ -271,8 +430,9 @@ export function renderTextSegments(
                 data-manual-id={range.manualId}
                 data-redaction-group-id={range.redactionGroupId}
             >
+
                 {renderSliceWithBoldRanges(
-                    text,
+                    displayText,
                     range.start,
                     range.end,
                     boldRanges,
@@ -288,7 +448,7 @@ export function renderTextSegments(
         nodes.push(
             <span key={`plain-${cursor}-end`}>
                 {renderSliceWithBoldRanges(
-                    text,
+                    displayText,
                     cursor,
                     text.length,
                     boldRanges,
@@ -313,6 +473,7 @@ export function renderStyledTextSegments(
     isPreviewMode: boolean
 ) {
     const sourceText = textSpans.map((span) => span.text).join("");
+    const displayText = toSmartQuotes(sourceText);
 
     const ranges = buildRenderRanges(
         sourceText,
@@ -333,9 +494,10 @@ export function renderStyledTextSegments(
 
             if (overlapEnd <= overlapStart) return;
 
-            const localStart = overlapStart - span.start;
-            const localEnd = overlapEnd - span.start;
-            const content = span.text.slice(localStart, localEnd);
+            const content = displayText.slice(
+                overlapStart,
+                overlapEnd
+            );
 
             if (!content) return;
 

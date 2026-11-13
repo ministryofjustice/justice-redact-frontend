@@ -1,3 +1,9 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "You cannot use Justice Redact yet",
+};
+
 export default function AccessDeniedPage() {
     return (
         <div className="govuk-grid-row">
@@ -11,7 +17,7 @@ export default function AccessDeniedPage() {
                 </p>
 
                 <p className="govuk-body">
-                    You&apos;ll hear from your operational managers when it&apos;s more widely available.
+                    You’ll hear from your operational managers when it’s more widely available.
                 </p>
             </div>
         </div>
