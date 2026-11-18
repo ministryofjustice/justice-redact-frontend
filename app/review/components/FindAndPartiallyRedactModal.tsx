@@ -60,11 +60,7 @@ type SelectedRange = {
     end: number;
 };
 
-const EMPTY_SEARCH_ERROR =
-    "Enter a word or phrase to search for in the document";
 
-const EMPTY_PARTIAL_SELECTION_ERROR =
-    "Select what to highlight";
 
 export default function FindAndPartiallyRedactModal({
     isOpen,
@@ -86,28 +82,13 @@ export default function FindAndPartiallyRedactModal({
         useState<Set<string>>(new Set());
     const [isShowingResults, setIsShowingResults] =
         useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [selectionError, setSelectionError] =
-        useState<string | null>(null);
-    const [resultsError, setResultsError] =
-        useState<string | null>(null);
 
     useEffect(() => {
-        onErrorChange(
-            isOpen &&
-            Boolean(
-                error ||
-                selectionError ||
-                resultsError
-            )
-        );
-    }, [
-        error,
-        isOpen,
-        onErrorChange,
-        resultsError,
-        selectionError,
-    ]);
+        // No user-input validation errors remain in this modal.
+        if (isOpen) {
+            onErrorChange(false);
+        }
+    }, [isOpen, onErrorChange]);
 
     const [highlightedCount, setHighlightedCount] =
         useState<number | null>(null);
@@ -119,12 +100,9 @@ export default function FindAndPartiallyRedactModal({
 
     const inputId = useId();
     const resultsHeadingId = useId();
-    const errorId = `${inputId}-error`;
-    const selectionErrorId = `${inputId}-selection-error`;
     const selectionContainerId = `${inputId}-partial-selection`;
 
     const inputRef = useRef<HTMLInputElement>(null);
-    const errorSummaryRef = useRef<HTMLDivElement>(null);
     const successBannerRef = useRef<HTMLDivElement>(null);
     const firstResultCheckboxRef =
         useRef<HTMLInputElement>(null);
@@ -156,25 +134,12 @@ export default function FindAndPartiallyRedactModal({
         setSelectedResultIds(new Set());
         setHighlightedCount(null);
         setIsShowingResults(false);
-        setError(null);
-        setSelectionError(null);
-        setResultsError(null);
     }
 
     const closePartialRedactionRemoveMenu = useCallback(() => {
         setPartialRedactionHover(false);
         setPartialRedactionRemoveMenu(null);
     }, []);
-
-    useEffect(() => {
-        if (!error && !selectionError && !resultsError) {
-            return;
-        }
-
-        window.requestAnimationFrame(() => {
-            errorSummaryRef.current?.focus();
-        });
-    }, [error, selectionError, resultsError]);
 
     useEffect(() => {
         if (!isShowingSuccess) {
@@ -378,7 +343,6 @@ export default function FindAndPartiallyRedactModal({
     }, [
         isShowingContentDenseResults,
         results.length,
-        resultsError,
     ]);
 
     function isSelectedPartialRangeAlreadyRedacted(
@@ -571,7 +535,6 @@ export default function FindAndPartiallyRedactModal({
 
     function removePartialRedactionSelection() {
         setSelectedRange(null);
-        setSelectionError(null);
         closePartialRedactionRemoveMenu();
 
         window.getSelection()?.removeAllRanges();
@@ -600,13 +563,9 @@ export default function FindAndPartiallyRedactModal({
         const trimmedSearchTerm = searchTerm.trim();
 
         if (!trimmedSearchTerm) {
-            setError(EMPTY_SEARCH_ERROR);
             return;
         }
 
-        setError(null);
-        setSelectionError(null);
-        setResultsError(null);
         setSelectedRange(null);
         closePartialRedactionRemoveMenu();
         setResults([]);
@@ -672,7 +631,6 @@ export default function FindAndPartiallyRedactModal({
             return;
         }
 
-        setSelectionError(null);
         setSelectedRange({
             start,
             end,
@@ -681,13 +639,9 @@ export default function FindAndPartiallyRedactModal({
 
     function handleContinue() {
         if (!selectedRange || !submittedSearchTerm) {
-            setSelectionError(
-                EMPTY_PARTIAL_SELECTION_ERROR
-            );
             return;
         }
 
-        setSelectionError(null);
 
         const searchResults = findInDocument(
             pages,
@@ -697,7 +651,6 @@ export default function FindAndPartiallyRedactModal({
         setResults(searchResults);
 
         setSelectedResultIds(new Set());
-        setResultsError(null);
         setIsShowingResults(true);
     }
 
@@ -717,7 +670,6 @@ export default function FindAndPartiallyRedactModal({
             return next;
         });
 
-        setResultsError(null);
     }
 
     function handleSelectAll() {
@@ -733,12 +685,10 @@ export default function FindAndPartiallyRedactModal({
         setSelectedResultIds(
             new Set(selectableResultIds)
         );
-        setResultsError(null);
     }
 
     function handleClearSelections() {
         setSelectedResultIds(new Set());
-        setResultsError(null);
     }
 
     function handleHighlightSelected() {
@@ -750,11 +700,9 @@ export default function FindAndPartiallyRedactModal({
             !effectiveSelectedRange ||
             !submittedSearchTerm
         ) {
-            setResultsError("Select at least one result to highlight");
             return;
         }
 
-        setResultsError(null);
 
         const normalisedSelectedRange = {
             start: mapOriginalOffsetToNormalisedOffset(
@@ -781,7 +729,6 @@ export default function FindAndPartiallyRedactModal({
     function handleGoBackFromResults() {
         setResults([]);
         setSelectedResultIds(new Set());
-        setResultsError(null);
         setIsShowingResults(false);
 
         window.requestAnimationFrame(() => {
@@ -797,9 +744,6 @@ export default function FindAndPartiallyRedactModal({
         setSelectedResultIds(new Set());
         setHighlightedCount(null);
         setIsShowingResults(false);
-        setError(null);
-        setSelectionError(null);
-        setResultsError(null);
     }
 
     function handleClose() {
@@ -874,38 +818,6 @@ export default function FindAndPartiallyRedactModal({
                 </>
             ) : isShowingResults ? (
                 <>
-                    {resultsError && (
-                        <div
-                            ref={errorSummaryRef}
-                            className="govuk-error-summary"
-                            aria-labelledby={`${inputId}-results-error-summary-title`}
-                            role="alert"
-                            tabIndex={-1}
-                        >
-                            <h2
-                                id={`${inputId}-results-error-summary-title`}
-                                className="govuk-error-summary__title"
-                            >
-                                There is a problem
-                            </h2>
-
-                            <div className="govuk-error-summary__body">
-                                <ul className="govuk-list govuk-error-summary__list">
-                                    <li>
-                                        <a
-                                            href={`#${inputId}-result-0`}
-                                            onClick={(event) => {
-                                                event.preventDefault();
-                                                firstResultCheckboxRef.current?.focus();
-                                            }}
-                                        >
-                                            {resultsError}
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    )}
                     <p className="govuk-caption-l jr-find-results-caption">
                         Find and redact part
                     </p>
@@ -958,32 +870,15 @@ export default function FindAndPartiallyRedactModal({
                         className={[
                             "govuk-form-group",
                             "jr-find-and-redact-results-group",
-                            resultsError ? "govuk-form-group--error" : "",
                         ]
                             .filter(Boolean)
                             .join(" ")}
                     >
-                        {resultsError && (
-                            <p
-                                id={`${resultsHeadingId}-selection-error`}
-                                className="govuk-error-message"
-                            >
-                                <span className="govuk-visually-hidden">
-                                    Error:
-                                </span>{" "}
-                                {resultsError}
-                            </p>
-                        )}
                         <div
                             className="jr-find-and-redact-results"
                             ref={resultsPaneRef}
                             role="region"
                             aria-labelledby={resultsHeadingId}
-                            aria-describedby={
-                                resultsError
-                                    ? `${resultsHeadingId}-selection-error`
-                                    : undefined
-                            }
                             tabIndex={0}
                         >
                             <div className="jr-find-and-redact-results__inner">
@@ -1085,6 +980,7 @@ export default function FindAndPartiallyRedactModal({
                                     className="govuk-button"
                                     data-module="govuk-button"
                                     onClick={handleHighlightSelected}
+                                    disabled={selectedResultIds.size === 0 || !getEffectiveSelectedRange() || !submittedSearchTerm || !results.some((result) => selectedResultIds.has(result.id))}
                                 >
                                     Redact
                                 </button>
@@ -1120,42 +1016,6 @@ export default function FindAndPartiallyRedactModal({
                 </>
             ) : isShowingSelectionStep ? (
                 <>
-                    {selectionError && (
-                        <div
-                            ref={errorSummaryRef}
-                            className="govuk-error-summary"
-                            aria-labelledby={`${inputId}-selection-error-summary-title`}
-                            role="alert"
-                            tabIndex={-1}
-                        >
-                            <h2
-                                id={`${inputId}-selection-error-summary-title`}
-                                className="govuk-error-summary__title"
-                            >
-                                There is a problem
-                            </h2>
-
-                            <div className="govuk-error-summary__body">
-                                <ul className="govuk-list govuk-error-summary__list">
-                                    <li>
-                                        <a
-                                            href={`#${selectionContainerId}`}
-                                            onClick={(
-                                                event
-                                            ) => {
-                                                event.preventDefault();
-                                                selectablePhraseRef.current?.focus();
-                                            }}
-                                        >
-                                            {
-                                                selectionError
-                                            }
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    )}
 
                     <h2 className="govuk-heading-l">
                         Find and redact part
@@ -1164,9 +1024,6 @@ export default function FindAndPartiallyRedactModal({
                     <div
                         className={[
                             "govuk-form-group",
-                            selectionError
-                                ? "govuk-form-group--error"
-                                : "",
                         ]
                             .filter(Boolean)
                             .join(" ")}
@@ -1180,17 +1037,6 @@ export default function FindAndPartiallyRedactModal({
                             clicking it in the box below.
                         </p> */}
 
-                        {selectionError && (
-                            <p
-                                id={selectionErrorId}
-                                className="govuk-error-message"
-                            >
-                                <span className="govuk-visually-hidden">
-                                    Error:
-                                </span>{" "}
-                                {selectionError}
-                            </p>
-                        )}
 
                         <div
                             ref={selectablePhraseRef}
@@ -1198,22 +1044,9 @@ export default function FindAndPartiallyRedactModal({
                             className={[
                                 "govuk-input",
                                 "jr-partial-redaction-selection",
-                                selectionError
-                                    ? "govuk-input--error"
-                                    : "",
                             ]
                                 .filter(Boolean)
                                 .join(" ")}
-                            aria-invalid={
-                                selectionError
-                                    ? true
-                                    : undefined
-                            }
-                            aria-describedby={
-                                selectionError
-                                    ? selectionErrorId
-                                    : undefined
-                            }
                             tabIndex={0}
                             onMouseUp={captureSelectedRange}
                             onKeyUp={captureSelectedRange}
@@ -1292,6 +1125,7 @@ export default function FindAndPartiallyRedactModal({
                             className="govuk-button"
                             data-module="govuk-button"
                             onClick={handleContinue}
+                            disabled={!selectedRange || !submittedSearchTerm}
                         >
                             Continue
                         </button>
@@ -1310,36 +1144,6 @@ export default function FindAndPartiallyRedactModal({
                     noValidate
                     onSubmit={handleSubmit}
                 >
-                    {error && (
-                        <div
-                            ref={errorSummaryRef}
-                            className="govuk-error-summary"
-                            aria-labelledby={`${inputId}-error-summary-title`}
-                            role="alert"
-                            tabIndex={-1}
-                        >
-                            <h2
-                                id={`${inputId}-error-summary-title`}
-                                className="govuk-error-summary__title"
-                            >
-                                There is a problem
-                            </h2>
-
-                            <div className="govuk-error-summary__body">
-                                <ul className="govuk-list govuk-error-summary__list">
-                                    <li>
-                                        <a
-                                            href={`#${inputId}`}
-                                        >
-                                            {
-                                                EMPTY_SEARCH_ERROR
-                                            }
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    )}
 
                     <h2 className="govuk-heading-l">
                         Find and redact part
@@ -1348,9 +1152,6 @@ export default function FindAndPartiallyRedactModal({
                     <div
                         className={[
                             "govuk-form-group",
-                            error
-                                ? "govuk-form-group--error"
-                                : "",
                         ]
                             .filter(Boolean)
                             .join(" ")}
@@ -1362,17 +1163,6 @@ export default function FindAndPartiallyRedactModal({
                             Enter a word or phrase to search for
                         </label>
 
-                        {error && (
-                            <p
-                                id={errorId}
-                                className="govuk-error-message"
-                            >
-                                <span className="govuk-visually-hidden">
-                                    Error:
-                                </span>{" "}
-                                {EMPTY_SEARCH_ERROR}
-                            </p>
-                        )}
 
                         <input
                             ref={inputRef}
@@ -1381,23 +1171,10 @@ export default function FindAndPartiallyRedactModal({
                             type="text"
                             className={[
                                 "govuk-input",
-                                error
-                                    ? "govuk-input--error"
-                                    : "",
                             ]
                                 .filter(Boolean)
                                 .join(" ")}
                             value={searchTerm}
-                            aria-invalid={
-                                error
-                                    ? true
-                                    : undefined
-                            }
-                            aria-describedby={
-                                error
-                                    ? errorId
-                                    : undefined
-                            }
                             onChange={(event) => {
                                 setSearchTerm(
                                     event.target.value
@@ -1411,6 +1188,7 @@ export default function FindAndPartiallyRedactModal({
                             type="submit"
                             className="govuk-button"
                             data-module="govuk-button"
+                            disabled={!searchTerm.trim()}
                         >
                             Search
                         </button>
