@@ -1,3 +1,4 @@
+import { filterNestedAiSuggestions } from "./aiSuggestionPresentation";
 import React from "react";
 import { toSmartQuotes } from "./smartQuotes";
 import type { RenderRange, ReviewFinding, ReviewTextSpan } from "./types";
@@ -127,7 +128,7 @@ function renderSliceWithBoldRanges(
 
 export function buildRenderRanges(
     text: string,
-    suggestions: ReviewFinding[],
+    rawSuggestions: ReviewFinding[],
     manualSelections: Array<{
         id: string;
         start: number;
@@ -136,6 +137,7 @@ export function buildRenderRanges(
     }>,
     isPreviewMode: boolean
 ) {
+    const suggestions = filterNestedAiSuggestions(rawSuggestions);
     const clamp = (value: number) => clampRangeValue(value, text.length);
 
     const manualRanges = manualSelections
@@ -228,7 +230,7 @@ export function buildRenderRanges(
 
 export function buildAccessibleReviewText(
     text: string,
-    suggestions: ReviewFinding[],
+    rawSuggestions: ReviewFinding[],
     manualSelections: Array<{
         id: string;
         start: number;
@@ -239,6 +241,7 @@ export function buildAccessibleReviewText(
     }>,
     isPreviewMode: boolean
 ) {
+    const suggestions = filterNestedAiSuggestions(rawSuggestions);
     const clamp = (value: number) =>
         clampRangeValue(value, text.length);
 
@@ -384,7 +387,7 @@ export function buildAccessibleReviewText(
 
 export function renderTextSegments(
     text: string,
-    suggestions: ReviewFinding[],
+    rawSuggestions: ReviewFinding[],
     manualSelections: Array<{
         id: string;
         start: number;
@@ -394,6 +397,7 @@ export function renderTextSegments(
     isPreviewMode: boolean,
     boldRanges: Array<{ start: number; end: number }> = []
 ) {
+    const suggestions = filterNestedAiSuggestions(rawSuggestions);
     const displayText = toSmartQuotes(text);
 
     const ranges = buildRenderRanges(
@@ -463,7 +467,7 @@ export function renderTextSegments(
 
 export function renderStyledTextSegments(
     textSpans: ReviewTextSpan[],
-    suggestions: ReviewFinding[],
+    rawSuggestions: ReviewFinding[],
     manualSelections: Array<{
         id: string;
         start: number;
@@ -472,6 +476,7 @@ export function renderStyledTextSegments(
     }>,
     isPreviewMode: boolean
 ) {
+    const suggestions = filterNestedAiSuggestions(rawSuggestions);
     const sourceText = textSpans.map((span) => span.text).join("");
     const displayText = toSmartQuotes(sourceText);
 
