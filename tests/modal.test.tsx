@@ -56,6 +56,8 @@ for (const variant of ["standard", "content-dense"] as const) {
 
             const onClose = vi.fn();
 
+            const previousBodyOverflow = document.body.style.overflow;
+
             const { rerender } = render(
                 <Modal
                     isOpen
@@ -91,8 +93,9 @@ for (const variant of ["standard", "content-dense"] as const) {
             expect(document.documentElement.style.overflow)
                 .toBe("hidden");
 
+            // Root scrolling is locked; body overflow is unchanged.
             expect(document.body.style.overflow)
-                .toBe("hidden");
+                .toBe(previousBodyOverflow);
 
             // Keyboard focus stays within the modal.
             expect(document.activeElement).toBe(closeButton);

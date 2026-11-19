@@ -36,8 +36,6 @@ type FindAndRedactModalProps = {
     ) => number;
 };
 
-const EMPTY_SEARCH_ERROR =
-    "Enter a word or phrase to find in the document";
 
 export default function FindAndRedactModal({
     isOpen,
@@ -58,26 +56,18 @@ export default function FindAndRedactModal({
     const [selectedResultIds, setSelectedResultIds] = useState<Set<string>>(
         new Set()
     );
-    const [error, setError] = useState<string | null>(null);
-    const [resultsError, setResultsError] = useState<string | null>(null);
 
     useEffect(() => {
-        onErrorChange(
-            isOpen && Boolean(error || resultsError)
-        );
-    }, [
-        error,
-        isOpen,
-        onErrorChange,
-        resultsError,
-    ]);
+        // No user-input validation errors remain in this modal.
+        if (isOpen) {
+            onErrorChange(false);
+        }
+    }, [isOpen, onErrorChange]);
 
     const inputId = useId();
     const resultsHeadingId = useId();
-    const errorId = `${inputId}-error`;
 
     const inputRef = useRef<HTMLInputElement>(null);
-    const errorSummaryRef = useRef<HTMLDivElement>(null);
     const successBannerRef = useRef<HTMLDivElement>(null);
     const firstResultCheckboxRef = useRef<HTMLInputElement>(null);
     const resultsHeadingRef =
@@ -92,14 +82,6 @@ export default function FindAndRedactModal({
         isShowingResults &&
         !isShowingSuccess &&
         results.length > 0;
-
-    useEffect(() => {
-        if (!error && !resultsError) return;
-
-        window.requestAnimationFrame(() => {
-            errorSummaryRef.current?.focus();
-        });
-    }, [error, resultsError]);
 
     useEffect(() => {
         if (!isShowingSuccess) return;
@@ -218,7 +200,6 @@ export default function FindAndRedactModal({
     }, [
         isShowingContentDenseResults,
         results.length,
-        resultsError,
     ]);
 
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -227,11 +208,9 @@ export default function FindAndRedactModal({
         const trimmedSearchTerm = searchTerm.trim();
 
         if (!trimmedSearchTerm) {
-            setError(EMPTY_SEARCH_ERROR);
             return;
         }
 
-        setError(null);
         setSubmittedSearchTerm(trimmedSearchTerm);
         const searchResults = findInDocument(
             pages,
@@ -259,7 +238,6 @@ export default function FindAndRedactModal({
             return next;
         });
 
-        setResultsError(null);
     }
 
     function handleSelectAll() {
@@ -274,21 +252,17 @@ export default function FindAndRedactModal({
             .map((result) => result.id);
 
         setSelectedResultIds(new Set(selectableResultIds));
-        setResultsError(null);
     }
 
     function handleClearSelections() {
         setSelectedResultIds(new Set());
-        setResultsError(null);
     }
 
     function handleHighlightSelected() {
         if (selectedResultIds.size === 0) {
-            setResultsError("Select at least one result to redact");
             return;
         }
 
-        setResultsError(null);
 
         const selectedResults = results.filter((result) =>
             selectedResultIds.has(result.id)
@@ -310,8 +284,6 @@ export default function FindAndRedactModal({
         setResults([]);
         setSelectedResultIds(new Set());
         setHighlightedCount(null);
-        setError(null);
-        setResultsError(null);
     }
 
     function handleClose() {
@@ -320,8 +292,6 @@ export default function FindAndRedactModal({
         setResults([]);
         setSelectedResultIds(new Set());
         setHighlightedCount(null);
-        setError(null);
-        setResultsError(null);
         onClose();
     }
 
@@ -389,32 +359,6 @@ export default function FindAndRedactModal({
                 </>
             ) : !isShowingResults ? (
                 <form noValidate onSubmit={handleSubmit}>
-                    {error && (
-                        <div
-                            ref={errorSummaryRef}
-                            className="govuk-error-summary"
-                            aria-labelledby={`${inputId}-error-summary-title`}
-                            role="alert"
-                            tabIndex={-1}
-                        >
-                            <h2
-                                id={`${inputId}-error-summary-title`}
-                                className="govuk-error-summary__title"
-                            >
-                                There is a problem
-                            </h2>
-
-                            <div className="govuk-error-summary__body">
-                                <ul className="govuk-list govuk-error-summary__list">
-                                    <li>
-                                        <a href={`#${inputId}`}>
-                                            {EMPTY_SEARCH_ERROR}
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    )}
 
 
 
@@ -425,7 +369,6 @@ export default function FindAndRedactModal({
                     <div
                         className={[
                             "govuk-form-group",
-                            error ? "govuk-form-group--error" : "",
                         ]
                             .filter(Boolean)
                             .join(" ")}
@@ -437,17 +380,6 @@ export default function FindAndRedactModal({
                             Enter a word or phrase to search for
                         </label>
 
-                        {error && (
-                            <p
-                                id={errorId}
-                                className="govuk-error-message"
-                            >
-                                <span className="govuk-visually-hidden">
-                                    Error:
-                                </span>{" "}
-                                Enter a word or phrase
-                            </p>
-                        )}
 
                         <input
                             ref={inputRef}
@@ -456,13 +388,10 @@ export default function FindAndRedactModal({
                             type="text"
                             className={[
                                 "govuk-input",
-                                error ? "govuk-input--error" : "",
                             ]
                                 .filter(Boolean)
                                 .join(" ")}
                             value={searchTerm}
-                            aria-invalid={error ? true : undefined}
-                            aria-describedby={error ? errorId : undefined}
                             onChange={(event) => {
                                 setSearchTerm(event.target.value);
                             }}
@@ -474,6 +403,7 @@ export default function FindAndRedactModal({
                             type="submit"
                             className="govuk-button"
                             data-module="govuk-button"
+                            disabled={!searchTerm.trim()}
                         >
                             Search
                         </button>
@@ -490,38 +420,6 @@ export default function FindAndRedactModal({
             ) : (
                 <>
 
-                    {resultsError && (
-                        <div
-                            ref={errorSummaryRef}
-                            className="govuk-error-summary"
-                            aria-labelledby={`${resultsHeadingId}-error-summary-title`}
-                            role="alert"
-                            tabIndex={-1}
-                        >
-                            <h2
-                                id={`${resultsHeadingId}-error-summary-title`}
-                                className="govuk-error-summary__title"
-                            >
-                                There is a problem
-                            </h2>
-
-                            <div className="govuk-error-summary__body">
-                                <ul className="govuk-list govuk-error-summary__list">
-                                    <li>
-                                        <a
-                                            href={`#${inputId}-result-0`}
-                                            onClick={(event) => {
-                                                event.preventDefault();
-                                                firstResultCheckboxRef.current?.focus();
-                                            }}
-                                        >
-                                            {resultsError}
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    )}
 
                     <p className="govuk-caption-l jr-find-results-caption">
                         Find and redact
@@ -574,23 +472,11 @@ export default function FindAndRedactModal({
                     <div
                         className={[
                             "govuk-form-group",
-                            resultsError ? "govuk-form-group--error" : "",
                             "jr-find-and-redact-results-group",
                         ]
                             .filter(Boolean)
                             .join(" ")}
                     >
-                        {resultsError && (
-                            <p
-                                id={`${resultsHeadingId}-selection-error`}
-                                className="govuk-error-message"
-                            >
-                                <span className="govuk-visually-hidden">
-                                    Error:
-                                </span>{" "}
-                                {resultsError}
-                            </p>
-                        )}
 
                         <div
                             ref={resultsPaneRef}
@@ -598,11 +484,6 @@ export default function FindAndRedactModal({
                             className="jr-find-and-redact-results"
                             role="region"
                             aria-labelledby={resultsHeadingId}
-                            aria-describedby={
-                                resultsError
-                                    ? `${resultsHeadingId}-selection-error`
-                                    : undefined
-                            }
                             tabIndex={0}
                         >
                             <div className="jr-find-and-redact-results__inner">
@@ -688,6 +569,7 @@ export default function FindAndRedactModal({
                                     className="govuk-button"
                                     data-module="govuk-button"
                                     onClick={handleHighlightSelected}
+                                    disabled={!results.some((result) => selectedResultIds.has(result.id))}
                                 >
                                     Redact
                                 </button>

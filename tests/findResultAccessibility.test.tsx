@@ -202,6 +202,41 @@ function makeAiFinding(
 }
 
 describe("Find result AI suggestion rendering", () => {
+
+    it("keeps nested AI findings out of Find result presentation", () => {
+        const outer = makeAiFinding();
+        const inner = makeAiFinding({
+            id: "nested-ai",
+            entityText: "72",
+            entityStart: 1,
+            entityEnd: 3,
+        });
+
+        const findings = [outer, inner];
+
+        const { container } = render(
+            <FindResultExcerpt
+                result={result}
+                pages={pages}
+                manualSelections={[]}
+                findings={findings}
+            />
+        );
+
+        expect(
+            container.querySelector(
+                ".govuk-visually-hidden"
+            )?.textContent
+        ).toBe(
+            "AI suggestion start A729 AI suggestion end 3BK"
+        );
+
+        expect(findings).toHaveLength(2);
+        expect(findings[0]).toBe(outer);
+        expect(findings[1]).toBe(inner);
+    });
+
+
     it("displays an AI suggestion with accessible markers", () => {
         const { container } = render(
             <FindResultExcerpt

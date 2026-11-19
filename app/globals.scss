@@ -1121,7 +1121,8 @@ main {
 
   .jr-export-page-counts__item,
   .jr-export-page-counts__item--original,
-  .jr-export-page-counts__divider+.jr-export-page-counts__item {
+  .jr-export-page-counts__divider+.jr-export-page-counts__item,
+  .jr-export-page-counts__item+.jr-export-page-counts__item {
     min-width: 0;
     margin: 0;
     padding: 0;
@@ -1129,6 +1130,14 @@ main {
 
   .jr-export-page-counts__divider {
     display: none;
+  }
+}
+
+/* Stack all four page counts on narrow mobile screens. */
+@media (max-width: 30em) {
+  .jr-export-page-counts {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: govuk.govuk-spacing(4);
   }
 }
 
