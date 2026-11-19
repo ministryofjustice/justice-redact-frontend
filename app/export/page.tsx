@@ -524,9 +524,7 @@ function PageCountsSummary({
                     </p>
 
                     <p className="govuk-body jr-export-page-counts__label">
-                        pages in original
-                        <br />
-                        file
+                        pages in original file
                     </p>
                 </div>
 
@@ -541,9 +539,7 @@ function PageCountsSummary({
                     </p>
 
                     <p className="govuk-body jr-export-page-counts__label">
-                        exempt pages
-                        <br />
-                        removed
+                        exempt pages removed
                     </p>
                 </div>
 
@@ -553,9 +549,7 @@ function PageCountsSummary({
                     </p>
 
                     <p className="govuk-body jr-export-page-counts__label">
-                        pages
-                        <br />
-                        deleted
+                        pages deleted
                     </p>
                 </div>
 
@@ -565,9 +559,7 @@ function PageCountsSummary({
                     </p>
 
                     <p className="govuk-body jr-export-page-counts__label">
-                        pages in redacted
-                        <br />
-                        file
+                        pages in redacted file
                     </p>
                 </div>
             </div>
