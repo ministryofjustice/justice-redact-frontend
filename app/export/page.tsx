@@ -524,9 +524,9 @@ function PageCountsSummary({
                     </p>
 
                     <p className="govuk-body jr-export-page-counts__label">
-                        pages in
+                        pages in original
                         <br />
-                        original file
+                        file
                     </p>
                 </div>
 
