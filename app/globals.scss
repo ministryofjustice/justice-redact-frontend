@@ -1121,7 +1121,8 @@ main {
 
   .jr-export-page-counts__item,
   .jr-export-page-counts__item--original,
-  .jr-export-page-counts__divider+.jr-export-page-counts__item {
+  .jr-export-page-counts__divider+.jr-export-page-counts__item,
+  .jr-export-page-counts__item+.jr-export-page-counts__item {
     min-width: 0;
     margin: 0;
     padding: 0;
