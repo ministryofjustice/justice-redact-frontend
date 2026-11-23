@@ -479,4 +479,81 @@ describe("PageContent accessibility", () => {
             "Example text AI suggestion start example AI suggestion AI suggestion end example text"
         );
     });
+
+    it("renders nested AI findings as one suggestion", () => {
+        const sourceText = "0116 4546084";
+
+        const page: ReviewPageData = {
+            pageNumber: 1,
+            textItems: [{
+                itemId: "item-1",
+                text: sourceText,
+                renderText: sourceText,
+                bbox: {
+                    x0: 0,
+                    y0: 0,
+                    x1: 200,
+                    y1: 20,
+                },
+            }],
+            tables: [],
+            images: [],
+        };
+
+        const outer = {
+            id: "outer",
+            kind: "text" as const,
+            pageNumber: 1,
+            itemId: "item-1",
+            tableId: null,
+            cellId: null,
+            imageId: null,
+            imageRecordId: null,
+            entityType: "PHONE_NUMBER",
+            entityText: sourceText,
+            entityStart: 0,
+            entityEnd: 12,
+            entityScore: 0.99,
+            context: sourceText,
+            decision: "redact",
+            sectionLabel: null,
+        };
+
+        const inner = {
+            ...outer,
+            id: "inner",
+            entityText: "4546084",
+            entityStart: 5,
+            entityEnd: 12,
+        };
+
+        const findings = [outer, inner];
+
+        const { container } = render(
+            <PageContent
+                page={page}
+                findings={findings}
+                manualSelections={[]}
+                isPreviewMode={false}
+                onToggleImageRedaction={vi.fn()}
+            />
+        );
+
+        const accessibleText = container.querySelector(
+            ".jr-review-block p > .govuk-visually-hidden"
+        )?.textContent;
+
+        expect(accessibleText).toBe(
+            "AI suggestion start 0116 4546084 AI suggestion end"
+        );
+
+        expect(
+            container.querySelectorAll(".highlight--suggestion")
+        ).toHaveLength(1);
+
+        expect(findings).toHaveLength(2);
+        expect(findings[0]).toBe(outer);
+        expect(findings[1]).toBe(inner);
+    });
+
 });

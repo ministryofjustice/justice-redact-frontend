@@ -1,3 +1,4 @@
+import { filterNestedAiSuggestions } from "./aiSuggestionPresentation";
 import {
     containsContentRange,
     getFindResultContentRanges,
@@ -478,7 +479,7 @@ export function getFindResultExcerptSuggestionDisplayRanges(
             return;
         }
 
-        findings.forEach((finding) => {
+        filterNestedAiSuggestions(findings).forEach((finding) => {
             if (
                 finding.kind !== segment.kind ||
                 finding.pageNumber !== segment.pageNumber

@@ -21,6 +21,10 @@ import ServiceErrorPage from "../components/ServiceErrorPage";
 import { useWorkflowGuard } from "../lib/useWorkflowGuard";
 import { usePageTitle } from "../components/PageTitle";
 import BackLink from "../components/BackLink";
+import {
+    getRedactedFileDescription,
+    shouldShowExemptedRow,
+} from "./redactedFileDescription";
 
 type PageCounts = {
     original: number;
@@ -34,6 +38,8 @@ type ExportResponse = {
     runId: string;
     filename: string;
     status: string;
+
+    hasContentRedactions?: boolean;
 
     redactedExportUrl?: string;
     vettedExportUrl?: string;
@@ -339,7 +345,19 @@ function ExportContent() {
             data.allFilesExportUrl
         );
 
-    const hasExemptExport = Boolean(data.exemptExportUrl);
+    const pageCounts = getPageCounts(data);
+
+    const hasExemptExport = shouldShowExemptedRow(
+        data.exemptExportUrl,
+        data.pageCounts?.exempt
+    );
+
+    const redactedFileDescription =
+        getRedactedFileDescription({
+            hasContentRedactions: data.hasContentRedactions,
+            hasExemptPages: pageCounts.exempt > 0,
+            hasDeletedPages: pageCounts.deleted > 0,
+        });
 
     return (
         <>
@@ -397,9 +415,7 @@ function ExportContent() {
 
                                 <td className="govuk-table__cell">
                                     <p className="govuk-body jr-export-file-description">
-                                        Fully sanitised with redactions
-                                        blacked out and no AI suggestions
-                                        highlighted.
+                                        {redactedFileDescription}
                                     </p>
 
                                     <details className="govuk-details jr-export-sanitisation-details">
@@ -467,7 +483,7 @@ function ExportContent() {
                     <hr className="govuk-section-break govuk-section-break--m govuk-section-break--invisible" />
 
                     <PageCountsSummary
-                        pageCounts={getPageCounts(data)}
+                        pageCounts={pageCounts}
                     />
 
                     <p className="govuk-body">
@@ -498,7 +514,7 @@ function PageCountsSummary({
                 className="govuk-heading-m"
                 id="page-counts-heading"
             >
-                Page count summary
+                Page counts
             </h2>
 
             <div className="jr-export-page-counts">
@@ -508,9 +524,7 @@ function PageCountsSummary({
                     </p>
 
                     <p className="govuk-body jr-export-page-counts__label">
-                        pages in
-                        <br />
-                        original file
+                        pages in original file
                     </p>
                 </div>
 
@@ -525,9 +539,7 @@ function PageCountsSummary({
                     </p>
 
                     <p className="govuk-body jr-export-page-counts__label">
-                        exempt pages
-                        <br />
-                        removed
+                        exempt pages removed
                     </p>
                 </div>
 
@@ -537,9 +549,7 @@ function PageCountsSummary({
                     </p>
 
                     <p className="govuk-body jr-export-page-counts__label">
-                        pages
-                        <br />
-                        deleted
+                        pages deleted
                     </p>
                 </div>
 
@@ -549,9 +559,7 @@ function PageCountsSummary({
                     </p>
 
                     <p className="govuk-body jr-export-page-counts__label">
-                        pages in redacted
-                        <br />
-                        file
+                        pages in redacted file
                     </p>
                 </div>
             </div>

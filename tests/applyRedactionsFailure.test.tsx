@@ -67,6 +67,55 @@ describe("Apply Redactions failure alert", () => {
             screen.getByText(/if you need help\./),
         ).toBeTruthy();
     });
+
+    it("renders and focuses the no-changes validation error", async () => {
+        const { rerender } = render(
+            <ApplyRedactionsFailureAlert
+                variant="no-changes"
+                focusRequest={1}
+            />,
+        );
+
+        const alert = screen.getByRole("region", {
+            name: "error: You have not made any changes yet",
+        });
+
+        expect(
+            screen.getByRole("heading", {
+                name: "You have not made any changes yet",
+            }),
+        ).toBeTruthy();
+
+        expect(
+            screen.getByText(
+                "You need to first make a redaction, or exempt or delete a page.",
+            ),
+        ).toBeTruthy();
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(alert);
+        });
+
+        // Simulate focus returning to Apply and another invalid click.
+        const button = document.createElement("button");
+        document.body.appendChild(button);
+        button.focus();
+
+        expect(document.activeElement).toBe(button);
+
+        rerender(
+            <ApplyRedactionsFailureAlert
+                variant="no-changes"
+                focusRequest={2}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(document.activeElement).toBe(alert);
+        });
+
+        button.remove();
+    });
 });
 
 describe("Apply Redactions failure state", () => {
