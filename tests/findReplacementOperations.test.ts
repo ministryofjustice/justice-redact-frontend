@@ -298,9 +298,9 @@ describe("Find and Redact replacements", () => {
             !left ||
             !right ||
             !replacement ||
-            left.kind === "image" ||
-            right.kind === "image" ||
-            replacement.kind === "image"
+            (left.kind === "image" || left.kind === "image_area") ||
+            (right.kind === "image" || right.kind === "image_area") ||
+            (replacement.kind === "image" || replacement.kind === "image_area")
         ) {
             throw new Error("Expected text decisions");
         }
@@ -330,8 +330,8 @@ describe("Find and Redact replacements", () => {
             plan.replacementSelections;
 
         if (
-            first.kind === "image" ||
-            second.kind === "image"
+            (first.kind === "image" || first.kind === "image_area") ||
+            (second.kind === "image" || second.kind === "image_area")
         ) {
             throw new Error("Expected text decisions");
         }
@@ -469,7 +469,7 @@ describe("Find replacement gap protection", () => {
         ]);
 
         const groupIds = updated.map((decision) =>
-            decision.kind === "image"
+            (decision.kind === "image" || decision.kind === "image_area")
                 ? undefined
                 : decision.redactionGroupId,
         );

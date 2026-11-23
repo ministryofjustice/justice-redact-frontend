@@ -39,6 +39,15 @@ export function buildRemainingRedactionFragments(
             : [{ ...selection }];
     }
 
+    // Only text and table-cell decisions have textual fragments.
+    // Image-area geometry must remain untouched by text disclosure.
+    if (
+        selection.kind !== "text" &&
+        selection.kind !== "table_cell"
+    ) {
+        return [selection];
+    }
+
     return remainingRanges.flatMap<ManualDecision>(
         (range) => {
             const localStart =

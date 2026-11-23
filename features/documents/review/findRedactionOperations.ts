@@ -59,7 +59,7 @@ export function removeManualSelectionsWithinRanges(
 
     selections.forEach((selection, selectionIndex) => {
         if (
-            selection.kind === "image" ||
+            (selection.kind === "image" || selection.kind === "image_area") ||
             !selection.redactionGroupId
         ) {
             return;
@@ -181,7 +181,7 @@ export function removeManualSelectionsWithinRanges(
                     const fragment =
                         selectionFragments[fragmentIndex];
 
-                    if (!fragment || fragment.kind === "image") {
+                    if (!fragment || (fragment.kind === "image" || fragment.kind === "image_area")) {
                         return;
                     }
 
@@ -253,7 +253,7 @@ function mergeReplacementSelections(
         }
 
         const originalGroup =
-            selection.kind === "image"
+            (selection.kind === "image" || selection.kind === "image_area")
                 ? selection.id
                 : selection.redactionGroupId ?? selection.id;
 
@@ -331,7 +331,7 @@ function findExistingRedactionBridges(
         }
 
         const groupId =
-            selection.kind === "image"
+            (selection.kind === "image" || selection.kind === "image_area")
                 ? selection.id
                 : selection.redactionGroupId ?? selection.id;
 

@@ -51,6 +51,18 @@ export function buildApplyRedactionsRequest(
                     };
                 }
 
+                if (selection.kind === "image_area") {
+                    return {
+                        kind: "image_area",
+                        pageNumber: selection.pageNumber,
+                        imageId: selection.imageId,
+                        areaId: selection.areaId,
+                        rect: { ...selection.rect },
+                        action: "redact",
+                        source: "manual",
+                    };
+                }
+
                 return {
                     kind: "image",
                     pageNumber: selection.pageNumber,

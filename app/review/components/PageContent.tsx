@@ -7,6 +7,8 @@ import {
     renderTextSegments,
 } from "../textRendering";
 import type {
+    ImageAreaRect,
+    ManualImageAreaDecision,
     ManualDecision,
     ManualTableCellDecision,
     ManualTextDecision,
@@ -24,8 +26,19 @@ type PageContentProps = {
     manualSelections: ManualDecision[];
     documentManualSelections?: ManualDecision[];
     isPreviewMode: boolean;
+    isRedactMode?: boolean;
     isReadOnly?: boolean;
     onToggleImageRedaction: (pageNumber: number, imageId: string) => void;
+    onAddImageArea?: (
+        pageNumber: number,
+        imageId: string,
+        rect: ImageAreaRect,
+    ) => void;
+    onRemoveImageArea?: (
+        pageNumber: number,
+        imageId: string,
+        areaId: string,
+    ) => void;
 };
 
 function bboxesVerticallyOverlap(
@@ -72,7 +85,7 @@ function getOrderedPageManualSelections(
             selection
         ): selection is TextualManualDecision =>
             selection.pageNumber === page.pageNumber &&
-            selection.kind !== "image"
+            (selection.kind !== "image" && selection.kind !== "image_area")
     );
 
     const orderedSelections: TextualManualDecision[] = [];
@@ -164,7 +177,7 @@ function getRedactionAnnouncementFlags(
     const hasEarlierPageSelection =
         documentManualSelections.some(
             (candidate) =>
-                candidate.kind !== "image" &&
+                (candidate.kind !== "image" && candidate.kind !== "image_area") &&
                 candidate.redactionGroupId === groupId &&
                 candidate.pageNumber <
                 selection.pageNumber
@@ -173,7 +186,7 @@ function getRedactionAnnouncementFlags(
     const hasLaterPageSelection =
         documentManualSelections.some(
             (candidate) =>
-                candidate.kind !== "image" &&
+                (candidate.kind !== "image" && candidate.kind !== "image_area") &&
                 candidate.redactionGroupId === groupId &&
                 candidate.pageNumber >
                 selection.pageNumber
@@ -195,8 +208,11 @@ export default function PageContent({
     manualSelections,
     documentManualSelections = manualSelections,
     isPreviewMode,
+    isRedactMode = true,
     isReadOnly = false,
     onToggleImageRedaction,
+    onAddImageArea,
+    onRemoveImageArea,
 }: PageContentProps) {
     const textFindings = findings.filter(
         (finding) => finding.kind === "text" && !!finding.itemId
@@ -352,10 +368,24 @@ export default function PageContent({
                                                         <ImageRedactionFrame
                                                             image={rowImage}
                                                             pageNumber={page.pageNumber}
+                                                            imageNumber={
+                                                                page.images.findIndex(
+                                                                    candidate => candidate.imageId === rowImage.imageId,
+                                                                ) + 1
+                                                            }
                                                             isPreviewMode={isPreviewMode}
+                                                            isRedactMode={isRedactMode && !isReadOnly}
                                                             isManuallyRedacted={rowImageManual}
+                                                            areas={manualSelections.filter(
+                                                                (selection): selection is ManualImageAreaDecision =>
+                                                                    selection.kind === "image_area" &&
+                                                                    selection.pageNumber === page.pageNumber &&
+                                                                    selection.imageId === rowImage.imageId
+                                                            )}
                                                             showButton={!isReadOnly}
                                                             onToggle={onToggleImageRedaction}
+                                                            onAddArea={onAddImageArea}
+                                                            onRemoveArea={onRemoveImageArea}
                                                         />
                                                     </td>
                                                 )}
@@ -506,10 +536,24 @@ export default function PageContent({
                         <ImageRedactionFrame
                             image={image}
                             pageNumber={page.pageNumber}
+                            imageNumber={
+                                page.images.findIndex(
+                                    candidate => candidate.imageId === image.imageId,
+                                ) + 1
+                            }
                             isPreviewMode={isPreviewMode}
+                            isRedactMode={isRedactMode && !isReadOnly}
                             isManuallyRedacted={manualForImage}
+                            areas={manualSelections.filter(
+                                (selection): selection is ManualImageAreaDecision =>
+                                    selection.kind === "image_area" &&
+                                    selection.pageNumber === page.pageNumber &&
+                                    selection.imageId === image.imageId
+                            )}
                             showButton={!isReadOnly}
                             onToggle={onToggleImageRedaction}
+                            onAddArea={onAddImageArea}
+                            onRemoveArea={onRemoveImageArea}
                         />
                     </div>
                 );

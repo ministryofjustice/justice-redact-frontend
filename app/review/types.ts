@@ -135,6 +135,23 @@ export type ManualImageDecision = {
     imageId: string;
 };
 
+export type ImageAreaRect = {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+};
+
+export type ManualImageAreaDecision = {
+    id: string;
+    documentId: string;
+    kind: "image_area";
+    pageNumber: number;
+    imageId: string;
+    areaId: string;
+    rect: ImageAreaRect;
+};
+
 export type PersistedTextRedactionDecision = {
     kind: "text";
     pageNumber: number;
@@ -168,6 +185,16 @@ export type PersistedImageRedactionDecision = {
     source: "manual";
 };
 
+export type PersistedImageAreaRedactionDecision = {
+    kind: "image_area";
+    pageNumber: number;
+    imageId: string;
+    areaId: string;
+    rect: ImageAreaRect;
+    action: "redact";
+    source: "manual";
+};
+
 export type PersistedPageDecision = {
     kind: "page";
     pageNumber: number;
@@ -179,6 +206,7 @@ export type PersistedRedactionDecision =
     | PersistedTextRedactionDecision
     | PersistedTableRedactionDecision
     | PersistedImageRedactionDecision
+    | PersistedImageAreaRedactionDecision
     | PersistedPageDecision;
 
 export type RedactionDecisionSet = {
@@ -191,7 +219,8 @@ export type RedactionDecisionSet = {
 export type ManualDecision =
     | ManualTextDecision
     | ManualTableCellDecision
-    | ManualImageDecision;
+    | ManualImageDecision
+    | ManualImageAreaDecision;
 
 export type RenderRange = {
     start: number;

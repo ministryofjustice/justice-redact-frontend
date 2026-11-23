@@ -64,6 +64,20 @@ export function buildReviewStateFromPersistedDecisions(
             continue;
         }
 
+        if (decision.kind === "image_area") {
+            manualSelections.push({
+                id: decision.areaId,
+                documentId,
+                kind: "image_area",
+                pageNumber: decision.pageNumber,
+                imageId: decision.imageId,
+                areaId: decision.areaId,
+                rect: { ...decision.rect },
+            });
+
+            continue;
+        }
+
         pageStatuses[decision.pageNumber] =
             decision.action === "exempt"
                 ? "exempted"

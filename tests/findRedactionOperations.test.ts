@@ -146,13 +146,13 @@ describe("removeManualSelectionsWithinRanges", () => {
     expect(
       result.map((decision) => ({
         id: decision.id,
-        start: decision.kind === "image"
+        start: (decision.kind === "image" || decision.kind === "image_area")
           ? null
           : decision.start,
-        end: decision.kind === "image"
+        end: (decision.kind === "image" || decision.kind === "image_area")
           ? null
           : decision.end,
-        text: decision.kind === "image"
+        text: (decision.kind === "image" || decision.kind === "image_area")
           ? null
           : decision.text,
       })),
@@ -261,7 +261,7 @@ describe("removeManualSelectionsWithinRanges", () => {
 });
 
 function getGroupId(decision: ManualDecision): string | null {
-  return decision.kind === "image"
+  return (decision.kind === "image" || decision.kind === "image_area")
     ? null
     : decision.redactionGroupId ?? null;
 }
@@ -406,8 +406,8 @@ describe("Find replacement fragment removal", () => {
     });
 
     if (
-      left.kind === "image" ||
-      right.kind === "image"
+      (left.kind === "image" || left.kind === "image_area") ||
+      (right.kind === "image" || right.kind === "image_area")
     ) {
       throw new Error("Expected text redactions");
     }
@@ -417,7 +417,7 @@ describe("Find replacement fragment removal", () => {
 
     const afterRemovingLeft = fragments.filter(
       (selection) =>
-        selection.kind === "image" ||
+        (selection.kind === "image" || selection.kind === "image_area") ||
         selection.redactionGroupId !==
         left.redactionGroupId,
     );
@@ -426,7 +426,7 @@ describe("Find replacement fragment removal", () => {
 
     const afterRemovingRight = fragments.filter(
       (selection) =>
-        selection.kind === "image" ||
+        (selection.kind === "image" || selection.kind === "image_area") ||
         selection.redactionGroupId !==
         right.redactionGroupId,
     );
