@@ -146,7 +146,7 @@ describe("useApplyRedactions", () => {
             .toBe(true);
     });
 
-    it("does nothing when there are no decisions to apply", async () => {
+    it("shows validation without submitting an empty decision set", async () => {
         const options = makeOptions({
             pageStatuses: {},
         });
@@ -159,6 +159,15 @@ describe("useApplyRedactions", () => {
             await result.current.handleApplyRedactions();
         });
 
+        expect(result.current.showNoChangesValidation)
+            .toBe(true);
+
+        expect(result.current.validationFocusRequest)
+            .toBe(1);
+
+        expect(result.current.showApplyRedactionsFailure)
+            .toBe(false);
+
         expect(options.saveBeforeApply)
             .not.toHaveBeenCalled();
 
@@ -166,6 +175,164 @@ describe("useApplyRedactions", () => {
             .not.toHaveBeenCalled();
 
         expect(mocks.push)
+            .not.toHaveBeenCalled();
+
+        expect(result.current.isApplyingRedactions)
+            .toBe(false);
+
+        expect(window.scrollTo)
+            .toHaveBeenCalled();
+    });
+
+
+    it("requests focus again after repeated empty Apply attempts", async () => {
+        const options = makeOptions({
+            pageStatuses: {},
+        });
+
+        const { result } = renderHook(() =>
+            useApplyRedactions(options),
+        );
+
+        await act(async () => {
+            await result.current.handleApplyRedactions();
+        });
+
+        expect(result.current.validationFocusRequest)
+            .toBe(1);
+
+        await act(async () => {
+            await result.current.handleApplyRedactions();
+        });
+
+        expect(result.current.validationFocusRequest)
+            .toBe(2);
+
+        expect(result.current.showNoChangesValidation)
+            .toBe(true);
+
+        expect(options.saveBeforeApply)
+            .not.toHaveBeenCalled();
+
+        expect(mocks.fetchJson)
+            .not.toHaveBeenCalled();
+    });
+
+    it.each(["exempted", "deleted"] as const)(
+        "allows a single %s page to be applied",
+        async (status) => {
+            const options = makeOptions({
+                pageStatuses: { 1: status },
+            });
+
+            const { result } = renderHook(() =>
+                useApplyRedactions(options),
+            );
+
+            await act(async () => {
+                await result.current.handleApplyRedactions();
+            });
+
+            expect(options.saveBeforeApply)
+                .toHaveBeenCalledTimes(1);
+
+            expect(options.saveBeforeApply)
+                .toHaveBeenCalledWith([], { 1: status });
+
+            expect(mocks.fetchJson)
+                .toHaveBeenCalledTimes(1);
+
+            const request = JSON.parse(
+                mocks.fetchJson.mock.calls[0][1].body,
+            );
+
+            expect(request.decisions).toEqual([
+                {
+                    kind: "page",
+                    pageNumber: 1,
+                    action: status === "exempted" ? "exempt" : "delete",
+                    source: "manual",
+                },
+            ]);
+
+            expect(result.current.showNoChangesValidation)
+                .toBe(false);
+        },
+    );
+
+    it("clears validation when a vetter adds a redaction and then applies", async () => {
+        const options = makeOptions({
+            pageStatuses: {},
+        });
+
+        const { result, rerender } = renderHook(
+            (props: UseApplyRedactionsOptions) =>
+                useApplyRedactions(props),
+            { initialProps: options },
+        );
+
+        await act(async () => {
+            await result.current.handleApplyRedactions();
+        });
+
+        expect(result.current.showNoChangesValidation)
+            .toBe(true);
+
+        const selection = {
+            documentId: "doc-1",
+            kind: "image",
+            pageNumber: 1,
+            imageId: "image-1",
+        } as UseApplyRedactionsOptions["manualSelections"][number];
+
+        rerender({
+            ...options,
+            manualSelections: [selection],
+        });
+
+        expect(result.current.showNoChangesValidation)
+            .toBe(false);
+
+        await act(async () => {
+            await result.current.handleApplyRedactions();
+        });
+
+        expect(options.saveBeforeApply)
+            .toHaveBeenCalledWith([selection], {});
+
+        expect(mocks.fetchJson)
+            .toHaveBeenCalledTimes(1);
+
+        expect(mocks.push)
+            .toHaveBeenCalledTimes(1);
+    });
+
+    it("does not count redactions belonging to another document", async () => {
+        const options = makeOptions({
+            pageStatuses: {},
+            manualSelections: [{
+                documentId: "another-document",
+                kind: "image",
+                pageNumber: 1,
+                imageId: "image-1",
+            }] as UseApplyRedactionsOptions["manualSelections"],
+        });
+
+        const { result } = renderHook(() =>
+            useApplyRedactions(options),
+        );
+
+        await act(async () => {
+            await result.current.handleApplyRedactions();
+        });
+
+        expect(result.current.showNoChangesValidation)
+            .toBe(true);
+
+        expect(options.saveBeforeApply)
+            .not.toHaveBeenCalled();
+
+        expect(mocks.fetchJson)
             .not.toHaveBeenCalled();
     });
 
