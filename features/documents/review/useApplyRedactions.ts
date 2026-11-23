@@ -68,8 +68,45 @@ export function useApplyRedactions({
         return consumeApplyRedactionsFailure(documentId);
     });
 
+    const [
+        showNoChangesValidation,
+        setShowNoChangesValidation,
+    ] = useState(false);
+
+    const [
+        validationFocusRequest,
+        setValidationFocusRequest,
+    ] = useState(0);
+
+    const hasQualifyingChanges =
+        manualSelections.some(
+            (selection) =>
+                selection.documentId === documentId,
+        ) ||
+        Object.values(pageStatuses).some(
+            (status) =>
+                status === "exempted" ||
+                status === "deleted",
+        );
+
+    // Remove the validation error as soon as a vetter makes
+    // a qualifying redaction, exemption or deletion.
     useEffect(() => {
-        if (!showApplyRedactionsFailure) {
+        if (hasQualifyingChanges) {
+            setShowNoChangesValidation(false);
+        }
+    }, [hasQualifyingChanges]);
+
+    // Never carry this validation error between documents.
+    useEffect(() => {
+        setShowNoChangesValidation(false);
+    }, [documentId]);
+
+    useEffect(() => {
+        if (
+            !showApplyRedactionsFailure &&
+            !showNoChangesValidation
+        ) {
             return;
         }
 
@@ -77,9 +114,13 @@ export function useApplyRedactions({
             top: 0,
             behavior: "auto",
         });
-    }, [showApplyRedactionsFailure]);
+    }, [
+        showApplyRedactionsFailure,
+        showNoChangesValidation,
+    ]);
 
     function showApplyFailureAlert() {
+        setShowNoChangesValidation(false);
         setApplyRedactionsError(null);
         clearDecisionSaveError();
         setShowApplyRedactionsFailure(true);
@@ -107,12 +148,26 @@ export function useApplyRedactions({
             );
 
         const hasPageDecisions =
-            Object.keys(pageStatuses).length > 0;
+            Object.values(pageStatuses).some(
+                (status) =>
+                    status === "exempted" ||
+                    status === "deleted",
+            );
 
         if (
             currentDocumentSelections.length === 0 &&
             !hasPageDecisions
         ) {
+            // Validation only: do not save, call the Apply
+            // API, create a processing run or navigate.
+            setApplyRedactionsError(null);
+            setShowApplyRedactionsFailure(false);
+            setShowNoChangesValidation(true);
+
+            // Refocus even if the alert is already visible.
+            setValidationFocusRequest(
+                (current) => current + 1,
+            );
             return;
         }
 
@@ -129,6 +184,7 @@ export function useApplyRedactions({
             setIsApplyingRedactions(true);
             setApplyRedactionsError(null);
             setShowApplyRedactionsFailure(false);
+            setShowNoChangesValidation(false);
 
             const savedRevision = await saveBeforeApply(
                 currentDocumentSelections,
@@ -168,6 +224,8 @@ export function useApplyRedactions({
         isApplyingRedactions,
         applyRedactionsError,
         showApplyRedactionsFailure,
+        showNoChangesValidation,
+        validationFocusRequest,
         handleApplyRedactions,
     };
 }

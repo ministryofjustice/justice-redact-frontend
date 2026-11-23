@@ -5,7 +5,21 @@ import {
     useRef,
 } from "react";
 
-export default function ApplyRedactionsFailureAlert() {
+type ApplyRedactionsFailureAlertProps = {
+    variant?: "apply-failure" | "no-changes";
+    focusRequest?: number;
+};
+
+export default function ApplyRedactionsFailureAlert({
+    variant = "apply-failure",
+    focusRequest = 0,
+}: ApplyRedactionsFailureAlertProps) {
+    const isNoChanges = variant === "no-changes";
+
+    const heading = isNoChanges
+        ? "You have not made any changes yet"
+        : "There was a problem applying redactions";
+
     const alertRef =
         useRef<HTMLDivElement>(null);
 
@@ -13,14 +27,14 @@ export default function ApplyRedactionsFailureAlert() {
         window.requestAnimationFrame(() => {
             alertRef.current?.focus();
         });
-    }, []);
+    }, [variant, focusRequest]);
 
     return (
         <div
             ref={alertRef}
             role="region"
             className="moj-alert moj-alert--error moj-alert--with-heading jr-review-apply-error-alert"
-            aria-label="error: There was a problem applying redactions"
+            aria-label={`error: ${heading}`}
             data-module="moj-alert"
             tabIndex={-1}
         >
@@ -45,17 +59,25 @@ export default function ApplyRedactionsFailureAlert() {
 
             <div className="moj-alert__content">
                 <h2 className="moj-alert__heading">
-                    There was a problem applying redactions
+                    {heading}
                 </h2>
 
-                Try again or{" "}
-                <a
-                    href="/contact"
-                    className="govuk-link"
-                >
-                    contact the Justice Redact team
-                </a>{" "}
-                if you need help.
+                {isNoChanges ? (
+                    <p>
+                        You need to first make a redaction, or exempt or delete a page.
+                    </p>
+                ) : (
+                    <>
+                        Try again or{" "}
+                        <a
+                            href="/contact"
+                            className="govuk-link"
+                        >
+                            contact the Justice Redact team
+                        </a>{" "}
+                        if you need help.
+                    </>
+                )}
             </div>
 
             <div className="moj-alert__action">

@@ -6,20 +6,19 @@ import {
 } from "react";
 
 type EndOfDocumentActionsProps = {
-    canApplyRedactions: boolean;
     isApplyingRedactions: boolean;
     error: string | null;
     onApplyRedactions: () => void;
 };
 
 export default function EndOfDocumentActions({
-    canApplyRedactions,
     isApplyingRedactions,
     error,
     onApplyRedactions,
 }: EndOfDocumentActionsProps) {
-    const isDisabled =
-        !canApplyRedactions || isApplyingRedactions;
+    // No-changes validation is handled by the Apply hook.
+    // Keep the in-flight guard to prevent duplicate requests.
+    const isDisabled = isApplyingRedactions;
 
     const errorRef =
         useRef<HTMLParagraphElement>(null);

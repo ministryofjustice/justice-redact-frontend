@@ -143,6 +143,8 @@ function ReviewDocument({
     isApplyingRedactions,
     applyRedactionsError,
     showApplyRedactionsFailure,
+    showNoChangesValidation,
+    validationFocusRequest,
     handleApplyRedactions,
   } = useApplyRedactions({
     documentId,
@@ -202,6 +204,7 @@ function ReviewDocument({
     "Make redactions",
     Boolean(
       showApplyRedactionsFailure ||
+      showNoChangesValidation ||
       error ||
       pagesError ||
       searchError ||
@@ -841,8 +844,15 @@ function ReviewDocument({
 
       <BetaBanner contained={false} />
 
-      {showApplyRedactionsFailure && (
-        <ApplyRedactionsFailureAlert />
+      {(showApplyRedactionsFailure || showNoChangesValidation) && (
+        <ApplyRedactionsFailureAlert
+          variant={
+            showNoChangesValidation
+              ? "no-changes"
+              : "apply-failure"
+          }
+          focusRequest={validationFocusRequest}
+        />
       )}
 
       <FindAndRedactModal
@@ -881,7 +891,7 @@ function ReviewDocument({
         className={[
           "govuk-heading-xl",
           "jr-review-intro__heading",
-          showApplyRedactionsFailure
+          (showApplyRedactionsFailure || showNoChangesValidation)
             ? "jr-review-intro__heading--after-alert"
             : "",
         ]
@@ -985,10 +995,6 @@ function ReviewDocument({
 
           {isLastBatch && (
             <EndOfDocumentActions
-              canApplyRedactions={
-                manualSelectionsForCurrentDocument().length > 0 ||
-                Object.keys(pageStatuses).length > 0
-              }
               isApplyingRedactions={isApplyingRedactions}
               error={applyRedactionsError}
               onApplyRedactions={handleApplyRedactions}
