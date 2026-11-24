@@ -1490,3 +1490,13 @@ main {
     outline-color: Highlight;
   }
 }
+
+/* Multiple independent image panels within a table row. */
+.jr-review-table-images {
+  vertical-align: top;
+}
+
+.jr-review-table-images > .jr-review-image-panel
+  + .jr-review-image-panel {
+  margin-top: 20px;
+}

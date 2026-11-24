@@ -173,7 +173,7 @@ function ImageAreaGuidance({ id }: { id: string }) {
                 <h3 className="govuk-heading-m">
                     Removing a redaction area
                 </h3>
-            <ol className="govuk-list govuk-list--number">
+                <ol className="govuk-list govuk-list--number">
                     <li>Focus on a redaction area and select it.</li>
                     <li>
                         Select more redaction areas if you want to
@@ -255,24 +255,28 @@ export default function ImageRedactionFrame({
         !isPreviewMode
     );
 
-    const canDraw = (
-        editable &&
-        !isManuallyRedacted &&
-        dimensions.valid &&
-        Boolean(imageSrc) &&
-        loadedImageSrc === imageSrc &&
-        Boolean(onAddArea)
-    );
+    // const canDraw = (
+    //     editable &&
+    //     !isManuallyRedacted &&
+    //     dimensions.valid &&
+    //     Boolean(imageSrc) &&
+    //     loadedImageSrc === imageSrc &&
+    //     Boolean(onAddArea)
+    // );
 
     const selectedAreas = areas.filter(
         area => selectedIds.includes(area.areaId),
     );
 
-    const canRedactWhole = (
-        editable &&
-        !isManuallyRedacted &&
-        areas.length === 0
-    );
+    // const canRedactWhole = (
+    //     editable &&
+    //     !isManuallyRedacted &&
+    //     areas.length === 0
+    // );
+
+    // Temporarily disabled until partial-image redaction is ready.
+    const canDraw = false;
+    const canRedactWhole = false;
 
     const canRemove = (
         editable &&
@@ -531,7 +535,7 @@ export default function ImageRedactionFrame({
 
         setPointerPosition(
             event.pointerType !== "touch" &&
-            (!isOverArea || anchor || isDragging)
+                (!isOverArea || anchor || isDragging)
                 ? point
                 : null,
         );
