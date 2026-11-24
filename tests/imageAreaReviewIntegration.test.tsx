@@ -95,6 +95,8 @@ describe("PageContent image-area integration", () => {
             name: /draw a redaction area/i,
         });
 
+        fireEvent.load(container.querySelector("img")!);
+
         Object.defineProperty(
             surface,
             "getBoundingClientRect",
@@ -118,19 +120,25 @@ describe("PageContent image-area integration", () => {
 
         expect(
             container.querySelectorAll(
-                ".jr-review-image-area-overlay rect",
+                ".jr-image-area--interactive",
             ),
         ).toHaveLength(1);
 
         fireEvent.click(
             screen.getByRole("button", {
-                name: /remove area 1 from image 1 on page 3/i,
+                name: "Redaction area 1",
+            }),
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Remove redactions",
             }),
         );
 
         expect(
             container.querySelectorAll(
-                ".jr-review-image-area-overlay rect",
+                ".jr-image-area--interactive",
             ),
         ).toHaveLength(0);
     });

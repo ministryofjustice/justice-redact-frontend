@@ -4,9 +4,11 @@ import {
     useRef,
     useState,
 } from "react";
+
 import type {
-    KeyboardEvent as ReactKeyboardEvent,
-    PointerEvent as ReactPointerEvent,
+    CSSProperties,
+    KeyboardEvent,
+    PointerEvent,
 } from "react";
 
 import type {
@@ -25,6 +27,7 @@ import {
 import type { ImagePoint } from "../imageAreaGeometry";
 
 const PDF_TO_CSS_SCALE = 96 / 72;
+const DRAG_THRESHOLD_PX = 4;
 
 type ImageRedactionFrameProps = {
     image: ReviewImage;
@@ -48,7 +51,17 @@ type ImageRedactionFrameProps = {
     showButton?: boolean;
 };
 
-function dimensionsForImage(image: ReviewImage) {
+type PointerGesture = {
+    pointerId: number;
+    start: ImagePoint;
+    clientX: number;
+    clientY: number;
+    areaId?: string;
+};
+
+const CENTRE: ImagePoint = { x: 0.5, y: 0.5 };
+
+function imageDimensions(image: ReviewImage) {
     const width = image.bbox
         ? (image.bbox.x1 - image.bbox.x0) * PDF_TO_CSS_SCALE
         : 200;
@@ -72,13 +85,123 @@ function dimensionsForImage(image: ReviewImage) {
     };
 }
 
-function svgRectangle(rect: ImageAreaRect) {
+function rectangleStyle(rect: ImageAreaRect): CSSProperties {
     return {
-        x: `${rect.x0 * 100}%`,
-        y: `${rect.y0 * 100}%`,
+        left: `${rect.x0 * 100}%`,
+        top: `${rect.y0 * 100}%`,
         width: `${(rect.x1 - rect.x0) * 100}%`,
         height: `${(rect.y1 - rect.y0) * 100}%`,
     };
+}
+
+function SelectionCheckmark() {
+    return (
+        <svg
+            className="jr-image-area-checkmark"
+            width="26"
+            height="21"
+            viewBox="0 0 26 21"
+            aria-hidden="true"
+            focusable="false"
+        >
+            <path
+                d="M19.7256 2.80664L10.3506 12.0374L5.97559 7.72972L2.85059 10.8066L10.3506 18.1913L22.8506 5.88356L19.7256 2.80664Z"
+                className="jr-image-area-checkmark__path"
+                strokeLinejoin="miter"
+                paintOrder="stroke fill"
+            />
+        </svg>
+    );
+}
+
+function Crosshair({ point }: { point: ImagePoint }) {
+    return (
+        <svg
+            className="jr-image-area-crosshair"
+            style={{
+                left: `${point.x * 100}%`,
+                top: `${point.y * 100}%`,
+            }}
+            width="30"
+            height="30"
+            viewBox="0 0 30 30"
+            aria-hidden="true"
+            focusable="false"
+        >
+            <rect x="0.5" y="14" width="11" height="2" />
+            <rect x="14" y="0.5" width="2" height="11" />
+            <circle cx="15" cy="15" r="1.5" />
+            <rect x="14" y="18.5" width="2" height="11" />
+            <rect x="18.5" y="14" width="11" height="2" />
+        </svg>
+    );
+}
+
+function ImageAreaGuidance({ id }: { id: string }) {
+    return (
+        <details
+            className="govuk-details jr-image-area-guidance"
+            id={id}
+        >
+            <summary className="govuk-details__summary">
+                <span className="govuk-details__summary-text">
+                    How to redact areas of the image
+                </span>
+            </summary>
+
+            <div className="govuk-details__text">
+                <h3 className="govuk-heading-m">
+                    Drawing a redaction area
+                </h3>
+                <ol className="govuk-list govuk-list--number">
+                    <li>
+                        Move the cursor to where you want to start the
+                        redaction area and select that point. (If you’re
+                        using a keyboard, focus on the image to show the
+                        cursor.)
+                    </li>
+                    <li>
+                        Move the cursor until you’ve drawn the correct
+                        redaction area.
+                    </li>
+                    <li>
+                        Select the opposite corner to complete the
+                        redaction area.
+                    </li>
+                </ol>
+
+                <h3 className="govuk-heading-m">
+                    Removing a redaction area
+                </h3>
+            <ol className="govuk-list govuk-list--number">
+                    <li>Focus on a redaction area and select it.</li>
+                    <li>
+                        Select more redaction areas if you want to
+                        redact more than one.
+                    </li>
+                    <li>Select the ‘Remove redactions’ button.</li>
+                </ol>
+
+                <h3 className="govuk-heading-m">Keyboard users</h3>
+                <p className="govuk-body">
+                    Move the cursor using the arrow keys. Make smaller
+                    movements by holding shift while pressing the
+                    arrow keys. Start and finish redaction areas with
+                    the enter key.
+                </p>
+
+                <h3 className="govuk-heading-m">
+                    Voice control users
+                </h3>
+                <p className="govuk-body govuk-!-margin-bottom-0">
+                    Use the grid overlay to choose where to start a
+                    redan area. Say “single click” to start the
+                    area. Move the cursor and say “single click” to
+                    finish the redaction area.
+                </p>
+            </div>
+        </details>
+    );
 }
 
 export default function ImageRedactionFrame({
@@ -94,62 +217,140 @@ export default function ImageRedactionFrame({
     onRemoveArea,
     showButton = true,
 }: ImageRedactionFrameProps) {
+    const labelId = useId();
     const guidanceId = useId();
-    const drawingSurfaceRef = useRef<HTMLDivElement>(null);
-    const pointerStartRef = useRef<ImagePoint | null>(null);
+
+    const imageSurfaceRef = useRef<HTMLDivElement>(null);
+    const removeButtonRef = useRef<HTMLButtonElement>(null);
+    const pointerRef = useRef<PointerGesture | null>(null);
+    const pendingFocusRef = useRef<"image" | "remove" | null>(null);
 
     const [anchor, setAnchor] = useState<ImagePoint | null>(null);
-    const [draftEnd, setDraftEnd] = useState<ImagePoint | null>(null);
-    const [cursor, setCursor] = useState<ImagePoint>({
-        x: 0.5,
-        y: 0.5,
-    });
+    const [draft, setDraft] = useState<ImageAreaRect | null>(null);
+    const [cursor, setCursor] = useState<ImagePoint>(CENTRE);
     const [keyboardActive, setKeyboardActive] = useState(false);
-    const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
-    const [announcement, setAnnouncement] = useState("");
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [announcement, setAnnouncement] = useState({
+        text: "",
+        revision: 0,
+    });
 
-    const dimensions = dimensionsForImage(image);
+    const dimensions = imageDimensions(image);
+
     const imageSrc = image.imageUrl
         ? `${process.env.NEXT_PUBLIC_API_BASE_URL ?? ""}${image.imageUrl}`
         : null;
 
-    const canDraw = (
-        showButton &&
-        isRedactMode &&
-        !isPreviewMode &&
-        !isManuallyRedacted &&
-        dimensions.valid &&
-        Boolean(imageSrc) &&
-        Boolean(onAddArea)
+    const [loadedImageSrc, setLoadedImageSrc] = useState<string | null>(
+        null,
     );
 
-    const canEditAreas = (
+    const editable = (
         showButton &&
         isRedactMode &&
         !isPreviewMode
     );
 
+    const canDraw = (
+        editable &&
+        !isManuallyRedacted &&
+        dimensions.valid &&
+        Boolean(imageSrc) &&
+        loadedImageSrc === imageSrc &&
+        Boolean(onAddArea)
+    );
+
+    const selectedAreas = areas.filter(
+        area => selectedIds.includes(area.areaId),
+    );
+
+    const canRedactWhole = (
+        editable &&
+        !isManuallyRedacted &&
+        areas.length === 0
+    );
+
+    const canRemove = (
+        editable &&
+        (
+            isManuallyRedacted ||
+            (
+                selectedAreas.length > 0 &&
+                Boolean(onRemoveArea)
+            )
+        )
+    );
+
+    const label = `Image ${imageNumber}`;
+
+    const frameStyle: CSSProperties = {
+        width: `${Math.min(dimensions.width, MAX_IMAGE_WIDTH_PX)}px`,
+        maxWidth: "100%",
+        aspectRatio: `${dimensions.width} / ${dimensions.height}`,
+    };
+
+    function announce(text: string) {
+        setAnnouncement(previous => ({
+            text,
+            revision: previous.revision + 1,
+        }));
+    }
+
     useEffect(() => {
         if (!canDraw) {
-            pointerStartRef.current = null;
+            pointerRef.current = null;
             setAnchor(null);
-            setDraftEnd(null);
+            setDraft(null);
             setKeyboardActive(false);
         }
     }, [canDraw]);
 
-    function renderedSize(element: HTMLDivElement) {
-        const bounds = element.getBoundingClientRect();
+    useEffect(() => {
+        if (!editable) {
+            setSelectedIds([]);
+            setAnnouncement(previous => ({
+                text: "",
+                revision: previous.revision + 1,
+            }));
+        }
+    }, [editable]);
 
-        if (bounds.width <= 0 || bounds.height <= 0) {
+    useEffect(() => {
+        if (!editable) {
+            pendingFocusRef.current = null;
+            return;
+        }
+
+        if (
+            pendingFocusRef.current === "remove" &&
+            isManuallyRedacted
+        ) {
+            pendingFocusRef.current = null;
+            removeButtonRef.current?.focus();
+        }
+
+        if (
+            pendingFocusRef.current === "image" &&
+            !isManuallyRedacted
+        ) {
+            imageSurfaceRef.current?.focus();
+            pendingFocusRef.current = null;
+        }
+    }, [editable, isManuallyRedacted, areas]);
+
+    function imageBounds() {
+        const bounds =
+            imageSurfaceRef.current?.getBoundingClientRect();
+
+        if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
             return null;
         }
 
         return bounds;
     }
 
-    function pointerPoint(event: ReactPointerEvent<HTMLDivElement>) {
-        const bounds = renderedSize(event.currentTarget);
+    function pointFromPointer(event: PointerEvent<HTMLElement>) {
+        const bounds = imageBounds();
 
         if (!bounds) {
             return null;
@@ -165,12 +366,20 @@ export default function ImageRedactionFrame({
         };
     }
 
-    function finishArea(start: ImagePoint, end: ImagePoint) {
-        const element = drawingSurfaceRef.current;
-        const bounds = element && renderedSize(element);
+    function updateDraft(start: ImagePoint, end: ImagePoint) {
+        setDraft(normalizedImageArea(start, end, 1, 1, 0));
+    }
 
-        if (!bounds || !onAddArea) {
-            setAnnouncement("Unable to measure the image area.");
+    function cancelDrawing() {
+        pointerRef.current = null;
+        setAnchor(null);
+        setDraft(null);
+    }
+
+    function completeArea(start: ImagePoint, end: ImagePoint) {
+        const bounds = imageBounds();
+
+        if (!canDraw || !bounds || !onAddArea) {
             return false;
         }
 
@@ -182,385 +391,551 @@ export default function ImageRedactionFrame({
         );
 
         if (!rect) {
-            setAnnouncement(
-                `The area must be at least ${MIN_IMAGE_AREA_PX} pixels wide and high. Choose a larger area.`,
+            announce(
+                `Choose an area at least ${MIN_IMAGE_AREA_PX} pixels wide and high.`,
             );
             return false;
         }
 
         onAddArea(pageNumber, image.imageId, rect);
 
-        setAnchor(null);
-        setDraftEnd(null);
-        setSelectedAreaId(null);
-        setAnnouncement("Image redaction area added.");
+        cancelDrawing();
+
+        // Display numbering is currently derived from creation order.
+        // Persistent display ordinals will be introduced separately.
+        announce(`Redaction area ${areas.length + 1} created.`);
         return true;
     }
 
-    function handlePointerDown(
-        event: ReactPointerEvent<HTMLDivElement>,
-    ) {
-        if (!canDraw || event.button !== 0) {
+    function toggleAreaSelection(areaId: string) {
+        if (!editable || isManuallyRedacted) {
             return;
         }
 
-        const point = pointerPoint(event);
+        const index = areas.findIndex(area => area.areaId === areaId);
+
+        if (index < 0) {
+            return;
+        }
+
+        const selected = selectedIds.includes(areaId);
+
+        setSelectedIds(previous =>
+            selected
+                ? previous.filter(id => id !== areaId)
+                : [...previous, areaId],
+        );
+
+        announce(
+            `Redaction area ${index + 1} ${selected ? "deselected" : "selected"}.`,
+        );
+    }
+
+    function startPointer(
+        event: PointerEvent<HTMLElement>,
+        areaId?: string,
+    ) {
+        if (
+            !editable ||
+            event.button !== 0 ||
+            event.isPrimary === false
+        ) {
+            return;
+        }
+
+        if (!canDraw && !areaId) {
+            return;
+        }
+
+        const point = pointFromPointer(event);
 
         if (!point) {
             return;
         }
 
         event.preventDefault();
-        event.currentTarget.focus();
 
-        pointerStartRef.current = point;
-        setDraftEnd(point);
         setKeyboardActive(false);
+
+        pointerRef.current = {
+            pointerId: event.pointerId,
+            start: point,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            areaId,
+        };
 
         event.currentTarget.setPointerCapture?.(event.pointerId);
     }
 
-    function handlePointerMove(
-        event: ReactPointerEvent<HTMLDivElement>,
-    ) {
+    function movePointer(event: PointerEvent<HTMLElement>) {
         if (!canDraw) {
             return;
         }
 
-        const point = pointerPoint(event);
+        const point = pointFromPointer(event);
 
         if (!point) {
             return;
         }
 
-        if (anchor || pointerStartRef.current) {
-            setDraftEnd(point);
-        }
-    }
+        const gesture = pointerRef.current;
 
-    function handlePointerUp(
-        event: ReactPointerEvent<HTMLDivElement>,
-    ) {
-        if (!canDraw || !pointerStartRef.current) {
-            return;
-        }
-
-        const start = pointerStartRef.current;
-        pointerStartRef.current = null;
-
-        const point = pointerPoint(event);
-
-        if (!point) {
-            setDraftEnd(null);
+        if (gesture && gesture.pointerId !== event.pointerId) {
             return;
         }
 
         if (anchor) {
-            finishArea(anchor, point);
+            updateDraft(anchor, point);
             return;
         }
 
-        if (finishArea(start, point)) {
-            return;
-        }
+        if (gesture) {
+            const distance = Math.hypot(
+                event.clientX - gesture.clientX,
+                event.clientY - gesture.clientY,
+            );
 
-        // A click without a sufficiently large drag selects
-        // the first corner. The next click selects the opposite.
-        setAnchor(start);
-        setDraftEnd(point);
-        setAnnouncement(
-            "First corner selected. Click the opposite corner, or press Escape to cancel.",
-        );
+            if (distance >= DRAG_THRESHOLD_PX) {
+                updateDraft(gesture.start, point);
+            }
+        }
     }
 
-    function handleKeyboard(
-        event: ReactKeyboardEvent<HTMLDivElement>,
-    ) {
-        if (!canDraw) {
+    function finishPointer(event: PointerEvent<HTMLElement>) {
+        const gesture = pointerRef.current;
+
+        if (!gesture || gesture.pointerId !== event.pointerId) {
             return;
         }
 
-        const directions: Record<string, ImagePoint> = {
-            ArrowLeft: { x: -1, y: 0 },
-            ArrowRight: { x: 1, y: 0 },
-            ArrowUp: { x: 0, y: -1 },
-            ArrowDown: { x: 0, y: 1 },
-        };
+        pointerRef.current = null;
 
-        const direction = directions[event.key];
+        if (!editable) {
+            cancelDrawing();
+            return;
+        }
 
-        if (direction) {
-            event.preventDefault();
+        const point = pointFromPointer(event);
 
-            const bounds = renderedSize(event.currentTarget);
+        if (!point) {
+            cancelDrawing();
+            return;
+        }
 
-            if (!bounds) {
-                return;
+        const distance = Math.hypot(
+            event.clientX - gesture.clientX,
+            event.clientY - gesture.clientY,
+        );
+
+        if (anchor && canDraw) {
+            completeArea(anchor, point);
+            return;
+        }
+
+        if (
+            distance >= DRAG_THRESHOLD_PX &&
+            canDraw
+        ) {
+            if (!completeArea(gesture.start, point)) {
+                setDraft(null);
             }
+            return;
+        }
 
-            const step = event.shiftKey ? 20 : 40;
+        if (gesture.areaId) {
+            toggleAreaSelection(gesture.areaId);
+            return;
+        }
 
-            const next = {
-                x: clamp01(
-                    cursor.x + direction.x * step / bounds.width,
-                ),
-                y: clamp01(
-                    cursor.y + direction.y * step / bounds.height,
-                ),
-            };
+        if (canDraw) {
+            setAnchor(gesture.start);
+            setDraft(null);
+            announce(
+                "First corner selected. Select the opposite corner.",
+            );
+        }
+    }
 
-            setCursor(next);
-            setKeyboardActive(true);
-
-            if (anchor) {
-                setDraftEnd(next);
-            }
-
+    function handleImageKeyboard(
+        event: KeyboardEvent<HTMLDivElement>,
+    ) {
+        if (!canDraw) {
             return;
         }
 
         if (event.key === "Escape") {
             event.preventDefault();
-            setAnchor(null);
-            setDraftEnd(null);
-            setAnnouncement("Area drawing cancelled.");
+            cancelDrawing();
+            announce("Area drawing cancelled.");
             return;
         }
 
-        if (event.key === "Enter") {
+        if (event.key === "Enter" && !event.repeat) {
             event.preventDefault();
             setKeyboardActive(true);
 
             if (!anchor) {
                 setAnchor(cursor);
-                setDraftEnd(cursor);
-                setAnnouncement(
-                    "First corner selected. Use arrow keys and press Enter to finish.",
-                );
+                announce("First corner selected.");
             } else {
-                finishArea(anchor, cursor);
+                completeArea(anchor, cursor);
             }
+
+            return;
+        }
+
+        const directions: Record<string, {
+            x: number;
+            y: number;
+            direction: string;
+            edge: string;
+        }> = {
+            ArrowLeft: {
+                x: -1, y: 0,
+                direction: "left", edge: "left",
+            },
+            ArrowRight: {
+                x: 1, y: 0,
+                direction: "right", edge: "right",
+            },
+            ArrowUp: {
+                x: 0, y: -1,
+                direction: "up", edge: "top",
+            },
+            ArrowDown: {
+                x: 0, y: 1,
+                direction: "down", edge: "bottom",
+            },
+        };
+
+        const direction = directions[event.key];
+
+        if (!direction) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const bounds = imageBounds();
+
+        if (!bounds) {
+            return;
+        }
+
+        const step = event.shiftKey ? 20 : 40;
+
+        const next = {
+            x: clamp01(cursor.x + direction.x * step / bounds.width),
+            y: clamp01(cursor.y + direction.y * step / bounds.height),
+        };
+
+        setCursor(next);
+        setKeyboardActive(true);
+
+        if (anchor) {
+            updateDraft(anchor, next);
+        }
+
+        if (next.x === cursor.x && next.y === cursor.y) {
+            announce(
+                `Cursor cannot move further ${direction.direction}.`,
+            );
+        } else if (
+            (direction.x !== 0 && (next.x === 0 || next.x === 1)) ||
+            (direction.y !== 0 && (next.y === 0 || next.y === 1))
+        ) {
+            announce(`Cursor moved to ${direction.edge} edge.`);
+        } else {
+            announce(
+                `Cursor moved ${direction.direction} ${step} pixels.`,
+            );
         }
     }
 
-    const previewStart = anchor ?? pointerStartRef.current;
+    function redactWholeImage(keyboard: boolean) {
+        if (!canRedactWhole) {
+            return;
+        }
 
-    const draftRect = (
-        previewStart &&
-        draftEnd &&
-        normalizedImageArea(
-            previewStart,
-            draftEnd,
-            1,
-            1,
-            0,
-        )
-    );
+        cancelDrawing();
+        setSelectedIds([]);
 
-    const label = `Image ${imageNumber} on page ${pageNumber}`;
+        if (keyboard) {
+            pendingFocusRef.current = "remove";
+        }
+
+        onToggle(pageNumber, image.imageId);
+        announce(`${label} redacted.`);
+    }
+
+    function removeRedactions(keyboard: boolean) {
+        if (!canRemove) {
+            return;
+        }
+
+        if (keyboard) {
+            pendingFocusRef.current = "image";
+        }
+
+        cancelDrawing();
+
+        if (isManuallyRedacted) {
+            onToggle(pageNumber, image.imageId);
+            announce(`${label} redaction removed.`);
+        } else {
+            const numbers = selectedAreas.map(
+                area => areas.findIndex(
+                    candidate => candidate.areaId === area.areaId,
+                ) + 1,
+            );
+
+            selectedAreas.forEach(area => {
+                onRemoveArea?.(
+                    pageNumber,
+                    image.imageId,
+                    area.areaId,
+                );
+            });
+
+            if (numbers.length === 1) {
+                announce(`Redaction area ${numbers[0]} removed.`);
+            } else {
+                const last = numbers[numbers.length - 1];
+                const earlier = numbers.slice(0, -1).join(", ");
+
+                announce(
+                    `Redaction areas ${earlier} and ${last} removed.`,
+                );
+            }
+        }
+
+        setSelectedIds([]);
+    }
 
     return (
-        <div className="jr-review-image-panel">
-            <p className="govuk-body-s jr-review-image-title">
+        <section
+            className={[
+                "jr-review-image-panel",
+                isPreviewMode
+                    ? "jr-review-image-panel--preview"
+                    : "",
+            ].filter(Boolean).join(" ")}
+            aria-labelledby={labelId}
+        >
+            <h2
+                id={labelId}
+                className="govuk-heading-m jr-review-image-title"
+            >
                 {label}
-            </p>
+            </h2>
 
-            <div className="jr-review-image-preview">
-                <div
-                    className="jr-review-image-frame"
-                    style={{
-                        position: "relative",
-                        width: `${Math.min(dimensions.width, MAX_IMAGE_WIDTH_PX)}px`,
-                        maxWidth: "100%",
-                        aspectRatio: `${dimensions.width} / ${dimensions.height}`,
-                    }}
-                >
-                    {imageSrc ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                            src={imageSrc}
-                            alt={image.alt || label}
-                            className="jr-review-image"
-                        />
-                    ) : (
-                        <div
-                            className="jr-review-image-placeholder"
-                            role="img"
-                            aria-label={label}
-                        >
-                            Image preview unavailable
-                        </div>
-                    )}
+            <div
+                ref={imageSurfaceRef}
+                className="jr-review-image-frame"
+                style={frameStyle}
+                role={showButton && !isPreviewMode ? "button" : undefined}
+                aria-label={
+                    showButton && !isPreviewMode
+                        ? `Draw a redaction area on ${label}`
+                        : undefined
+                }
+                aria-describedby={
+                    showButton && !isPreviewMode
+                        ? guidanceId
+                        : undefined
+                }
+                aria-disabled={
+                    showButton && !isPreviewMode
+                        ? !canDraw
+                        : undefined
+                }
+                tabIndex={canDraw ? 0 : -1}
+                data-can-draw={canDraw}
+                onFocus={() => {
+                    if (!canDraw) {
+                        return;
+                    }
 
-                    <svg
-                        className="jr-review-image-area-overlay"
-                        aria-hidden="true"
+                    setCursor(CENTRE);
+                    setKeyboardActive(true);
+                    cancelDrawing();
+
+                    if (pendingFocusRef.current !== "image") {
+                        announce(
+                            `${label} focussed. Cursor at centre of image.`,
+                        );
+                    }
+                }}
+                onBlur={() => {
+                    if (keyboardActive) {
+                        cancelDrawing();
+                    }
+                    setKeyboardActive(false);
+                }}
+                onKeyDown={handleImageKeyboard}
+                onPointerDown={event => startPointer(event)}
+                onPointerMove={movePointer}
+                onPointerUp={finishPointer}
+                onPointerCancel={cancelDrawing}
+            >
+                {imageSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                        src={imageSrc}
+                        alt={image.alt || label}
+                        aria-labelledby={labelId}
+                        className="jr-review-image"
+                        draggable={false}
+                        onLoad={() => setLoadedImageSrc(imageSrc)}
+                        onError={() => setLoadedImageSrc(null)}
+                    />
+                ) : (
+                    <div
+                        className="jr-review-image-placeholder"
+                        role="img"
+                        aria-labelledby={labelId}
                     >
-                        {areas.map((area) => (
-                            <rect
-                                key={area.areaId}
-                                {...svgRectangle(area.rect)}
-                                fill={
-                                    isPreviewMode
-                                        ? "#0b0c0c"
-                                        : "rgba(244, 119, 56, 0.55)"
-                                }
-                                stroke={
-                                    isPreviewMode
-                                        ? "#0b0c0c"
-                                        : "#f47738"
-                                }
-                                strokeWidth={
-                                    selectedAreaId === area.areaId
-                                        ? 4
-                                        : 2
-                                }
-                            />
-                        ))}
-
-                        {canDraw && draftRect && (
-                            <rect
-                                {...svgRectangle(draftRect)}
-                                fill="rgba(244, 119, 56, 0.25)"
-                                stroke="#f47738"
-                                strokeWidth={2}
-                                strokeDasharray="6 4"
-                            />
-                        )}
-
-                        {canDraw && keyboardActive && (
-                            <circle
-                                cx={`${cursor.x * 100}%`}
-                                cy={`${cursor.y * 100}%`}
-                                r={6}
-                                fill="#ffffff"
-                                stroke="#0b0c0c"
-                                strokeWidth={2}
-                            />
-                        )}
-                    </svg>
-
-                    {isManuallyRedacted && (
-                        <div
-                            aria-hidden="true"
-                            className={[
-                                "jr-review-image-redaction",
-                                isPreviewMode
-                                    ? "jr-review-image-redaction--preview"
-                                    : "",
-                            ].filter(Boolean).join(" ")}
-                        />
-                    )}
-
-                    {!isPreviewMode && showButton && (
-                        <div
-                            ref={drawingSurfaceRef}
-                            className="jr-review-image-drawing-surface"
-                            role="button"
-                            tabIndex={canDraw ? 0 : -1}
-                            aria-disabled={!canDraw}
-                            aria-label={`Draw a redaction area on ${label}`}
-                            aria-describedby={guidanceId}
-                            onPointerDown={handlePointerDown}
-                            onPointerMove={handlePointerMove}
-                            onPointerUp={handlePointerUp}
-                            onPointerCancel={() => {
-                                pointerStartRef.current = null;
-                                setDraftEnd(anchor);
-                            }}
-                            onKeyDown={handleKeyboard}
-                        />
-                    )}
-                </div>
+                        Image preview unavailable
+                    </div>
+                )}
             </div>
 
-            {!isPreviewMode && showButton && (
+            {showButton && (
                 <>
-                    <p
-                        id={guidanceId}
-                        className="govuk-hint govuk-!-margin-top-2"
-                        tabIndex={0}
+                    <div
+                        className="jr-image-area-guidance-slot"
+                        inert={isPreviewMode ? true : undefined}
                     >
-                        Draw an area by dragging or clicking two corners.
-                        Keyboard: arrow keys move the cursor 40 pixels;
-                        Shift and arrow keys move it 20 pixels.
-                        Press Enter to select each corner, or Escape to cancel.
-                    </p>
-
-                    <div className="jr-review-image-meta">
-                        <button
-                            type="button"
-                            className="govuk-button govuk-button--secondary govuk-!-margin-bottom-0"
-                            disabled={!isRedactMode}
-                            onClick={() => onToggle(pageNumber, image.imageId)}
-                        >
-                            {isManuallyRedacted
-                                ? "Disclose image"
-                                : "Redact whole image"}
-                        </button>
+                        <ImageAreaGuidance id={guidanceId} />
                     </div>
 
-                    {areas.length > 0 && (
-                        <div className="jr-review-image-area-list">
-                            <p className="govuk-body-s govuk-!-margin-bottom-2">
-                                Redaction areas
-                            </p>
-
-                            <ol>
-                                {areas.map((area, index) => (
-                                    <li key={area.areaId}>
-                                        <button
-                                            type="button"
-                                            className="govuk-link jr-review-image-area-select"
-                                            disabled={!canEditAreas}
-                                            aria-pressed={
-                                                selectedAreaId === area.areaId
-                                            }
-                                            onClick={() => {
-                                                setSelectedAreaId(area.areaId);
-                                                setAnnouncement(
-                                                    `Area ${index + 1} selected.`,
-                                                );
-                                            }}
-                                        >
-                                            Area {index + 1}
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            className="govuk-button govuk-button--secondary govuk-!-margin-bottom-0"
-                                            disabled={!canEditAreas}
-                                            aria-label={`Remove area ${index + 1} from ${label}`}
-                                            onClick={() => {
-                                                onRemoveArea?.(
-                                                    pageNumber,
-                                                    image.imageId,
-                                                    area.areaId,
-                                                );
-                                                setSelectedAreaId(null);
-                                                setAnnouncement(
-                                                    `Area ${index + 1} removed.`,
-                                                );
-                                                drawingSurfaceRef.current?.focus();
-                                            }}
-                                        >
-                                            Remove
-                                        </button>
-                                    </li>
-                                ))}
-                            </ol>
-                        </div>
-                    )}
+                    <button
+                        type="button"
+                        className="govuk-button govuk-button--secondary jr-image-whole-button"
+                        disabled={!canRedactWhole}
+                        inert={isPreviewMode ? true : undefined}
+                        onClick={event => redactWholeImage(event.detail === 0)}
+                    >
+                        Redact whole image
+                    </button>
                 </>
             )}
 
-            <span
-                className="govuk-visually-hidden"
-                role="status"
-                aria-live="polite"
+            <div
+                className="jr-review-image-area-overlay"
+                style={frameStyle}
+                data-drawing={Boolean(anchor || draft)}
             >
-                {announcement}
-            </span>
-        </div>
+                {isManuallyRedacted ? (
+                    <div
+                        aria-hidden="true"
+                        className={[
+                            "jr-image-area",
+                            "jr-image-area--whole",
+                            isPreviewMode ? "jr-image-area--preview" : "",
+                        ].filter(Boolean).join(" ")}
+                        style={{
+                            left: 0,
+                            top: 0,
+                            width: "100%",
+                            height: "100%",
+                        }}
+                    />
+                ) : (
+                    areas.map((area, index) => {
+                        const selected = selectedIds.includes(area.areaId);
+                        const areaLabel = `Redaction area ${index + 1}`;
+
+                        if (isPreviewMode || !showButton) {
+                            return (
+                                <div
+                                    key={area.areaId}
+                                    aria-hidden="true"
+                                    className={[
+                                        "jr-image-area",
+                                        isPreviewMode
+                                            ? "jr-image-area--preview"
+                                            : "",
+                                    ].filter(Boolean).join(" ")}
+                                    style={rectangleStyle(area.rect)}
+                                />
+                            );
+                        }
+
+                        return (
+                            <button
+                                key={area.areaId}
+                                type="button"
+                                className="jr-image-area jr-image-area--interactive"
+                                style={rectangleStyle(area.rect)}
+                                aria-label={areaLabel}
+                                aria-pressed={selected}
+                                disabled={!editable}
+                                onFocus={() => announce(`${areaLabel}.`)}
+                                onPointerDown={event => startPointer(
+                                    event,
+                                    area.areaId,
+                                )}
+                                onPointerMove={movePointer}
+                                onPointerUp={finishPointer}
+                                onPointerCancel={cancelDrawing}
+                                onClick={event => {
+                                    // Pointer selection is handled on pointer-up.
+                                    // Native keyboard activation generates detail 0.
+                                    if (event.detail === 0) {
+                                        toggleAreaSelection(area.areaId);
+                                    }
+                                }}
+                            >
+                                {selected && <SelectionCheckmark />}
+                            </button>
+                        );
+                    })
+                )}
+            </div>
+
+            {canDraw && (
+                <div
+                    aria-hidden="true"
+                    className="jr-image-area-draft-overlay"
+                    style={frameStyle}
+                >
+                    {draft && (
+                        <div
+                            className="jr-image-area jr-image-area--draft"
+                            style={rectangleStyle(draft)}
+                        />
+                    )}
+                    {keyboardActive && <Crosshair point={cursor} />}
+                </div>
+            )}
+
+            {showButton && (
+                <button
+                    ref={removeButtonRef}
+                    type="button"
+                    className="govuk-button govuk-button--warning jr-image-remove-button"
+                    disabled={!canRemove}
+                    inert={isPreviewMode ? true : undefined}
+                    onClick={event => removeRedactions(event.detail === 0)}
+                >
+                    Remove redactions
+                </button>
+            )}
+
+            {showButton && !isPreviewMode && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                    className="govuk-visually-hidden"
+                >
+                    <span key={announcement.revision}>
+                        {announcement.text}
+                    </span>
+                </div>
+            )}
+        </section>
     );
 }

@@ -1,5 +1,15 @@
 // @vitest-environment jsdom
 
+import { useRef, useState } from "react";
+
+import {
+    act,
+    cleanup,
+    fireEvent,
+    render,
+    screen,
+} from "@testing-library/react";
+
 import {
     afterEach,
     describe,
@@ -8,23 +18,15 @@ import {
     vi,
 } from "vitest";
 
-import {
-    cleanup,
-    fireEvent,
-    render,
-    screen,
-} from "@testing-library/react";
-
 import ImageRedactionFrame from "../app/review/components/ImageRedactionFrame";
 
 import type {
+    ImageAreaRect,
     ManualImageAreaDecision,
     ReviewImage,
 } from "../app/review/types";
 
-afterEach(() => {
-    cleanup();
-});
+afterEach(cleanup);
 
 const image: ReviewImage = {
     imageId: "image-1",
@@ -40,12 +42,12 @@ const image: ReviewImage = {
 };
 
 const firstArea: ManualImageAreaDecision = {
-    id: "area-one",
+    id: "area-1",
     documentId: "document-1",
     kind: "image_area",
     pageNumber: 1,
     imageId: "image-1",
-    areaId: "area-one",
+    areaId: "area-1",
     rect: {
         x0: 0.1,
         y0: 0.2,
@@ -54,108 +56,199 @@ const firstArea: ManualImageAreaDecision = {
     },
 };
 
-function renderEditor({
-    areas = [],
-    isPreviewMode = false,
-    isRedactMode = true,
-    isManuallyRedacted = false,
-}: {
-    areas?: ManualImageAreaDecision[];
-    isPreviewMode?: boolean;
-    isRedactMode?: boolean;
-    isManuallyRedacted?: boolean;
-} = {}) {
-    const onAddArea = vi.fn();
-    const onRemoveArea = vi.fn();
-    const onToggle = vi.fn();
+const secondArea: ManualImageAreaDecision = {
+    ...firstArea,
+    id: "area-2",
+    areaId: "area-2",
+    rect: {
+        x0: 0.3,
+        y0: 0.4,
+        x1: 0.8,
+        y1: 0.9,
+    },
+};
 
-    const view = render(
-        <ImageRedactionFrame
-            image={image}
-            imageNumber={1}
-            pageNumber={1}
-            isPreviewMode={isPreviewMode}
-            isRedactMode={isRedactMode}
-            isManuallyRedacted={isManuallyRedacted}
-            areas={areas}
-            onToggle={onToggle}
-            onAddArea={onAddArea}
-            onRemoveArea={onRemoveArea}
-        />,
-    );
+function prepareSurface(container: HTMLElement) {
+    const surface = container.querySelector(
+        ".jr-review-image-frame",
+    ) as HTMLDivElement;
 
-    const drawingSurface = screen.queryByRole(
-        "button",
-        { name: /draw a redaction area/i },
-    ) as HTMLDivElement | null;
+    Object.defineProperty(surface, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({
+            x: 0,
+            y: 0,
+            left: 0,
+            top: 0,
+            right: 400,
+            bottom: 200,
+            width: 400,
+            height: 200,
+        }),
+    });
 
-    if (drawingSurface) {
-        Object.defineProperty(
-            drawingSurface,
-            "getBoundingClientRect",
-            {
-                configurable: true,
-                value: () => ({
-                    x: 0,
-                    y: 0,
-                    left: 0,
-                    top: 0,
-                    right: 400,
-                    bottom: 200,
-                    width: 400,
-                    height: 200,
-                }),
-            },
-        );
-    }
+    fireEvent.load(container.querySelector("img")!);
 
-    return {
-        ...view,
-        drawingSurface,
-        onAddArea,
-        onRemoveArea,
-        onToggle,
-    };
+    return surface;
 }
 
+function Harness({
+    initialAreas = [],
+    initialWhole = false,
+    preview = false,
+    redact = true,
+    onAdd = vi.fn(),
+    onRemove = vi.fn(),
+}: {
+    initialAreas?: ManualImageAreaDecision[];
+    initialWhole?: boolean;
+    preview?: boolean;
+    redact?: boolean;
+    onAdd?: (
+        pageNumber: number,
+        imageId: string,
+        rect: ImageAreaRect,
+    ) => void;
+    onRemove?: (
+        pageNumber: number,
+        imageId: string,
+        areaId: string,
+    ) => void;
+}) {
+    const [areas, setAreas] = useState(initialAreas);
+    const [whole, setWhole] = useState(initialWhole);
+    const nextId = useRef(initialAreas.length + 1);
 
-describe("ImageRedactionFrame", () => {
-    it("creates a normalized area using two clicks", () => {
-        const { drawingSurface, onAddArea } = renderEditor();
+    return (
+        <ImageRedactionFrame
+            image={image}
+            pageNumber={1}
+            imageNumber={1}
+            isPreviewMode={preview}
+            isRedactMode={redact}
+            isManuallyRedacted={whole}
+            areas={areas}
+            onToggle={() => setWhole(previous => !previous)}
+            onAddArea={(pageNumber, imageId, rect) => {
+                onAdd(pageNumber, imageId, rect);
 
-        expect(drawingSurface).not.toBeNull();
+                const id = `area-${nextId.current++}`;
 
-        fireEvent.pointerDown(drawingSurface!, {
-            button: 0,
-            clientX: 40,
-            clientY: 40,
-            pointerId: 1,
+                setAreas(previous => [
+                    ...previous,
+                    {
+                        id,
+                        areaId: id,
+                        documentId: "document-1",
+                        kind: "image_area",
+                        pageNumber,
+                        imageId,
+                        rect,
+                    },
+                ]);
+            }}
+            onRemoveArea={(pageNumber, imageId, areaId) => {
+                onRemove(pageNumber, imageId, areaId);
+
+                setAreas(previous =>
+                    previous.filter(area => area.areaId !== areaId),
+                );
+            }}
+        />
+    );
+}
+
+function wholeButton() {
+    return screen.getByRole("button", {
+        name: "Redact whole image",
+    }) as HTMLButtonElement;
+}
+
+function removeButton() {
+    return screen.getByRole("button", {
+        name: "Remove redactions",
+    }) as HTMLButtonElement;
+}
+
+function areaButton(number: number) {
+    return screen.getByRole("button", {
+        name: `Redaction area ${number}`,
+    }) as HTMLButtonElement;
+}
+
+function pointerClick(
+    target: HTMLElement,
+    x: number,
+    y: number,
+) {
+    const event = {
+        button: 0,
+        clientX: x,
+        clientY: y,
+        pointerId: 1,
+        isPrimary: true,
+    };
+
+    fireEvent.pointerDown(target, event);
+    fireEvent.pointerUp(target, event);
+}
+
+describe("Design-aligned image-area editor", () => {
+    it("renders the required image heading and controls", () => {
+        const { container } = render(<Harness />);
+
+        const heading = screen.getByRole("heading", {
+            name: "Image 1",
+            level: 2,
         });
 
-        fireEvent.pointerUp(drawingSurface!, {
-            button: 0,
-            clientX: 40,
-            clientY: 40,
-            pointerId: 1,
-        });
+        const img = container.querySelector("img");
 
-        expect(onAddArea).not.toHaveBeenCalled();
+        expect(img?.getAttribute("aria-labelledby")).toBe(
+            heading.id,
+        );
 
-        fireEvent.pointerDown(drawingSurface!, {
-            button: 0,
-            clientX: 200,
-            clientY: 120,
-            pointerId: 1,
-        });
+        expect(wholeButton().disabled).toBe(false);
+        expect(removeButton().disabled).toBe(true);
 
-        fireEvent.pointerUp(drawingSurface!, {
-            button: 0,
-            clientX: 200,
-            clientY: 120,
-            pointerId: 1,
-        });
+        expect(
+            screen.getByText("How to redact areas of the image"),
+        ).toBeTruthy();
 
-        expect(onAddArea).toHaveBeenCalledWith(
+        expect(
+            container.querySelector("details")?.open,
+        ).toBe(false);
+    });
+
+    it("does not allow drawing before the image has loaded", () => {
+        const { container } = render(<Harness />);
+
+        const surface = container.querySelector(
+            ".jr-review-image-frame",
+        ) as HTMLDivElement;
+
+        expect(surface.getAttribute("aria-disabled")).toBe("true");
+
+        prepareSurface(container);
+
+        expect(surface.getAttribute("aria-disabled")).toBe("false");
+    });
+
+    it("creates an area after exactly two corner clicks", () => {
+        const onAdd = vi.fn();
+
+        const { container } = render(<Harness onAdd={onAdd} />);
+        const surface = prepareSurface(container);
+
+        pointerClick(surface, 40, 40);
+
+        expect(onAdd).not.toHaveBeenCalled();
+
+        pointerClick(surface, 200, 120);
+
+        expect(onAdd).toHaveBeenCalledTimes(1);
+
+        expect(onAdd).toHaveBeenCalledWith(
             1,
             "image-1",
             {
@@ -165,130 +258,395 @@ describe("ImageRedactionFrame", () => {
                 y1: 0.6,
             },
         );
+
+        expect(areaButton(1).getAttribute("aria-pressed")).toBe(
+            "false",
+        );
+
+        expect(wholeButton().disabled).toBe(true);
+        expect(removeButton().disabled).toBe(true);
+        expect(screen.getByRole("status").textContent).toBe(
+            "Redaction area 1 created.",
+        );
     });
 
-    it("supports keyboard drawing with 40px arrow movement", () => {
-        const { drawingSurface, onAddArea } = renderEditor();
+    it("creates an area using one pointer drag", () => {
+        const onAdd = vi.fn();
 
-        fireEvent.keyDown(drawingSurface!, { key: "Enter" });
-        fireEvent.keyDown(drawingSurface!, { key: "ArrowRight" });
-        fireEvent.keyDown(drawingSurface!, { key: "ArrowDown" });
-        fireEvent.keyDown(drawingSurface!, { key: "Enter" });
+        const { container } = render(<Harness onAdd={onAdd} />);
+        const surface = prepareSurface(container);
 
-        expect(onAddArea).toHaveBeenCalledWith(
+        fireEvent.pointerDown(surface, {
+            button: 0,
+            pointerId: 1,
+            clientX: 40,
+            clientY: 40,
+            isPrimary: true,
+        });
+
+        fireEvent.pointerMove(surface, {
+            pointerId: 1,
+            clientX: 200,
+            clientY: 120,
+            isPrimary: true,
+        });
+
+        fireEvent.pointerUp(surface, {
+            button: 0,
+            pointerId: 1,
+            clientX: 200,
+            clientY: 120,
+            isPrimary: true,
+        });
+
+        expect(onAdd).toHaveBeenCalledTimes(1);
+        expect(areaButton(1)).toBeTruthy();
+    });
+
+    it("centres the crosshair when the image receives keyboard focus", () => {
+        const { container } = render(<Harness />);
+        const surface = prepareSurface(container);
+
+        act(() => surface.focus());
+
+        const crosshair = container.querySelector(
+            ".jr-image-area-crosshair",
+        ) as SVGElement;
+
+        expect(crosshair.style.left).toBe("50%");
+        expect(crosshair.style.top).toBe("50%");
+        expect(screen.getByRole("status").textContent).toBe(
+            "Image 1 focussed. Cursor at centre of image.",
+        );
+    });
+
+    it("uses 40px arrow movements and 20px Shift-arrow movements", () => {
+        const onAdd = vi.fn();
+
+        const { container } = render(<Harness onAdd={onAdd} />);
+        const surface = prepareSurface(container);
+
+        fireEvent.keyDown(surface, { key: "Enter" });
+
+        fireEvent.keyDown(surface, {
+            key: "ArrowRight",
+        });
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Cursor moved right 40 pixels.",
+        );
+
+        fireEvent.keyDown(surface, {
+            key: "ArrowDown",
+            shiftKey: true,
+        });
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Cursor moved down 20 pixels.",
+        );
+
+        fireEvent.keyDown(surface, { key: "Enter" });
+
+        expect(onAdd).toHaveBeenCalledWith(
             1,
             "image-1",
             {
                 x0: 0.5,
                 y0: 0.5,
                 x1: 0.6,
-                y1: 0.7,
+                y1: 0.6,
             },
         );
     });
 
-    it("retains independent overlapping areas and removes by area ID", () => {
-        const secondArea: ManualImageAreaDecision = {
-            ...firstArea,
-            id: "area-two",
-            areaId: "area-two",
-            rect: {
-                x0: 0.3,
-                y0: 0.4,
-                x1: 0.8,
-                y1: 0.9,
-            },
-        };
+    it("announces reaching an edge and attempting to move beyond it", () => {
+        const { container } = render(<Harness />);
+        const surface = prepareSurface(container);
 
-        const { container, onRemoveArea } = renderEditor({
-            areas: [firstArea, secondArea],
-        });
+        fireEvent.keyDown(surface, { key: "ArrowUp" });
+        fireEvent.keyDown(surface, { key: "ArrowUp" });
+        fireEvent.keyDown(surface, { key: "ArrowUp" });
 
-        expect(
-            container.querySelectorAll(
-                ".jr-review-image-area-overlay rect",
-            ),
-        ).toHaveLength(2);
-
-        fireEvent.click(
-            screen.getByRole("button", {
-                name: "Remove area 1 from Image 1 on page 1",
-            }),
+        expect(screen.getByRole("status").textContent).toBe(
+            "Cursor moved to top edge.",
         );
 
-        expect(onRemoveArea).toHaveBeenCalledWith(
-            1,
-            "image-1",
-            "area-one",
+        fireEvent.keyDown(surface, { key: "ArrowUp" });
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Cursor cannot move further up.",
         );
     });
 
-    it("disables editing controls in Select mode", () => {
-        const { drawingSurface, onAddArea } = renderEditor({
-            areas: [firstArea],
-            isRedactMode: false,
-        });
+    it("cancels an unfinished area with Escape", () => {
+        const onAdd = vi.fn();
+
+        const { container } = render(<Harness onAdd={onAdd} />);
+        const surface = prepareSurface(container);
+
+        fireEvent.keyDown(surface, { key: "Enter" });
+        fireEvent.keyDown(surface, { key: "ArrowRight" });
+        fireEvent.keyDown(surface, { key: "ArrowDown" });
+        fireEvent.keyDown(surface, { key: "Escape" });
+
+        expect(onAdd).not.toHaveBeenCalled();
 
         expect(
-            screen.getByRole("button", {
-                name: "Redact whole image",
-            }),
-        ).toHaveProperty("disabled", true);
+            container.querySelector(".jr-image-area--draft"),
+        ).toBeNull();
+    });
 
-        expect(drawingSurface?.getAttribute("aria-disabled")).toBe(
+    it("selects and deselects an actual area directly on the image", () => {
+        const { container } = render(
+            <Harness initialAreas={[firstArea]} />,
+        );
+
+        prepareSurface(container);
+
+        pointerClick(areaButton(1), 80, 60);
+
+        expect(areaButton(1).getAttribute("aria-pressed")).toBe(
             "true",
         );
 
-        fireEvent.keyDown(drawingSurface!, {
-            key: "Enter",
-        });
+        expect(
+            areaButton(1).querySelector(".jr-image-area-checkmark"),
+        ).not.toBeNull();
 
-        expect(onAddArea).not.toHaveBeenCalled();
+        expect(removeButton().disabled).toBe(false);
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Redaction area 1 selected.",
+        );
+
+        pointerClick(areaButton(1), 80, 60);
+
+        expect(areaButton(1).getAttribute("aria-pressed")).toBe(
+            "false",
+        );
+
+        expect(removeButton().disabled).toBe(true);
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Redaction area 1 deselected.",
+        );
     });
 
-    it("renders black areas with editing controls hidden in Preview", () => {
-        const { container } = renderEditor({
-            areas: [firstArea],
-            isPreviewMode: true,
-        });
+    it("supports multiple selected areas and bulk removal", () => {
+        const onRemove = vi.fn();
+
+        const { container } = render(
+            <Harness
+                initialAreas={[firstArea, secondArea]}
+                onRemove={onRemove}
+            />,
+        );
+
+        prepareSurface(container);
+
+        fireEvent.click(areaButton(1));
+        fireEvent.click(areaButton(2));
+
+        expect(areaButton(1).getAttribute("aria-pressed")).toBe(
+            "true",
+        );
+        expect(areaButton(2).getAttribute("aria-pressed")).toBe(
+            "true",
+        );
+
+        fireEvent.click(removeButton());
+
+        expect(onRemove.mock.calls).toEqual([
+            [1, "image-1", "area-1"],
+            [1, "image-1", "area-2"],
+        ]);
+
+        expect(
+            container.querySelectorAll(".jr-image-area--interactive"),
+        ).toHaveLength(0);
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Redaction areas 1 and 2 removed.",
+        );
+
+        expect(wholeButton().disabled).toBe(false);
+    });
+
+    it("removes only the selected area", () => {
+        const onRemove = vi.fn();
+
+        const { container } = render(
+            <Harness
+                initialAreas={[firstArea, secondArea]}
+                onRemove={onRemove}
+            />,
+        );
+
+        prepareSurface(container);
+
+        fireEvent.click(areaButton(1));
+        fireEvent.click(removeButton());
+
+        expect(onRemove).toHaveBeenCalledTimes(1);
+        expect(onRemove).toHaveBeenCalledWith(
+            1,
+            "image-1",
+            "area-1",
+        );
+
+        expect(
+            container.querySelectorAll(".jr-image-area--interactive"),
+        ).toHaveLength(1);
+
+        expect(wholeButton().disabled).toBe(true);
+    });
+
+    it("uses the shared Remove button for whole-image redaction", () => {
+        const { container } = render(<Harness />);
+        const surface = prepareSurface(container);
+
+        fireEvent.click(wholeButton(), { detail: 0 });
+
+        expect(
+            container.querySelector(".jr-image-area--whole"),
+        ).not.toBeNull();
+
+        expect(wholeButton().disabled).toBe(true);
+        expect(removeButton().disabled).toBe(false);
+        expect(document.activeElement).toBe(removeButton());
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Image 1 redacted.",
+        );
+
+        fireEvent.click(removeButton(), { detail: 0 });
+
+        expect(
+            container.querySelector(".jr-image-area--whole"),
+        ).toBeNull();
+
+        expect(document.activeElement).toBe(surface);
+        expect(wholeButton().disabled).toBe(false);
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Image 1 redaction removed.",
+        );
+    });
+
+    it("preserves DOM focus order independently of visual layout", () => {
+        const { container } = render(
+            <Harness initialAreas={[firstArea, secondArea]} />,
+        );
+
+        prepareSurface(container);
+
+        const elements = Array.from(
+            container.querySelectorAll(
+                ".jr-review-image-frame, summary, button",
+            ),
+        );
+
+        expect(elements.map(element =>
+            element.getAttribute("aria-label") ||
+            element.textContent?.trim(),
+        )).toEqual([
+            "Draw a redaction area on Image 1",
+            "How to redact areas of the image",
+            "Redact whole image",
+            "Redaction area 1",
+            "Redaction area 2",
+            "Remove redactions",
+        ]);
+    });
+
+    it("keeps controls visible but disables editing in Select mode", () => {
+        const onAdd = vi.fn();
+
+        const { container } = render(
+            <Harness
+                initialAreas={[firstArea]}
+                redact={false}
+                onAdd={onAdd}
+            />,
+        );
+
+        const surface = prepareSurface(container);
+
+        expect(wholeButton().disabled).toBe(true);
+        expect(removeButton().disabled).toBe(true);
+        expect(areaButton(1).disabled).toBe(true);
+
+        fireEvent.keyDown(surface, { key: "Enter" });
+
+        expect(onAdd).not.toHaveBeenCalled();
+    });
+
+    it("keeps Preview furniture mounted but makes it inert", () => {
+        const { container } = render(
+            <Harness
+                initialAreas={[firstArea]}
+                preview={true}
+            />,
+        );
 
         expect(
             container.querySelector(
-                '.jr-review-image-area-overlay rect[fill="#0b0c0c"]',
+                ".jr-review-image-panel--preview",
             ),
         ).not.toBeNull();
 
         expect(
-            screen.queryByRole("button", {
-                name: "Redact whole image",
-            }),
+            container.querySelector(".jr-image-area--preview"),
+        ).not.toBeNull();
+
+        expect(
+            container.querySelector(".jr-image-area--interactive"),
         ).toBeNull();
 
         expect(
-            screen.queryByRole("button", {
-                name: /remove area/i,
-            }),
+            container.querySelector(".jr-image-area-checkmark"),
         ).toBeNull();
+
+        expect(
+            container.querySelector(".jr-image-whole-button")
+                ?.hasAttribute("inert"),
+        ).toBe(true);
+
+        expect(
+            container.querySelector(".jr-image-remove-button")
+                ?.hasAttribute("inert"),
+        ).toBe(true);
+
+        expect(
+            container.querySelector(".jr-image-area-guidance-slot")
+                ?.hasAttribute("inert"),
+        ).toBe(true);
+
+        expect(
+            container.querySelector("details"),
+        ).not.toBeNull();
+
+        expect(screen.queryByRole("status")).toBeNull();
     });
 
-    it("disables area drawing when whole-image redaction is active", () => {
-        const { drawingSurface, onAddArea } = renderEditor({
-            isManuallyRedacted: true,
-        });
-
-        expect(drawingSurface?.getAttribute("aria-disabled")).toBe(
-            "true",
+    it("caps large images without upscaling small images", () => {
+        const { container, rerender } = render(
+            <ImageRedactionFrame
+                image={image}
+                pageNumber={1}
+                isPreviewMode={false}
+                isManuallyRedacted={false}
+                onToggle={vi.fn()}
+            />,
         );
 
-        fireEvent.keyDown(drawingSurface!, {
-            key: "Enter",
-        });
+        const frame = container.querySelector(
+            ".jr-review-image-frame",
+        ) as HTMLElement;
 
-        expect(onAddArea).not.toHaveBeenCalled();
-    });
+        expect(frame.style.width).toBe("400px");
 
-    it("caps the rendered image width at 940px", () => {
-        const { container } = render(
+        rerender(
             <ImageRedactionFrame
                 image={{
                     ...image,
@@ -306,11 +664,7 @@ describe("ImageRedactionFrame", () => {
             />,
         );
 
-        const frame = container.querySelector(
-            ".jr-review-image-frame",
-        ) as HTMLElement;
-
-        expect(frame.style.maxWidth).toBe("100%");
         expect(frame.style.width).toBe("940px");
+        expect(frame.style.maxWidth).toBe("100%");
     });
 });

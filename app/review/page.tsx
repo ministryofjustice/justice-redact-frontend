@@ -556,18 +556,32 @@ function ReviewDocument({
 
     const areaId = crypto.randomUUID();
 
-    setManualSelections(previous => [
-      ...previous,
-      {
-        id: areaId,
-        documentId,
-        kind: "image_area",
-        pageNumber,
-        imageId,
-        areaId,
-        rect: { ...rect },
-      },
-    ]);
+    setManualSelections(previous => {
+      const hasWholeImageRedaction = previous.some(
+        selection =>
+          selection.documentId === documentId &&
+          selection.kind === "image" &&
+          selection.pageNumber === pageNumber &&
+          selection.imageId === imageId
+      );
+
+      if (hasWholeImageRedaction) {
+        return previous;
+      }
+
+      return [
+        ...previous,
+        {
+          id: areaId,
+          documentId,
+          kind: "image_area",
+          pageNumber,
+          imageId,
+          areaId,
+          rect: { ...rect },
+        },
+      ];
+    });
   }
 
   function removeImageArea(
@@ -614,6 +628,18 @@ function ReviewDocument({
 
       if (existing) {
         return prev.filter((selection) => selection.id !== existing.id);
+      }
+
+      const hasPartialAreas = prev.some(
+        selection =>
+          selection.documentId === documentId &&
+          selection.kind === "image_area" &&
+          selection.pageNumber === pageNumber &&
+          selection.imageId === imageId
+      );
+
+      if (hasPartialAreas) {
+        return prev;
       }
 
       return [

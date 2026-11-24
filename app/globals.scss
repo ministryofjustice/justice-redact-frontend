@@ -1171,30 +1171,82 @@ main {
   }
 }
 
-
 /* Partial image redaction editor */
-.jr-review-image-title {
-  margin-bottom: govuk.govuk-spacing(2);
-  font-weight: 700;
+
+.jr-review-image-panel {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto;
+  gap: 20px;
+
+  width: 100%;
+  max-width: 940px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #b1b4b6;
+  box-sizing: border-box;
+
+  --jr-image-orange: #f47738;
+  --jr-image-orange-shade: #7a3c1c;
+  --jr-image-black: #0b0c0c;
+  --jr-image-white: #ffffff;
+  --jr-image-focus: #ffdd00;
 }
 
-.jr-review-image-preview {
-  max-width: 100%;
+.jr-review-image-panel .jr-review-image-title {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  margin: 0;
 }
 
-.jr-review-image-frame {
-  overflow: hidden;
+.jr-review-image-panel .jr-review-image-frame,
+.jr-review-image-panel .jr-review-image-area-overlay,
+.jr-review-image-panel .jr-image-area-draft-overlay {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  position: relative;
+  align-self: start;
+  justify-self: start;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
-.jr-review-image,
-.jr-review-image-placeholder {
+.jr-review-image-panel .jr-review-image-frame {
+  display: block;
+  z-index: 0;
+  overflow: visible;
+  cursor: default;
+}
+
+.jr-review-image-frame[data-can-draw="true"] {
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.jr-review-image-frame:focus {
+  outline: none;
+}
+
+.jr-review-image-frame:focus-visible {
+  outline: 4px solid var(--jr-image-focus);
+  outline-offset: 0;
+}
+
+.jr-review-image-panel .jr-review-image {
   display: block;
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
-.jr-review-image-placeholder {
+.jr-review-image-panel .jr-review-image-placeholder {
   display: flex;
+  width: 100%;
+  height: 100%;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
@@ -1203,72 +1255,238 @@ main {
   color: #505a5f;
 }
 
-.jr-review-image-area-overlay,
-.jr-review-image-drawing-surface {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+.jr-review-image-panel .jr-review-image-area-overlay {
+  z-index: 1;
+  pointer-events: none;
+  overflow: visible;
 }
 
-.jr-review-image-area-overlay {
+.jr-review-image-panel .jr-image-area-draft-overlay {
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* Default, deselected. */
+.jr-image-area {
+  position: absolute;
+  display: block;
+  box-sizing: border-box;
+
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 0;
+
+  appearance: none;
+  background: rgba(244, 119, 56, 0.2);
+  border: 2px solid var(--jr-image-orange);
+  outline: 2px solid var(--jr-image-white);
+  outline-offset: 0;
+  box-shadow: none;
+
   pointer-events: none;
 }
 
-.jr-review-image-drawing-surface {
-  box-sizing: border-box;
-  cursor: crosshair;
+.jr-image-area--interactive:not(:disabled) {
+  pointer-events: auto;
+  cursor: pointer;
   touch-action: none;
 }
 
-.jr-review-image-drawing-surface[aria-disabled="true"] {
-  cursor: default;
-  touch-action: auto;
+/* The active drawing gesture takes precedence over selecting an area.
+   This allows the opposite corner to overlap an existing redaction. */
+.jr-review-image-area-overlay[data-drawing="true"]
+  .jr-image-area--interactive {
+  pointer-events: none;
 }
 
-.jr-review-image-drawing-surface:focus-visible {
-  outline: 3px solid #ffdd00;
-  outline-offset: -3px;
+/* Default, selected. */
+.jr-image-area--interactive[aria-pressed="true"] {
+  background: rgba(244, 119, 56, 0.5);
+  border: 4px solid var(--jr-image-black);
 }
 
-.jr-review-image-area-list {
-  margin-top: govuk.govuk-spacing(3);
-
-  ol {
-    margin: 0;
-    padding-left: govuk.govuk-spacing(5);
+/* Hover, deselected. */
+@media (hover: hover) {
+  .jr-image-area--interactive:not(:disabled):hover {
+    background: rgba(244, 119, 56, 0.5);
+    border: 4px solid var(--jr-image-orange-shade);
   }
 
-  li {
-    margin-bottom: govuk.govuk-spacing(2);
-  }
-
-  button + button {
-    margin-left: govuk.govuk-spacing(3);
+  /* Hover, selected. */
+  .jr-image-area--interactive[aria-pressed="true"]:not(:disabled):hover {
+    background: rgba(244, 119, 56, 0.75);
+    border: 4px solid var(--jr-image-black);
   }
 }
 
-.jr-review-image-area-select {
-  padding: govuk.govuk-spacing(1);
+/* Focus/pressed, selected or deselected.
+   Inner yellow, middle black, outer yellow. */
+.jr-image-area--interactive:not(:disabled):focus-visible,
+.jr-image-area--interactive:not(:disabled):active {
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid var(--jr-image-focus);
+  box-shadow: 0 0 0 2px var(--jr-image-black);
+  outline: 2px solid var(--jr-image-focus);
+  outline-offset: 2px;
+}
+
+/* Selected-state checkmark. */
+.jr-image-area-checkmark {
+  position: absolute;
+  display: block;
+  right: min(10px, 15%);
+  bottom: min(10px, 15%);
+  width: 26px;
+  height: 21px;
+  max-width: 85%;
+  max-height: 85%;
+  pointer-events: none;
+}
+
+.jr-image-area-checkmark__path {
+  fill: var(--jr-image-black);
+  stroke: var(--jr-image-white);
+  stroke-width: 4px;
+}
+
+.jr-image-area--interactive:focus-visible
+  .jr-image-area-checkmark__path,
+.jr-image-area--interactive:active
+  .jr-image-area-checkmark__path {
+  stroke: var(--jr-image-focus);
+}
+
+/* Whole-image redaction is a non-interactive overlay. */
+.jr-image-area--whole {
+  pointer-events: none;
+}
+
+/* Preview/applied state. Selection and hover do not apply. */
+.jr-image-area--preview {
+  background: var(--jr-image-black);
   border: 0;
-  background: transparent;
-  color: #1d70b8;
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
+  outline: 2px solid var(--jr-image-white);
+  box-shadow: none;
+  pointer-events: none;
+}
 
-  &:focus-visible {
-    outline: 3px solid #ffdd00;
-    background: #ffdd00;
-    color: #0b0c0c;
+/* Area currently being drawn. */
+.jr-image-area--draft {
+  background: rgba(244, 119, 56, 0.2);
+  border: 2px solid var(--jr-image-orange);
+  outline: 2px solid var(--jr-image-white);
+  pointer-events: none;
+}
+
+/* Supplied 30px inline SVG crosshair. */
+.jr-image-area-crosshair {
+  position: absolute;
+  display: block;
+  transform: translate(-50%, -50%);
+  width: 30px;
+  height: 30px;
+  fill: var(--jr-image-black);
+  stroke: var(--jr-image-white);
+  pointer-events: none;
+}
+
+/* The DOM order differs deliberately from the visual order:
+   image, guidance, whole-image button, areas, remove button. */
+.jr-review-image-panel .jr-image-whole-button {
+  grid-column: 1;
+  grid-row: 3;
+  justify-self: start;
+  margin: 0;
+  min-height: 40px;
+  max-width: 100%;
+}
+
+.jr-review-image-panel .jr-image-remove-button {
+  grid-column: 2;
+  grid-row: 3;
+  justify-self: start;
+  margin: 0;
+  min-height: 40px;
+  max-width: 100%;
+}
+
+.jr-review-image-panel .jr-image-area-guidance-slot {
+  grid-column: 1 / -1;
+  grid-row: 4;
+  min-width: 0;
+}
+
+.jr-review-image-panel .jr-image-area-guidance {
+  margin: 0;
+}
+
+.jr-review-image-panel .jr-image-area-guidance .govuk-details__text {
+  overflow-wrap: break-word;
+}
+
+.jr-review-image-panel .jr-image-area-guidance h3 {
+  margin-bottom: govuk.govuk-spacing(2);
+}
+
+.jr-review-image-panel .jr-image-whole-button:disabled,
+.jr-review-image-panel .jr-image-remove-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Keep occupied space in Preview, including expanded guidance. */
+.jr-review-image-panel--preview {
+  border-color: transparent;
+}
+
+.jr-review-image-panel--preview .jr-review-image-title,
+.jr-review-image-panel--preview .jr-image-whole-button,
+.jr-review-image-panel--preview .jr-image-remove-button,
+.jr-review-image-panel--preview .jr-image-area-guidance-slot {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* At 600px inclusive, buttons occupy the panel's full inner width. */
+@media (max-width: 600px) {
+  .jr-review-image-panel {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto auto;
   }
 
-  &:disabled {
-    color: #505a5f;
-    cursor: default;
+  .jr-review-image-panel .jr-image-whole-button {
+    grid-column: 1;
+    grid-row: 3;
+    width: 100%;
+    justify-self: stretch;
   }
 
-  &[aria-pressed="true"] {
-    font-weight: 700;
+  .jr-review-image-panel .jr-image-remove-button {
+    grid-column: 1;
+    grid-row: 4;
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .jr-review-image-panel .jr-image-area-guidance-slot {
+    grid-row: 5;
+  }
+}
+
+/* Keep area boundaries and selection indicators distinguishable
+   when the operating system applies forced colours. */
+@media (forced-colors: active) {
+  .jr-image-area,
+  .jr-image-area-crosshair,
+  .jr-image-area-checkmark {
+    forced-color-adjust: none;
+  }
+
+  .jr-review-image-frame:focus-visible {
+    outline-color: Highlight;
   }
 }
