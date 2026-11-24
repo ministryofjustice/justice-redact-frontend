@@ -150,7 +150,7 @@ function ImageAreaGuidance({ id }: { id: string }) {
             </summary>
 
             <div className="govuk-details__text">
-                <h3 className="govuk-heading-m">
+                <h3 className="govuk-heading-s">
                     Drawing a redaction area
                 </h3>
                 <ol className="govuk-list govuk-list--number">
@@ -170,7 +170,7 @@ function ImageAreaGuidance({ id }: { id: string }) {
                     </li>
                 </ol>
 
-                <h3 className="govuk-heading-m">
+                <h3 className="govuk-heading-s">
                     Removing a redaction area
                 </h3>
                 <ol className="govuk-list govuk-list--number">
@@ -182,7 +182,7 @@ function ImageAreaGuidance({ id }: { id: string }) {
                     <li>Select the ‘Remove redactions’ button.</li>
                 </ol>
 
-                <h3 className="govuk-heading-m">Keyboard users</h3>
+                <h3 className="govuk-heading-s">Keyboard users</h3>
                 <p className="govuk-body">
                     Move the cursor using the arrow keys. Make smaller
                     movements by holding shift while pressing the
@@ -190,7 +190,7 @@ function ImageAreaGuidance({ id }: { id: string }) {
                     the enter key.
                 </p>
 
-                <h3 className="govuk-heading-m">
+                <h3 className="govuk-heading-s">
                     Voice control users
                 </h3>
                 <p className="govuk-body govuk-!-margin-bottom-0">
@@ -783,7 +783,7 @@ export default function ImageRedactionFrame({
         >
             <h2
                 id={labelId}
-                className="govuk-heading-m jr-review-image-title"
+                className="govuk-heading-s jr-review-image-title"
             >
                 {label}
             </h2>
