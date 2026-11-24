@@ -46,6 +46,7 @@ export type ReviewTable = {
 
 export type ReviewImage = {
     imageId: string;
+    imageNumber?: number;
     imageRecordId: string | null;
     imageUrl: string | null;
     alt: string | null;

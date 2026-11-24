@@ -368,11 +368,7 @@ export default function PageContent({
                                                         <ImageRedactionFrame
                                                             image={rowImage}
                                                             pageNumber={page.pageNumber}
-                                                            imageNumber={
-                                                                page.images.findIndex(
-                                                                    candidate => candidate.imageId === rowImage.imageId,
-                                                                ) + 1
-                                                            }
+                                                            imageNumber={rowImage.imageNumber}
                                                             isPreviewMode={isPreviewMode}
                                                             isRedactMode={isRedactMode && !isReadOnly}
                                                             isManuallyRedacted={rowImageManual}
@@ -536,11 +532,7 @@ export default function PageContent({
                         <ImageRedactionFrame
                             image={image}
                             pageNumber={page.pageNumber}
-                            imageNumber={
-                                page.images.findIndex(
-                                    candidate => candidate.imageId === image.imageId,
-                                ) + 1
-                            }
+                            imageNumber={image.imageNumber}
                             isPreviewMode={isPreviewMode}
                             isRedactMode={isRedactMode && !isReadOnly}
                             isManuallyRedacted={manualForImage}

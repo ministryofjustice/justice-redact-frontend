@@ -207,7 +207,7 @@ function ImageAreaGuidance({ id }: { id: string }) {
 export default function ImageRedactionFrame({
     image,
     pageNumber,
-    imageNumber = 1,
+    imageNumber,
     isPreviewMode,
     isRedactMode = true,
     isManuallyRedacted,
@@ -281,7 +281,16 @@ export default function ImageRedactionFrame({
         )
     );
 
-    const label = `Image ${imageNumber}`;
+    const resolvedImageNumber =
+        imageNumber ?? image.imageNumber;
+
+    const label = (
+        typeof resolvedImageNumber === "number" &&
+        Number.isSafeInteger(resolvedImageNumber) &&
+        resolvedImageNumber > 0
+    )
+        ? `Image ${resolvedImageNumber}`
+        : `Image on page ${pageNumber}`;
 
     const frameStyle: CSSProperties = {
         width: `${Math.min(dimensions.width, MAX_IMAGE_WIDTH_PX)}px`,

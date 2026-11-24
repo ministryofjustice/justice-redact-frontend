@@ -501,6 +501,103 @@ describe("Design-aligned image-area editor", () => {
         expect(wholeButton().disabled).toBe(true);
     });
 
+    it("renumbers surviving areas after an older area is removed", () => {
+        const onRemove = vi.fn();
+
+        const { container } = render(
+            <Harness
+                initialAreas={[firstArea, secondArea]}
+                onRemove={onRemove}
+            />,
+        );
+
+        prepareSurface(container);
+
+        const originalSecondArea = areaButton(2);
+
+        fireEvent.click(areaButton(1));
+        fireEvent.click(removeButton());
+
+        expect(onRemove).toHaveBeenCalledWith(
+            1,
+            "image-1",
+            "area-1",
+        );
+
+        expect(areaButton(1)).toBe(originalSecondArea);
+
+        expect(
+            screen.queryByRole("button", {
+                name: "Redaction area 2",
+            }),
+        ).toBeNull();
+
+        // The surviving area has a new display number,
+        // but removal still uses its original stable identifier.
+        fireEvent.click(areaButton(1));
+        fireEvent.click(removeButton());
+
+        expect(onRemove).toHaveBeenLastCalledWith(
+            1,
+            "image-1",
+            "area-2",
+        );
+    });
+
+    it("assigns the next sequential label after removing an area", () => {
+        const { container } = render(
+            <Harness initialAreas={[firstArea, secondArea]} />,
+        );
+
+        const surface = prepareSurface(container);
+
+        fireEvent.click(areaButton(1));
+        fireEvent.click(removeButton());
+
+        pointerClick(surface, 20, 20);
+        pointerClick(surface, 80, 80);
+
+        expect(areaButton(1)).toBeTruthy();
+        expect(areaButton(2)).toBeTruthy();
+
+        expect(
+            screen.queryByRole("button", {
+                name: "Redaction area 3",
+            }),
+        ).toBeNull();
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Redaction area 2 created.",
+        );
+    });
+
+    it("restarts area labels at one after all areas are removed", () => {
+        const { container } = render(
+            <Harness initialAreas={[firstArea, secondArea]} />,
+        );
+
+        const surface = prepareSurface(container);
+
+        fireEvent.click(areaButton(1));
+        fireEvent.click(areaButton(2));
+        fireEvent.click(removeButton());
+
+        expect(
+            container.querySelectorAll(
+                ".jr-image-area--interactive",
+            ),
+        ).toHaveLength(0);
+
+        pointerClick(surface, 20, 20);
+        pointerClick(surface, 80, 80);
+
+        expect(areaButton(1)).toBeTruthy();
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Redaction area 1 created.",
+        );
+    });
+
     it("uses the shared Remove button for whole-image redaction", () => {
         const { container } = render(<Harness />);
         const surface = prepareSurface(container);
