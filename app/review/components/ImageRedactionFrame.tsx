@@ -255,6 +255,12 @@ export default function ImageRedactionFrame({
         !isPreviewMode
     );
 
+    const showSelectInset = (
+        showButton &&
+        !isRedactMode &&
+        !isPreviewMode
+    );
+
     // const canDraw = (
     //     editable &&
     //     !isManuallyRedacted &&
@@ -884,11 +890,30 @@ export default function ImageRedactionFrame({
                         type="button"
                         className="govuk-button govuk-button--secondary jr-image-whole-button"
                         disabled={!canRedactWhole}
-                        inert={isPreviewMode ? true : undefined}
+                        aria-hidden={showSelectInset ? true : undefined}
+                        inert={isPreviewMode || showSelectInset ? true : undefined}
+                        style={{
+                            visibility: showSelectInset
+                                ? "hidden"
+                                : undefined,
+                        }}
                         onClick={event => redactWholeImage(event.detail === 0)}
                     >
                         Redact whole image
                     </button>
+
+                    <div
+                        className="govuk-inset-text jr-image-select-inset"
+                        aria-hidden={!showSelectInset ? true : undefined}
+                        inert={!showSelectInset ? true : undefined}
+                        style={{
+                            visibility: showSelectInset
+                                ? "visible"
+                                : "hidden",
+                        }}
+                    >
+                        Turn on redact mode to make changes to this image.
+                    </div>
                 </>
             )}
 
@@ -1007,7 +1032,13 @@ export default function ImageRedactionFrame({
                     type="button"
                     className="govuk-button govuk-button--warning jr-image-remove-button"
                     disabled={!canRemove}
-                    inert={isPreviewMode ? true : undefined}
+                    aria-hidden={showSelectInset ? true : undefined}
+                    inert={isPreviewMode || showSelectInset ? true : undefined}
+                    style={{
+                        visibility: showSelectInset
+                            ? "hidden"
+                            : undefined,
+                    }}
                     onClick={event => removeRedactions(event.detail === 0)}
                 >
                     Remove redactions

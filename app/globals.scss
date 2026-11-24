@@ -1500,3 +1500,45 @@ main {
   + .jr-review-image-panel {
   margin-top: 20px;
 }
+
+/* Image redaction Select mode guidance. */
+.govuk-inset-text.jr-image-select-inset {
+  grid-column: 1 / -1;
+  grid-row: 3;
+
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  justify-self: stretch;
+
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 40px;
+
+  margin: 0;
+  padding: 8px 15px 7px 26px;
+  border: 0;
+
+  background: #EAF4F9;
+  box-shadow: 10px 0 0 0 #1D70B8 inset;
+
+  color: #0B0C0C;
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 25px;
+
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .govuk-inset-text.jr-image-select-inset {
+    grid-row: 3 / 5;
+  }
+}
+
+@media (forced-colors: active) {
+  .govuk-inset-text.jr-image-select-inset {
+    border-left: 10px solid LinkText;
+    padding-left: 16px;
+  }
+}
