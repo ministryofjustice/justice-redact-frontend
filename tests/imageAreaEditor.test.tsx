@@ -270,6 +270,166 @@ describe("Design-aligned image-area editor", () => {
         );
     });
 
+    it("uses the supplied SVG crosshair for mouse movement", () => {
+        const { container } = render(<Harness />);
+        const surface = prepareSurface(container);
+
+        fireEvent.pointerMove(surface, {
+            pointerId: 1,
+            pointerType: "mouse",
+            clientX: 100,
+            clientY: 80,
+            isPrimary: true,
+        });
+
+        const crosshair = container.querySelector(
+            ".jr-image-area-crosshair",
+        ) as SVGElement;
+
+        expect(crosshair).not.toBeNull();
+        expect(crosshair.getAttribute("width")).toBe("30");
+        expect(crosshair.getAttribute("height")).toBe("30");
+
+        expect(crosshair.style.left).toBe("25%");
+        expect(crosshair.style.top).toBe("40%");
+    });
+
+    it("does not display the drawing crosshair for touch input", () => {
+        const { container } = render(<Harness />);
+        const surface = prepareSurface(container);
+
+        fireEvent.pointerMove(surface, {
+            pointerId: 1,
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 80,
+            isPrimary: true,
+        });
+
+        expect(
+            container.querySelector(".jr-image-area-crosshair"),
+        ).toBeNull();
+    });
+
+    it("allows Escape to cancel mouse-based two-click drawing", () => {
+        const onAdd = vi.fn();
+
+        const { container } = render(<Harness onAdd={onAdd} />);
+        const surface = prepareSurface(container);
+
+        pointerClick(surface, 40, 40);
+
+        expect(document.activeElement).toBe(surface);
+
+        fireEvent.pointerMove(surface, {
+            pointerId: 1,
+            pointerType: "mouse",
+            clientX: 200,
+            clientY: 120,
+        });
+
+        expect(
+            container.querySelector(".jr-image-area--draft"),
+        ).not.toBeNull();
+
+        fireEvent.keyDown(surface, { key: "Escape" });
+
+        expect(
+            container.querySelector(".jr-image-area--draft"),
+        ).toBeNull();
+
+        expect(onAdd).not.toHaveBeenCalled();
+
+        // The next click must start a new rectangle,
+        // not complete the cancelled rectangle.
+        pointerClick(surface, 200, 120);
+
+        expect(onAdd).not.toHaveBeenCalled();
+    });
+
+    it("discards an interrupted pointer gesture", () => {
+        const onAdd = vi.fn();
+
+        const { container } = render(<Harness onAdd={onAdd} />);
+        const surface = prepareSurface(container);
+
+        fireEvent.pointerDown(surface, {
+            button: 0,
+            pointerId: 1,
+            pointerType: "mouse",
+            clientX: 40,
+            clientY: 40,
+            isPrimary: true,
+        });
+
+        fireEvent.pointerMove(surface, {
+            pointerId: 1,
+            pointerType: "mouse",
+            clientX: 200,
+            clientY: 120,
+        });
+
+        fireEvent.pointerCancel(surface, {
+            pointerId: 1,
+            pointerType: "mouse",
+        });
+
+        expect(
+            container.querySelector(".jr-image-area--draft"),
+        ).toBeNull();
+
+        expect(
+            container.querySelector(".jr-image-area-crosshair"),
+        ).toBeNull();
+
+        fireEvent.pointerUp(surface, {
+            button: 0,
+            pointerId: 1,
+            clientX: 200,
+            clientY: 120,
+        });
+
+        expect(onAdd).not.toHaveBeenCalled();
+    });
+
+    it("discards a gesture if pointer capture is unexpectedly lost", () => {
+        const onAdd = vi.fn();
+
+        const { container } = render(<Harness onAdd={onAdd} />);
+        const surface = prepareSurface(container);
+
+        fireEvent.pointerDown(surface, {
+            button: 0,
+            pointerId: 1,
+            clientX: 40,
+            clientY: 40,
+            isPrimary: true,
+        });
+
+        fireEvent.pointerMove(surface, {
+            pointerId: 1,
+            clientX: 200,
+            clientY: 120,
+        });
+
+        fireEvent.lostPointerCapture(surface, {
+            pointerId: 1,
+        });
+
+        expect(
+            container.querySelector(".jr-image-area--draft"),
+        ).toBeNull();
+
+        fireEvent.pointerUp(surface, {
+            button: 0,
+            pointerId: 1,
+            clientX: 200,
+            clientY: 120,
+        });
+
+        expect(onAdd).not.toHaveBeenCalled();
+    });
+
     it("creates an area using one pointer drag", () => {
         const onAdd = vi.fn();
 

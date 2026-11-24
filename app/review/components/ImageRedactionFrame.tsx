@@ -229,6 +229,10 @@ export default function ImageRedactionFrame({
     const [draft, setDraft] = useState<ImageAreaRect | null>(null);
     const [cursor, setCursor] = useState<ImagePoint>(CENTRE);
     const [keyboardActive, setKeyboardActive] = useState(false);
+    const [pointerPosition, setPointerPosition] =
+        useState<ImagePoint | null>(null);
+
+    const pointerFocusRef = useRef(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [announcement, setAnnouncement] = useState({
         text: "",
@@ -311,6 +315,7 @@ export default function ImageRedactionFrame({
             setAnchor(null);
             setDraft(null);
             setKeyboardActive(false);
+            setPointerPosition(null);
         }
     }, [canDraw]);
 
@@ -464,7 +469,23 @@ export default function ImageRedactionFrame({
 
         event.preventDefault();
 
+        if (!areaId && canDraw) {
+            pointerFocusRef.current = true;
+
+            imageSurfaceRef.current?.focus({
+                preventScroll: true,
+            });
+
+            pointerFocusRef.current = false;
+        }
+
         setKeyboardActive(false);
+
+        setPointerPosition(
+            event.pointerType === "touch" || areaId
+                ? null
+                : point,
+        );
 
         pointerRef.current = {
             pointerId: event.pointerId,
@@ -493,6 +514,27 @@ export default function ImageRedactionFrame({
         if (gesture && gesture.pointerId !== event.pointerId) {
             return;
         }
+
+        const isOverArea = event.currentTarget.classList.contains(
+            "jr-image-area--interactive",
+        );
+
+        const isDragging = Boolean(
+            gesture &&
+            Math.hypot(
+                event.clientX - gesture.clientX,
+                event.clientY - gesture.clientY,
+            ) >= DRAG_THRESHOLD_PX
+        );
+
+        setKeyboardActive(false);
+
+        setPointerPosition(
+            event.pointerType !== "touch" &&
+            (!isOverArea || anchor || isDragging)
+                ? point
+                : null,
+        );
 
         if (anchor) {
             updateDraft(anchor, point);
@@ -575,6 +617,7 @@ export default function ImageRedactionFrame({
 
         if (event.key === "Escape") {
             event.preventDefault();
+            setPointerPosition(null);
             cancelDrawing();
             announce("Area drawing cancelled.");
             return;
@@ -582,6 +625,7 @@ export default function ImageRedactionFrame({
 
         if (event.key === "Enter" && !event.repeat) {
             event.preventDefault();
+            setPointerPosition(null);
             setKeyboardActive(true);
 
             if (!anchor) {
@@ -640,6 +684,7 @@ export default function ImageRedactionFrame({
         };
 
         setCursor(next);
+        setPointerPosition(null);
         setKeyboardActive(true);
 
         if (anchor) {
@@ -762,10 +807,11 @@ export default function ImageRedactionFrame({
                 tabIndex={canDraw ? 0 : -1}
                 data-can-draw={canDraw}
                 onFocus={() => {
-                    if (!canDraw) {
+                    if (!canDraw || pointerFocusRef.current) {
                         return;
                     }
 
+                    setPointerPosition(null);
                     setCursor(CENTRE);
                     setKeyboardActive(true);
                     cancelDrawing();
@@ -777,16 +823,27 @@ export default function ImageRedactionFrame({
                     }
                 }}
                 onBlur={() => {
-                    if (keyboardActive) {
-                        cancelDrawing();
-                    }
+                    cancelDrawing();
                     setKeyboardActive(false);
                 }}
                 onKeyDown={handleImageKeyboard}
+                onPointerEnter={movePointer}
+                onPointerLeave={() => setPointerPosition(null)}
                 onPointerDown={event => startPointer(event)}
                 onPointerMove={movePointer}
                 onPointerUp={finishPointer}
-                onPointerCancel={cancelDrawing}
+                onPointerCancel={() => {
+                    cancelDrawing();
+                    setPointerPosition(null);
+                }}
+                onLostPointerCapture={event => {
+                    if (
+                        pointerRef.current?.pointerId === event.pointerId
+                    ) {
+                        cancelDrawing();
+                        setPointerPosition(null);
+                    }
+                }}
             >
                 {imageSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -886,9 +943,23 @@ export default function ImageRedactionFrame({
                                     event,
                                     area.areaId,
                                 )}
+                                onPointerEnter={movePointer}
+                                onPointerLeave={() => setPointerPosition(null)}
                                 onPointerMove={movePointer}
                                 onPointerUp={finishPointer}
-                                onPointerCancel={cancelDrawing}
+                                onPointerCancel={() => {
+                                    cancelDrawing();
+                                    setPointerPosition(null);
+                                }}
+                                onLostPointerCapture={event => {
+                                    if (
+                                        pointerRef.current?.pointerId ===
+                                        event.pointerId
+                                    ) {
+                                        cancelDrawing();
+                                        setPointerPosition(null);
+                                    }
+                                }}
                                 onClick={event => {
                                     // Pointer selection is handled on pointer-up.
                                     // Native keyboard activation generates detail 0.
@@ -916,7 +987,13 @@ export default function ImageRedactionFrame({
                             style={rectangleStyle(draft)}
                         />
                     )}
-                    {keyboardActive && <Crosshair point={cursor} />}
+                    {keyboardActive ? (
+                        <Crosshair point={cursor} />
+                    ) : (
+                        pointerPosition && (
+                            <Crosshair point={pointerPosition} />
+                        )
+                    )}
                 </div>
             )}
 
