@@ -1,0 +1,791 @@
+import type { ReviewPageData } from "./types";
+import type { ContentRange } from "./contentRangeUtils";
+
+export type FindInDocumentMatchSegment = ContentRange;
+
+export type FindInDocumentDisplaySegment =
+    ContentRange & {
+        displayStart: number;
+        displayEnd: number;
+        sourceNormalisedStart: number;
+        sourceNormalisedEnd: number;
+    };
+
+export type FindInDocumentResult = {
+    id: string;
+    kind: "text" | "table_cell";
+
+    pageNumber: number;
+    itemId: string | null;
+    tableId: string | null;
+    cellId: string | null;
+
+    display: DisplayMatch;
+    segments: FindInDocumentMatchSegment[];
+    displaySegments: FindInDocumentDisplaySegment[];
+};
+
+export type FindInDocumentExcerpt = {
+    before: string;
+    match: string;
+    after: string;
+    hasLeadingEllipsis: boolean;
+    hasTrailingEllipsis: boolean;
+};
+
+type DisplayMatch = {
+    text: string;
+    matchStart: number;
+    matchEnd: number;
+
+    hasLeadingEllipsis: boolean;
+    hasTrailingEllipsis: boolean;
+};
+
+type SearchableTextChunk = {
+    pageNumber: number;
+    itemId: string;
+    sourceText: string;
+    normalisedOffsets: number[];
+    combinedStart: number;
+    combinedEnd: number;
+};
+
+type SearchableDocument = {
+    text: string;
+    chunks: SearchableTextChunk[];
+};
+
+type NormalisedSearchText = {
+    text: string;
+    originalOffsets: number[];
+};
+
+const DEFAULT_CONTEXT_LENGTH = 75;
+
+export function normaliseWhitespaceForSearch(
+    sourceText: string
+): NormalisedSearchText {
+    const textParts: string[] = [];
+    const originalOffsets: number[] = [];
+
+    let index = 0;
+    let hasWrittenContent = false;
+
+    while (index < sourceText.length) {
+        if (/\s/.test(sourceText[index])) {
+            const whitespaceStart = index;
+
+            while (
+                index < sourceText.length &&
+                /\s/.test(sourceText[index])
+            ) {
+                index++;
+            }
+
+            if (!hasWrittenContent) {
+                continue;
+            }
+
+            if (index >= sourceText.length) {
+                break;
+            }
+
+            textParts.push(" ");
+            originalOffsets.push(whitespaceStart);
+
+            continue;
+        }
+
+        textParts.push(sourceText[index]);
+        originalOffsets.push(index);
+
+        hasWrittenContent = true;
+        index++;
+    }
+
+    return {
+        text: textParts.join(""),
+        originalOffsets,
+    };
+}
+
+export function mapOriginalOffsetToNormalisedOffset(
+    sourceText: string,
+    originalOffset: number
+): number {
+    const normalised = normaliseWhitespaceForSearch(sourceText);
+
+    const index = normalised.originalOffsets.findIndex(
+        (offset) => offset >= originalOffset
+    );
+
+    return index === -1
+        ? normalised.text.length
+        : index;
+}
+
+function findOccurrences(sourceText: string, searchTerm: string) {
+    const occurrences: Array<{ start: number; end: number }> = [];
+
+    const normalisedSource = sourceText.toLocaleLowerCase();
+    const normalisedSearchTerm = searchTerm.toLocaleLowerCase();
+
+    let searchFrom = 0;
+
+    while (searchFrom < normalisedSource.length) {
+        const start = normalisedSource.indexOf(
+            normalisedSearchTerm,
+            searchFrom
+        );
+
+        if (start === -1) break;
+
+        const end = start + normalisedSearchTerm.length;
+
+        occurrences.push({ start, end });
+
+        searchFrom = end;
+    }
+
+    return occurrences;
+}
+
+function buildSearchableDocument(
+    pages: ReviewPageData[]
+): SearchableDocument {
+    const chunks: SearchableTextChunk[] = [];
+    const textParts: string[] = [];
+
+    let currentOffset = 0;
+
+    pages.forEach((page) => {
+        page.textItems.forEach((item) => {
+            if (textParts.length > 0) {
+                textParts.push(" ");
+                currentOffset += 1;
+            }
+
+            const combinedStart = currentOffset;
+
+            const normalised = normaliseWhitespaceForSearch(
+                item.text
+            );
+
+            textParts.push(normalised.text);
+
+            currentOffset += normalised.text.length;
+
+            chunks.push({
+                pageNumber: page.pageNumber,
+                itemId: item.itemId,
+                sourceText: item.text,
+                normalisedOffsets: normalised.originalOffsets,
+                combinedStart,
+                combinedEnd: currentOffset,
+            });
+        });
+    });
+
+    return {
+        text: textParts.join(""),
+        chunks,
+    };
+}
+
+type OverlappingChunk = {
+    chunk: SearchableTextChunk;
+    overlapStart: number;
+    overlapEnd: number;
+};
+
+function findOverlappingChunks(
+    chunks: SearchableTextChunk[],
+    matchStart: number,
+    matchEnd: number
+): OverlappingChunk[] {
+    return chunks.flatMap((chunk) => {
+        const overlapStart = Math.max(
+            matchStart,
+            chunk.combinedStart
+        );
+
+        const overlapEnd = Math.min(
+            matchEnd,
+            chunk.combinedEnd
+        );
+
+        if (overlapEnd <= overlapStart) {
+            return [];
+        }
+
+        return [
+            {
+                chunk,
+                overlapStart,
+                overlapEnd,
+            },
+        ];
+    });
+}
+
+function buildTextMatchSegments(
+    chunks: SearchableTextChunk[],
+    matchStart: number,
+    matchEnd: number
+): ContentRange[] {
+    return findOverlappingChunks(
+        chunks,
+        matchStart,
+        matchEnd
+    ).map(({ chunk, overlapStart, overlapEnd }) => {
+        const localStart =
+            overlapStart - chunk.combinedStart;
+
+        const localEnd =
+            overlapEnd - chunk.combinedStart;
+
+        const originalStart =
+            chunk.normalisedOffsets[localStart];
+
+        const originalEnd =
+            chunk.normalisedOffsets[localEnd - 1] + 1;
+
+        return {
+            kind: "text",
+            pageNumber: chunk.pageNumber,
+            itemId: chunk.itemId,
+            tableId: null,
+            cellId: null,
+            start: originalStart,
+            end: originalEnd,
+        };
+    });
+}
+
+function buildTextDisplay(
+    searchableDocument: SearchableDocument,
+    matchStart: number,
+    matchEnd: number,
+    contextLength = DEFAULT_CONTEXT_LENGTH
+): {
+    display: DisplayMatch;
+    displaySegments: FindInDocumentDisplaySegment[];
+} {
+    const displayStart = Math.max(
+        0,
+        matchStart - contextLength
+    );
+
+    const displayEnd = Math.min(
+        searchableDocument.text.length,
+        matchEnd + contextLength
+    );
+
+    const displaySegments =
+        findOverlappingChunks(
+            searchableDocument.chunks,
+            displayStart,
+            displayEnd
+        ).map(
+            ({
+                chunk,
+                overlapStart,
+                overlapEnd,
+            }) => {
+                const localStart =
+                    overlapStart -
+                    chunk.combinedStart;
+
+                const localEnd =
+                    overlapEnd -
+                    chunk.combinedStart;
+
+                const originalStart =
+                    chunk.normalisedOffsets[
+                    localStart
+                    ];
+
+                const originalEnd =
+                    chunk.normalisedOffsets[
+                    localEnd - 1
+                    ] + 1;
+
+                return {
+                    kind: "text" as const,
+                    pageNumber:
+                        chunk.pageNumber,
+                    itemId: chunk.itemId,
+                    tableId: null,
+                    cellId: null,
+                    start: originalStart,
+                    end: originalEnd,
+
+                    displayStart:
+                        overlapStart -
+                        displayStart,
+
+                    displayEnd:
+                        overlapEnd -
+                        displayStart,
+
+                    sourceNormalisedStart:
+                        localStart,
+
+                    sourceNormalisedEnd:
+                        localEnd,
+                };
+            }
+        );
+
+    return {
+        display: {
+            text: searchableDocument.text.slice(
+                displayStart,
+                displayEnd
+            ),
+
+            matchStart:
+                matchStart - displayStart,
+
+            matchEnd:
+                matchEnd - displayStart,
+
+            hasLeadingEllipsis:
+                displayStart > 0,
+
+            hasTrailingEllipsis:
+                displayEnd <
+                searchableDocument.text.length,
+        },
+
+        displaySegments,
+    };
+}
+
+function buildTableDisplay(
+    sourceText: string,
+    matchStart: number,
+    matchEnd: number,
+    pageNumber: number,
+    tableId: string,
+    cellId: string,
+    contextLength = DEFAULT_CONTEXT_LENGTH
+): {
+    display: DisplayMatch;
+    displaySegments: FindInDocumentDisplaySegment[];
+} {
+    const normalised =
+        normaliseWhitespaceForSearch(
+            sourceText
+        );
+
+    const normalisedMatchStart =
+        mapOriginalOffsetToNormalisedOffset(
+            sourceText,
+            matchStart
+        );
+
+    const normalisedMatchEnd =
+        mapOriginalOffsetToNormalisedOffset(
+            sourceText,
+            matchEnd
+        );
+
+    const displayStart = Math.max(
+        0,
+        normalisedMatchStart -
+        contextLength
+    );
+
+    const displayEnd = Math.min(
+        normalised.text.length,
+        normalisedMatchEnd +
+        contextLength
+    );
+
+    const originalStart =
+        displayStart <
+            normalised.originalOffsets.length
+            ? normalised.originalOffsets[
+            displayStart
+            ]
+            : sourceText.length;
+
+    const originalEnd =
+        displayEnd > displayStart
+            ? normalised.originalOffsets[
+            displayEnd - 1
+            ] + 1
+            : originalStart;
+
+    return {
+        display: {
+            text: normalised.text.slice(
+                displayStart,
+                displayEnd
+            ),
+
+            matchStart:
+                normalisedMatchStart -
+                displayStart,
+
+            matchEnd:
+                normalisedMatchEnd -
+                displayStart,
+
+            hasLeadingEllipsis:
+                displayStart > 0,
+
+            hasTrailingEllipsis:
+                displayEnd <
+                normalised.text.length,
+        },
+
+        displaySegments:
+            displayEnd > displayStart
+                ? [
+                    {
+                        kind: "table_cell",
+                        pageNumber,
+                        itemId: null,
+                        tableId,
+                        cellId,
+                        start: originalStart,
+                        end: originalEnd,
+
+                        displayStart: 0,
+
+                        displayEnd:
+                            displayEnd -
+                            displayStart,
+
+                        sourceNormalisedStart:
+                            displayStart,
+
+                        sourceNormalisedEnd:
+                            displayEnd,
+                    },
+                ]
+                : [],
+    };
+}
+
+function buildPartialContentRangesFromFindResult(
+    result: FindInDocumentResult,
+    searchableDocument: SearchableDocument,
+    selectedRange: {
+        start: number;
+        end: number;
+    }
+): ContentRange[] {
+
+    const firstTextSegment = result.segments.find(
+        (segment) =>
+            segment.kind === "text" &&
+            segment.itemId !== null
+    );
+
+    if (!firstTextSegment) {
+        return [];
+    }
+
+    const firstChunk = searchableDocument.chunks.find(
+        (chunk) =>
+            chunk.pageNumber === firstTextSegment.pageNumber &&
+            chunk.itemId === firstTextSegment.itemId
+    );
+
+    if (!firstChunk) {
+        return [];
+    }
+
+    const firstSegmentNormalisedStart =
+        firstChunk.normalisedOffsets.findIndex(
+            (originalOffset) =>
+                originalOffset >= firstTextSegment.start
+        );
+
+    if (firstSegmentNormalisedStart === -1) {
+        return [];
+    }
+
+    const matchCombinedStart =
+        firstChunk.combinedStart +
+        firstSegmentNormalisedStart;
+
+    return result.segments.flatMap((segment) => {
+        if (segment.kind !== "text" || segment.itemId === null) {
+            return [];
+        }
+
+        const chunk = searchableDocument.chunks.find(
+            (chunk) =>
+                chunk.pageNumber === segment.pageNumber &&
+                chunk.itemId === segment.itemId
+        );
+
+        if (!chunk) {
+            return [];
+        }
+
+        const segmentNormalisedStart =
+            chunk.normalisedOffsets.findIndex(
+                (originalOffset) =>
+                    originalOffset >= segment.start
+            );
+
+        if (segmentNormalisedStart === -1) {
+            return [];
+        }
+
+        const segmentNormalisedEnd =
+            chunk.normalisedOffsets.findIndex(
+                (originalOffset) =>
+                    originalOffset >= segment.end
+            );
+
+        const resolvedSegmentNormalisedEnd =
+            segmentNormalisedEnd === -1
+                ? chunk.normalisedOffsets.length
+                : segmentNormalisedEnd;
+
+        const segmentCombinedStart =
+            chunk.combinedStart +
+            segmentNormalisedStart;
+
+        const segmentCombinedEnd =
+            chunk.combinedStart +
+            resolvedSegmentNormalisedEnd;
+
+        const selectionCombinedStart =
+            matchCombinedStart +
+            selectedRange.start;
+
+        const selectionCombinedEnd =
+            matchCombinedStart +
+            selectedRange.end;
+
+        const overlapStart = Math.max(
+            segmentCombinedStart,
+            selectionCombinedStart
+        );
+
+        const overlapEnd = Math.min(
+            segmentCombinedEnd,
+            selectionCombinedEnd
+        );
+
+        if (overlapEnd <= overlapStart) {
+            return [];
+        }
+
+        const localOverlapStart =
+            overlapStart - chunk.combinedStart;
+
+        const localOverlapEnd =
+            overlapEnd - chunk.combinedStart;
+
+        const originalStart =
+            chunk.normalisedOffsets[localOverlapStart];
+
+        const originalEnd =
+            chunk.normalisedOffsets[localOverlapEnd - 1] + 1;
+
+        return [
+            {
+                kind: "text",
+                pageNumber: segment.pageNumber,
+                itemId: segment.itemId,
+                tableId: null,
+                cellId: null,
+                start: originalStart,
+                end: originalEnd,
+            },
+        ];
+    });
+}
+
+export function buildPartialContentRanges(
+    pages: ReviewPageData[],
+    result: FindInDocumentResult,
+    selectedRange: {
+        start: number;
+        end: number;
+    }
+): ContentRange[] {
+    const sortedPages = pages
+        .slice()
+        .sort((a, b) => a.pageNumber - b.pageNumber);
+
+    const searchableDocument =
+        buildSearchableDocument(sortedPages);
+
+    return buildPartialContentRangesFromFindResult(
+        result,
+        searchableDocument,
+        selectedRange
+    );
+}
+
+export function findInDocument(
+    pages: ReviewPageData[],
+    searchTerm: string
+): FindInDocumentResult[] {
+    const trimmedSearchTerm = normaliseWhitespaceForSearch(
+        searchTerm
+    ).text;
+
+    if (!trimmedSearchTerm) {
+        return [];
+    }
+
+    const results: FindInDocumentResult[] = [];
+
+    const sortedPages = pages
+        .slice()
+        .sort((a, b) => a.pageNumber - b.pageNumber);
+
+    const searchableDocument =
+        buildSearchableDocument(sortedPages);
+
+    findOccurrences(
+        searchableDocument.text,
+        trimmedSearchTerm
+    ).forEach(({ start, end }, occurrenceIndex) => {
+        const segments = buildTextMatchSegments(
+            searchableDocument.chunks,
+            start,
+            end
+        );
+
+        if (segments.length === 0) {
+            return;
+        }
+
+        const firstSegment = segments[0];
+
+        const {
+            display,
+            displaySegments,
+        } = buildTextDisplay(
+            searchableDocument,
+            start,
+            end
+        );
+
+        results.push({
+            id: [
+                "text",
+                occurrenceIndex,
+                start,
+                end,
+            ].join("-"),
+
+            kind: "text",
+
+            pageNumber: firstSegment.pageNumber,
+            itemId: firstSegment.itemId,
+            tableId: null,
+            cellId: null,
+
+            display,
+            segments,
+            displaySegments,
+        });
+    });
+
+    sortedPages.forEach((page) => {
+        page.tables.forEach((table) => {
+            table.rows.forEach((row) => {
+                row.cells.forEach((cell) => {
+                    findOccurrences(
+                        cell.text,
+                        trimmedSearchTerm
+                    ).forEach(
+                        ({ start, end }, occurrenceIndex) => {
+
+                            const {
+                                display,
+                                displaySegments,
+                            } = buildTableDisplay(
+                                cell.text,
+                                start,
+                                end,
+                                page.pageNumber,
+                                table.tableId,
+                                cell.cellId
+                            );
+
+                            results.push({
+                                id: [
+                                    "table-cell",
+                                    page.pageNumber,
+                                    table.tableId,
+                                    cell.cellId,
+                                    start,
+                                    end,
+                                    occurrenceIndex,
+                                ].join("-"),
+
+                                kind: "table_cell",
+
+                                pageNumber: page.pageNumber,
+                                itemId: null,
+                                tableId: table.tableId,
+                                cellId: cell.cellId,
+
+                                display,
+
+                                segments: [
+                                    {
+                                        kind: "table_cell",
+                                        pageNumber:
+                                            page.pageNumber,
+                                        itemId: null,
+                                        tableId:
+                                            table.tableId,
+                                        cellId:
+                                            cell.cellId,
+                                        start,
+                                        end,
+                                    },
+                                ],
+
+                                displaySegments,
+                            });
+                        }
+                    );
+                });
+            });
+        });
+    });
+
+    return results;
+}
+
+export function buildFindInDocumentExcerpt(
+    result: FindInDocumentResult
+): FindInDocumentExcerpt {
+    return {
+        before: result.display.text.slice(
+            0,
+            result.display.matchStart
+        ),
+
+        match: result.display.text.slice(
+            result.display.matchStart,
+            result.display.matchEnd
+        ),
+
+        after: result.display.text.slice(
+            result.display.matchEnd
+        ),
+
+        hasLeadingEllipsis:
+            result.display.hasLeadingEllipsis,
+
+        hasTrailingEllipsis:
+            result.display.hasTrailingEllipsis,
+    };
+}

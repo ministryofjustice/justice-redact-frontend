@@ -1,0 +1,194 @@
+import Link from "next/link";
+import PageTitle from "./PageTitle";
+import ErrorPageHeading from "./ErrorPageHeading";
+
+export type ServiceErrorVariant =
+    | 400
+    | 403
+    | 404
+    | 500
+    | 503
+    | "resume-link-not-recognised"
+    | "resume-link-expired";
+
+type ServiceErrorPageProps = {
+    variant: ServiceErrorVariant;
+    documentId?: string | null;
+};
+
+const ERROR_CONTENT: Record<
+    ServiceErrorVariant,
+    {
+        heading: string;
+        body: React.ReactNode;
+    }
+> = {
+    400: {
+        heading: "Sorry, there is a problem",
+        body: (
+            <>
+                <p className="govuk-body">
+                    Try again later.
+                </p>
+
+                <p className="govuk-body">
+                    We saved the work you’ve done so far. You can go back to continue
+                    marking redactions.
+                </p>
+            </>
+        ),
+    },
+
+    403: {
+        heading: "You do not have access to this service",
+        body: (
+            <>
+                <p className="govuk-body">
+                    Check that your MOJ VPN is on and try again.
+                </p>
+
+                <p className="govuk-body">
+                    If that does not work, it means you cannot access Justice Redact.
+                </p>
+
+                <p className="govuk-body">
+                    <a
+                        className="govuk-link"
+                        href="https://teams.cloud.microsoft/l/channel/19%3AnSrrtaG6WkBXdq_gtdyfV5Jo-zTIEA1vs7cEN01EaCM1%40thread.tacv2/Justice%20Redact%20Support?groupId=63036662-7757-4a70-a99d-382575f72b11&tenantId=c6874728-71e6-41fe-a9e1-2e8c36776ad8"
+                    >
+                        Contact the Justice Redact team on Microsoft Teams
+                    </a>{" "}
+                    if you need help.
+                </p>
+            </>
+        ),
+    },
+
+    404: {
+        heading: "Page not found",
+        body: (
+            <>
+                <p className="govuk-body">
+                    If you typed the web address, check it is correct.
+                </p>
+
+                <p className="govuk-body">
+                    If you pasted the web address, check you copied the entire address.
+                </p>
+
+                <p className="govuk-body">
+                    Otherwise, if it’s been over 30 days since you uploaded your file,
+                    the link will have expired. You’ll need to upload the file to start
+                    again.
+                </p>
+            </>
+        ),
+    },
+
+    500: {
+        heading: "Sorry, there is a problem",
+        body: (
+            <>
+                <p className="govuk-body">
+                    Try reloading the page. You can do this by pressing F5.
+                </p>
+
+                <p className="govuk-body">
+                    If the page still does not load, try to{" "}
+                    <Link
+                        href="/upload"
+                        className="govuk-link"
+                    >
+                        upload the file again
+                    </Link>
+                    .
+                </p>
+
+                <p className="govuk-body">
+                    <Link
+                        href="/contact"
+                        className="govuk-link"
+                    >
+                        Contact the Justice Redact team
+                    </Link>{" "}
+                    if you need help.
+                </p>
+            </>
+        ),
+    },
+
+    503: {
+        heading: "Sorry, the service is unavailable",
+        body: (
+            <>
+                <p className="govuk-body">
+                    Try again soon.
+                </p>
+            </>
+        ),
+    },
+
+    "resume-link-not-recognised": {
+        heading: "Your link was not recognised",
+        body: (
+            <>
+                <p className="govuk-body">
+                    Go back to the email and select the link again.
+                </p>
+
+                <p className="govuk-body">
+                    You need to open the link in the same browser you’re on now.
+                </p>
+            </>
+        ),
+    },
+
+    "resume-link-expired": {
+        heading: "Your link has expired",
+        body: (
+            <>
+                <p className="govuk-body">
+                    You cannot edit this file because the link you selected is more than 30 days old.
+                </p>
+
+                <p className="govuk-body">
+                    Instead, use Adobe Acrobat to make changes to the document - you’ll need to
+                    sanitise the document when exporting it.
+                </p>
+            </>
+        ),
+    },
+};
+
+export default function ServiceErrorPage({
+    variant,
+}: ServiceErrorPageProps) {
+    const content = ERROR_CONTENT[variant];
+
+    return (
+        <div className="govuk-grid-row">
+            <PageTitle
+                title={content.heading}
+                hasError
+            />
+
+            <div className="govuk-grid-column-two-thirds">
+                <ErrorPageHeading>
+                    {content.heading}
+                </ErrorPageHeading>
+
+                {content.body}
+
+                {variant !== 403 &&
+                    variant !== 500 &&
+                    variant !== 503 &&
+                    variant !== "resume-link-not-recognised" &&
+                    variant !== "resume-link-expired" && (
+                        <p className="govuk-body">
+                            Contact the Justice Redact team
+                        </p>
+                    )}
+            </div>
+        </div>
+    );
+}

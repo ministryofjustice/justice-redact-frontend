@@ -1,33 +1,88 @@
 "use client";
 
-import { ChangeEvent, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
+import { usePageTitle } from "../components/PageTitle";
+import { fetchJson } from "../lib/api";
+import { analysePdf, type PdfAnalysisResult } from "../../features/documents/upload/analysePdf";
 
-const FILE_ERROR =
-  "The selected file must be a NOMIS or DPS file in PDF format";
+const NO_FILE_ERROR =
+  "Select a PDF file";
 
-const BODY_TEXT_ERROR = "Select a document that contains body text";
+const FILE_TYPE_ERROR =
+  "The selected file must be a PDF";
 
-const MINIMUM_BODY_CHARACTERS = 50;
+const BODY_TEXT_SUMMARY_ERROR =
+  "The selected file must contain text";
 
-type PdfAnalysisResult = {
-  hasBodyText: boolean;
-  mightBeScannedDocument: boolean;
-};
+const BODY_TEXT_INLINE_ERROR =
+  "Select a file that contains text";
+
+const UPLOAD_ERROR =
+  "There was a problem uploading the file. Try again.";
 
 type UploadDocumentResponse = {
   documentId: string;
   status: string;
 };
 
+type ValidationError = {
+  summary: string;
+  inline: string;
+};
+
 export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const isSubmittingRef = useRef(false);
+  const technicalErrorRef =
+    useRef<HTMLDivElement>(null);
+  const validationErrorRef =
+    useRef<HTMLDivElement>(null);
 
-  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [
+    validationError,
+    setValidationError,
+  ] = useState<ValidationError | null>(null);
 
-  function handleFileChange(_: ChangeEvent<HTMLInputElement>) {
-    setError(null);
+  const [
+    technicalError,
+    setTechnicalError,
+  ] = useState<string | null>(null);
+
+  usePageTitle(
+    "Upload a file",
+    Boolean(validationError || technicalError),
+  );
+
+  useEffect(() => {
+    if (!technicalError && !validationError) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      if (technicalError) {
+        technicalErrorRef.current?.focus();
+        return;
+      }
+
+      validationErrorRef.current?.focus();
+    });
+  }, [technicalError, validationError]);
+
+  function handleFileChange() {
+    setValidationError(null);
+    setTechnicalError(null);
+  }
+
+  function resetSubmittingState() {
+    isSubmittingRef.current = false;
+    setIsSubmitting(false);
   }
 
   function isPdf(file: File) {
@@ -37,149 +92,112 @@ export default function UploadPage() {
     );
   }
 
-  async function analysePdf(file: File): Promise<PdfAnalysisResult> {
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-
-    const buffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-
-    const allBodyLines: string[] = [];
-    let imageCount = 0;
-
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-      const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 1 });
-
-      const textContent = await page.getTextContent();
-      const operatorList = await page.getOperatorList();
-
-      imageCount += operatorList.fnArray.filter(
-        (fn) =>
-          fn === pdfjsLib.OPS.paintImageXObject ||
-          fn === pdfjsLib.OPS.paintInlineImageXObject ||
-          fn === pdfjsLib.OPS.paintImageXObjectRepeat
-      ).length;
-
-      const pageLines = textContent.items
-        .map((item: any) => {
-          const text = item.str?.trim();
-          const y = item.transform?.[5];
-
-          if (!text || typeof y !== "number") {
-            return null;
-          }
-
-          return { text, y };
-        })
-        .filter(Boolean) as Array<{ text: string; y: number }>;
-
-      const bodyLines = pageLines
-        .filter(({ y }) => {
-          const topBoundary = viewport.height * 0.85;
-          const bottomBoundary = viewport.height * 0.15;
-
-          return y < topBoundary && y > bottomBoundary;
-        })
-        .map(({ text }) => text);
-
-      allBodyLines.push(...bodyLines);
-    }
-
-    const normalisedLines = allBodyLines.map((line) =>
-      line.replace(/\s+/g, " ").trim()
-    );
-
-    const lineCounts = normalisedLines.reduce<Record<string, number>>(
-      (acc, line) => {
-        acc[line] = (acc[line] ?? 0) + 1;
-        return acc;
-      },
-      {}
-    );
-
-    const meaningfulLines = normalisedLines.filter((line) => {
-      const isRepeatedHeaderOrFooter = lineCounts[line] > 1;
-      const isTooShort = line.length < 3;
-      const isPageNumber = /^\d+$/.test(line);
-      const hasWords = /[a-zA-Z]{2,}/.test(line);
-
-      return (
-        !isRepeatedHeaderOrFooter &&
-        !isTooShort &&
-        !isPageNumber &&
-        hasWords
-      );
-    });
-
-    const bodyTextLength = meaningfulLines.join(" ").length;
-    const hasBodyText = bodyTextLength >= MINIMUM_BODY_CHARACTERS;
-
-    const mightBeScannedDocument =
-      imageCount >= pdf.numPages && bodyTextLength < 500;
-
-    return {
-      hasBodyText,
-      mightBeScannedDocument,
-    };
-  }
-
   async function handleUpload() {
-    const files = inputRef.current?.files;
-    const file = files?.[0];
-
-    if (!file || files.length !== 1 || !isPdf(file)) {
-      setError(FILE_ERROR);
+    if (isSubmittingRef.current) {
       return;
     }
 
-    let analysis;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    setValidationError(null);
+    setTechnicalError(null);
+
+    const files = inputRef.current?.files;
+    const file = files?.[0];
+
+    if (!file || files.length !== 1) {
+      setValidationError({
+        summary: NO_FILE_ERROR,
+        inline: NO_FILE_ERROR,
+      });
+
+      resetSubmittingState();
+      return;
+    }
+
+    if (!isPdf(file)) {
+      setValidationError({
+        summary: FILE_TYPE_ERROR,
+        inline: FILE_TYPE_ERROR,
+      });
+
+      resetSubmittingState();
+      return;
+    }
+
+    let analysis: PdfAnalysisResult;
 
     try {
       analysis = await analysePdf(file);
       console.log("PDF analysis", analysis);
     } catch (err) {
       console.error("PDF analysis failed", err);
-      setError("The selected file could not be checked – try again");
+      setTechnicalError(
+        "The selected file could not be checked – try again",
+      );
+      resetSubmittingState();
       return;
     }
 
     if (!analysis.hasBodyText) {
-      setError(BODY_TEXT_ERROR);
+      setValidationError({
+        summary:
+          BODY_TEXT_SUMMARY_ERROR,
+        inline:
+          BODY_TEXT_INLINE_ERROR,
+      });
+
+      resetSubmittingState();
       return;
     }
 
     const formData = new FormData();
+
     formData.append("file", file);
+    formData.append("documentType", analysis.documentType);
+
+    if (analysis.mightBeScannedDocument) {
+      formData.append("warningReason", "scanned");
+    } else if (analysis.documentType === "unidentified") {
+      formData.append(
+        "warningReason",
+        "unsupported-document-type"
+      );
+    }
 
     let uploadedDocument: UploadDocumentResponse;
 
     try {
-      const response = await fetch(
+      uploadedDocument = await fetchJson<UploadDocumentResponse>(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/upload`,
         {
           method: "POST",
           body: formData,
         }
       );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Failed to upload document.");
-      }
-
-      uploadedDocument = data;
     } catch (err) {
       console.error("Document upload failed", err);
-      setError(err instanceof Error ? err.message : "Failed to upload document.");
+
+      setTechnicalError(
+        UPLOAD_ERROR,
+      );
+
+      resetSubmittingState();
       return;
     }
 
     if (analysis.mightBeScannedDocument) {
       router.push(
-        `/scanned-document?documentId=${encodeURIComponent(
+        `/document-warning?reason=scanned&documentId=${encodeURIComponent(
+          uploadedDocument.documentId
+        )}&filename=${encodeURIComponent(file.name)}`
+      );
+      return;
+    }
+
+    if (analysis.documentType === "unidentified") {
+      router.push(
+        `/document-warning?reason=unsupported-document-type&documentId=${encodeURIComponent(
           uploadedDocument.documentId
         )}&filename=${encodeURIComponent(file.name)}`
       );
@@ -194,101 +212,213 @@ export default function UploadPage() {
   }
 
   return (
-    <main className="govuk-main-wrapper" id="main-content">
+    <div className="jr-upload-page">
       <div className="govuk-grid-row">
         <div className="govuk-grid-column-two-thirds">
-          <a href="/" className="govuk-back-link">
-            Back
-          </a>
 
-          {error && (
+          {technicalError && (
             <div
+              ref={technicalErrorRef}
+              role="alert"
+              className="moj-alert moj-alert--error jr-upload-api-alert"
+              aria-label={`error: ${technicalError}`}
+              data-module="moj-alert"
+              tabIndex={-1}
+            >
+              <div>
+                <svg
+                  className="moj-alert__icon"
+                  role="presentation"
+                  focusable="false"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 30 30"
+                  height="30"
+                  width="30"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M20.1777 2.5H9.82233L2.5 9.82233V20.1777L9.82233 27.5H20.1777L27.5 20.1777V9.82233L20.1777 2.5ZM10.9155 8.87769L15.0001 12.9623L19.0847 8.87771L21.1224 10.9154L17.0378 15L21.1224 19.0846L19.0847 21.1222L15.0001 17.0376L10.9155 21.1223L8.87782 19.0846L12.9624 15L8.87783 10.9153L10.9155 8.87769Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </div>
+
+              <div className="moj-alert__content">
+                {technicalError}
+              </div>
+            </div>
+          )}
+
+          {validationError && (
+            <div
+              ref={validationErrorRef}
               className="govuk-error-summary"
               data-module="govuk-error-summary"
               aria-labelledby="error-summary-title"
               role="alert"
               tabIndex={-1}
             >
-              <h2 className="govuk-error-summary__title" id="error-summary-title">
+              <h2
+                className="govuk-error-summary__title"
+                id="error-summary-title"
+              >
                 There is a problem
               </h2>
 
               <div className="govuk-error-summary__body">
                 <ul className="govuk-list govuk-error-summary__list">
                   <li>
-                    <a href="#file-upload-1">{error}</a>
+                    <a
+                      href="#file-upload-1"
+                      className="govuk-error-summary__link"
+                    >
+                      {validationError.summary}
+                    </a>
                   </li>
                 </ul>
               </div>
             </div>
           )}
 
-          <h1 className="govuk-heading-xl">Upload a document</h1>
+          <h1 className="govuk-heading-xl">
+            Upload a file
+          </h1>
 
-          <aside className="govuk-inset-text guidance-panel" aria-label="Upload guidance">
-            <p className="govuk-body">
-              Only NOMIS and DPS documents can be processed at the moment.
-            </p>
-          </aside>
+          <p className="govuk-body-l">
+            Justice Redact uses artificial intelligence (AI) to suggest what to
+            pay attention to when you’re redacting a file.
+          </p>
+
+          <h2 className="govuk-heading-m">
+            Your responsibilities
+          </h2>
+
+          <p className="govuk-body">
+            The AI only looks for indicators of what might need to be redacted.
+            Also, it can miss things and make mistakes. This means you might have
+            to redact more or less than the AI suggestions show.
+          </p>
+
+          <div className="govuk-warning-text">
+            <span
+              className="govuk-warning-text__icon"
+              aria-hidden="true"
+            >
+              !
+            </span>
+
+            <div className="govuk-warning-text__text">
+              <span className="govuk-visually-hidden">
+                Warning
+              </span>
+
+              <p className="govuk-body govuk-!-font-weight-bold govuk-!-margin-bottom-1">
+                You’re responsible for:
+              </p>
+
+              <ul className="govuk-list govuk-list--bullet govuk-!-font-weight-bold govuk-!-margin-bottom-0">
+                <li>
+                  the final decision on what to redact and disclose
+                </li>
+
+                <li>
+                  applying relevant legislation and policies when redacting, for
+                  example the Data Protection Act 2018
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <h2 className="govuk-heading-m govuk-!-margin-top-6">
+            What you can upload
+          </h2>
+
+          <p className="govuk-body">
+            You can only upload unvetted NOMIS files or DPS case notes.
+          </p>
+
+          <h2 className="govuk-heading-m">
+            If your file is already vetted
+          </h2>
+
+          <p className="govuk-body">
+            You cannot upload vetted documents. Instead, use Adobe Acrobat to make
+            changes to the document - you’ll need to sanitise the document
+            when exporting it.
+          </p>
 
           <form
             noValidate
             onSubmit={(event) => {
               event.preventDefault();
-              handleUpload();
+              void handleUpload();
             }}
           >
-            <section aria-labelledby="upload-file-heading">
-              <div className={`govuk-form-group${error ? " govuk-form-group--error" : ""}`}>
-                <h2 className="govuk-label-wrapper">
-                  <label
-                    className="govuk-label govuk-label--m"
-                    htmlFor="file-upload-1"
-                    id="upload-file-heading"
-                  >
-                    Upload a file
-                  </label>
-                </h2>
+            <div
+              className={`govuk-form-group${validationError
+                ? " govuk-form-group--error"
+                : ""
+                }`}
+            >
+              <label
+                className="govuk-label"
+                htmlFor="file-upload-1"
+              >
+                Upload a file
+              </label>
 
-                <div id="file-upload-1-hint" className="govuk-hint">
-                  Only NOMIS and DPS documents can be processed at the moment
-                </div>
+              {validationError && (
+                <p
+                  id="file-upload-1-error"
+                  className="govuk-error-message"
+                >
+                  <span className="govuk-visually-hidden">
+                    Error:
+                  </span>{" "}
+                  {validationError.inline}
+                </p>
+              )}
 
-                {error && (
-                  <p id="file-upload-1-error" className="govuk-error-message">
-                    <span className="govuk-visually-hidden">Error:</span> {error}
-                  </p>
-                )}
-
-                <div className="govuk-drop-zone" data-module="govuk-file-upload">
-                  <input
-                    ref={inputRef}
-                    className={`govuk-file-upload${error ? " govuk-file-upload--error" : ""}`}
-                    id="file-upload-1"
-                    name="fileUpload1"
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    aria-describedby={
-                      error
-                        ? "file-upload-1-hint file-upload-1-error"
-                        : "file-upload-1-hint"
-                    }
-                    onChange={handleFileChange}
-                  />
-                </div>
+              <div
+                className="govuk-file-upload-wrapper"
+                data-module="govuk-file-upload"
+              >
+                <input
+                  ref={inputRef}
+                  className={`govuk-file-upload${validationError
+                    ? " govuk-file-upload--error"
+                    : ""
+                    }`}
+                  id="file-upload-1"
+                  name="fileUpload1"
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  disabled={isSubmitting}
+                  aria-describedby={
+                    validationError
+                      ? "file-upload-1-error"
+                      : undefined
+                  }
+                  onChange={handleFileChange}
+                />
               </div>
-            </section>
+            </div>
 
             <button
               type="submit"
               className="govuk-button"
               data-module="govuk-button"
+              disabled={isSubmitting}
+              aria-disabled={isSubmitting}
             >
-              Continue
+              {isSubmitting
+                ? "Checking document…"
+                : "Upload and continue"}
             </button>
           </form>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

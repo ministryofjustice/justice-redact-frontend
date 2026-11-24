@@ -37,6 +37,9 @@ RUN npm ci --no-audit --ignore-scripts
 COPY . .
 RUN npm run postinstall
 
+ARG NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+
 RUN npm run build
 RUN npm prune --no-audit --omit=dev
 

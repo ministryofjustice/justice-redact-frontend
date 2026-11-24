@@ -1,270 +1,575 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import {
+    Suspense,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
+import {
+    useRouter,
+    useSearchParams,
+} from "next/navigation";
+
+import {
+    ApiError,
+    fetchJson,
+} from "../lib/api";
+
+import ServiceErrorPage from "../components/ServiceErrorPage";
+import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import { usePageTitle } from "../components/PageTitle";
+import BackLink from "../components/BackLink";
+import {
+    getRedactedFileDescription,
+    shouldShowExemptedRow,
+} from "./redactedFileDescription";
+
+type PageCounts = {
+    original: number;
+    exempt: number;
+    deleted: number;
+    redacted: number;
+};
 
 type ExportResponse = {
     documentId: string;
+    runId: string;
     filename: string;
     status: string;
+
+    hasContentRedactions?: boolean;
+
     redactedExportUrl?: string;
     vettedExportUrl?: string;
+    exemptExportUrl?: string | null;
+    allFilesExportUrl?: string;
+
     pageCount?: number;
+    pageCounts?: PageCounts;
 };
 
-function ExportContent() {
-    const searchParams = useSearchParams();
-    const documentId = searchParams.get("documentId");
+function buildDownloadUrl(
+    path?: string | null
+) {
+    if (!path) {
+        return null;
+    }
 
-    const [data, setData] = useState<ExportResponse | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    return (
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}${path}`
+    );
+}
+
+function buildSupersededUrl(
+    documentId: string,
+    runId: string
+) {
+    return (
+        `/export/superseded?documentId=${encodeURIComponent(
+            documentId
+        )}&runId=${encodeURIComponent(runId)}`
+    );
+}
+
+function getPageCounts(
+    data: ExportResponse
+): PageCounts {
+    if (data.pageCounts) {
+        return data.pageCounts;
+    }
+
+    const fallbackPageCount =
+        data.pageCount ?? 0;
+
+    return {
+        original: fallbackPageCount,
+        exempt: 0,
+        deleted: 0,
+        redacted: fallbackPageCount,
+    };
+}
+
+function ExportContent() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    const documentId =
+        searchParams.get("documentId");
+
+    const runId =
+        searchParams.get("runId");
+
+    const {
+        isChecking: isCheckingWorkflow,
+        errorVariant: workflowErrorVariant,
+        isStaleRevision,
+    } = useWorkflowGuard(
+        "export",
+        documentId,
+        runId,
+    );
+
+    const [data, setData] =
+        useState<ExportResponse | null>(null);
+
+    const [isLoading, setIsLoading] =
+        useState(false);
+
+    const [error, setError] =
+        useState<string | null>(null);
+
+    const errorSummaryRef =
+        useRef<HTMLDivElement>(null);
+
+    usePageTitle(
+        "Redactions applied",
+        Boolean(error),
+        !isCheckingWorkflow &&
+        !workflowErrorVariant &&
+        !isStaleRevision,
+    );
 
     useEffect(() => {
-        async function loadExport() {
-            if (!documentId) {
-                setError("Missing document ID.");
-                setIsLoading(false);
-                return;
-            }
+        if (
+            !error ||
+            isLoading ||
+            isCheckingWorkflow ||
+            workflowErrorVariant ||
+            isStaleRevision
+        ) {
+            return;
+        }
 
+        window.requestAnimationFrame(() => {
+            errorSummaryRef.current?.focus();
+        });
+    }, [
+        error,
+        isLoading,
+        isCheckingWorkflow,
+        workflowErrorVariant,
+        isStaleRevision,
+    ]);
+
+    useEffect(() => {
+        if (
+            isCheckingWorkflow ||
+            !isStaleRevision ||
+            !documentId ||
+            !runId
+        ) {
+            return;
+        }
+
+        router.replace(
+            buildSupersededUrl(
+                documentId,
+                runId
+            )
+        );
+    }, [
+        documentId,
+        runId,
+        isCheckingWorkflow,
+        isStaleRevision,
+        router,
+    ]);
+
+    useEffect(() => {
+        if (
+            !documentId ||
+            !runId ||
+            isCheckingWorkflow ||
+            workflowErrorVariant ||
+            isStaleRevision
+        ) {
+            return;
+        }
+
+        const currentDocumentId =
+            documentId;
+
+        const currentRunId =
+            runId;
+
+        const controller =
+            new AbortController();
+
+        let isActive = true;
+
+        async function loadExport() {
             try {
                 setIsLoading(true);
                 setError(null);
+                setData(null);
 
-                const response = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/export`
-                );
+                const result =
+                    await fetchJson<ExportResponse>(
+                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                            currentDocumentId
+                        )}/redaction-runs/${encodeURIComponent(
+                            currentRunId
+                        )}/export`,
+                        {
+                            cache: "no-store",
+                            signal: controller.signal,
+                        }
+                    );
 
-                const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.detail || "Failed to load export details.");
+                if (!isActive) {
+                    return;
                 }
 
                 setData(result);
             } catch (err) {
-                setError(err instanceof Error ? err.message : "Failed to load export details.");
+                if (!isActive) {
+                    return;
+                }
+
+                if (
+                    err instanceof DOMException &&
+                    err.name === "AbortError"
+                ) {
+                    return;
+                }
+
+                if (
+                    err instanceof ApiError &&
+                    err.status === 409 &&
+                    err.message ===
+                    "Redaction run has been superseded"
+                ) {
+                    router.replace(
+                        buildSupersededUrl(
+                            currentDocumentId,
+                            currentRunId
+                        )
+                    );
+
+                    return;
+                }
+
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to load export details."
+                );
             } finally {
-                setIsLoading(false);
+                if (isActive) {
+                    setIsLoading(false);
+                }
             }
         }
 
-        loadExport();
-    }, [documentId]);
+        void loadExport();
 
-    const redactedDownloadUrl = data?.redactedExportUrl
-        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}${data.redactedExportUrl}`
-        : null;
+        return () => {
+            isActive = false;
+            controller.abort();
+        };
+    }, [
+        documentId,
+        runId,
+        isCheckingWorkflow,
+        workflowErrorVariant,
+        isStaleRevision,
+        router,
+    ]);
 
-    const vettedDownloadUrl = data?.vettedExportUrl
-        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}${data.vettedExportUrl}`
-        : null;
+    if (
+        isCheckingWorkflow ||
+        isStaleRevision
+    ) {
+        return null;
+    }
 
-    return (
-        <main className="govuk-main-wrapper" id="main-content">
+    if (workflowErrorVariant) {
+        return (
+            <ServiceErrorPage
+                variant={workflowErrorVariant}
+                documentId={documentId}
+            />
+        );
+    }
+
+    if (isLoading) {
+        return (
             <div className="govuk-grid-row">
                 <div className="govuk-grid-column-two-thirds">
-                    <h1 className="govuk-heading-xl">Redaction complete</h1>
-
-                    {isLoading && (
-                        <section aria-live="polite">
-                            <p className="govuk-body">Loading export details...</p>
-                        </section>
-                    )}
-
-                    {error && (
-                        <section aria-labelledby="export-error-title">
-                            <div
-                                className="govuk-error-summary"
-                                data-module="govuk-error-summary"
-                                aria-labelledby="export-error-title"
-                                role="alert"
-                                tabIndex={-1}
-                            >
-                                <h2 className="govuk-error-summary__title" id="export-error-title">
-                                    There is a problem
-                                </h2>
-
-                                <div className="govuk-error-summary__body">
-                                    <p className="govuk-body">{error}</p>
-                                </div>
-                            </div>
-                        </section>
-                    )}
-
-                    {data && (
-                        <>
-                            <section aria-labelledby="page-counts-heading" className="page-counts-section">
-                                <h2 className="govuk-heading-m" id="page-counts-heading">
-                                    Page counts
-                                </h2>
-
-                                <dl className="page-counts">
-                                    <div className="page-counts__item">
-                                        <dt className="page-counts__number">326</dt>
-                                        <dd className="page-counts__label">pages in original document</dd>
-                                    </div>
-
-                                    <div className="page-counts__divider" aria-hidden="true" />
-
-                                    <div className="page-counts__item">
-                                        <dt className="page-counts__number">12</dt>
-                                        <dd className="page-counts__label">exempt pages removed</dd>
-                                    </div>
-
-                                    <div className="page-counts__item">
-                                        <dt className="page-counts__number">7</dt>
-                                        <dd className="page-counts__label">pages deleted</dd>
-                                    </div>
-
-                                    <div className="page-counts__item">
-                                        <dt className="page-counts__number">307</dt>
-                                        <dd className="page-counts__label">pages in redacted document</dd>
-                                    </div>
-                                </dl>
-                            </section>
-                            <section aria-labelledby="exported-documents-heading">
-
-                                <table className="govuk-table">
-                                    <caption
-                                        className="govuk-table__caption govuk-table__caption--m"
-                                        id="exported-documents-heading"
-                                    >
-                                        Exported documents
-                                    </caption>
-
-                                    <thead className="govuk-table__head">
-                                        <tr className="govuk-table__row">
-                                            <th scope="col" className="govuk-table__header">
-                                                Document
-                                            </th>
-                                            <th scope="col" className="govuk-table__header">
-                                                Description
-                                            </th>
-                                            <th scope="col" className="govuk-table__header">
-                                                Action
-                                            </th>
-                                        </tr>
-                                    </thead>
-
-                                    <tbody className="govuk-table__body">
-                                        <tr className="govuk-table__row">
-                                            <th scope="row" className="govuk-table__header">
-                                                Redacted
-                                            </th>
-                                            <td className="govuk-table__cell">
-                                                Redactions applied in black and all highlights removed.
-                                            </td>
-                                            <td className="govuk-table__cell">
-                                                {redactedDownloadUrl ? (
-                                                    <a
-                                                        href={redactedDownloadUrl}
-                                                        className="govuk-link govuk-link--no-visited-state"
-                                                        download
-                                                    >
-                                                        Download
-                                                    </a>
-                                                ) : (
-                                                    <span className="govuk-body">Not available</span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                        <tr className="govuk-table__row">
-                                            <th scope="row" className="govuk-table__header">
-                                                Vetted
-                                            </th>
-                                            <td className="govuk-table__cell">
-                                                Original document with selected redactions shown as review highlights.
-                                            </td>
-                                            <td className="govuk-table__cell">
-                                                {vettedDownloadUrl ? (
-                                                    <a
-                                                        href={vettedDownloadUrl}
-                                                        className="govuk-link govuk-link--no-visited-state"
-                                                        download
-                                                    >
-                                                        Download
-                                                    </a>
-                                                ) : (
-                                                    <span className="govuk-body">Not available</span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-
-                                <div className="govuk-button-group">
-                                    {redactedDownloadUrl ? (
-                                        <a
-                                            href={redactedDownloadUrl}
-                                            className="govuk-button"
-                                            data-module="govuk-button"
-                                            download
-                                        >
-                                            Download redacted file
-                                        </a>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            className="govuk-button"
-                                            data-module="govuk-button"
-                                            disabled
-                                            aria-disabled="true"
-                                        >
-                                            Download redacted file
-                                        </button>
-                                    )}
-
-                                    {vettedDownloadUrl ? (
-                                        <a
-                                            href={vettedDownloadUrl}
-                                            className="govuk-button govuk-button--secondary"
-                                            data-module="govuk-button"
-                                            download
-                                        >
-                                            Download vetted file
-                                        </a>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            className="govuk-button govuk-button--secondary"
-                                            data-module="govuk-button"
-                                            disabled
-                                            aria-disabled="true"
-                                        >
-                                            Download vetted file
-                                        </button>
-                                    )}
-
-                                    <a href="/" className="govuk-link govuk-link--no-visited-state">
-                                        Vet another document
-                                    </a>
-                                </div>
-                            </section>
-                        </>
-                    )}
+                    <p className="govuk-body">
+                        Loading export details...
+                    </p>
                 </div>
             </div>
-        </main>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="govuk-grid-row">
+                <div className="govuk-grid-column-two-thirds">
+                    <div
+                        ref={errorSummaryRef}
+                        className="govuk-error-summary"
+                        data-module="govuk-error-summary"
+                        aria-labelledby="export-error-title"
+                        role="alert"
+                        tabIndex={-1}
+                    >
+                        <h2
+                            className="govuk-error-summary__title"
+                            id="export-error-title"
+                        >
+                            There is a problem
+                        </h2>
+
+                        <div className="govuk-error-summary__body">
+                            <p className="govuk-body">
+                                {error}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!data) {
+        return null;
+    }
+
+    const allFilesDownloadUrl =
+        buildDownloadUrl(
+            data.allFilesExportUrl
+        );
+
+    const pageCounts = getPageCounts(data);
+
+    const hasExemptExport = shouldShowExemptedRow(
+        data.exemptExportUrl,
+        data.pageCounts?.exempt
+    );
+
+    const redactedFileDescription =
+        getRedactedFileDescription({
+            hasContentRedactions: data.hasContentRedactions,
+            hasExemptPages: pageCounts.exempt > 0,
+            hasDeletedPages: pageCounts.deleted > 0,
+        });
+
+    return (
+        <>
+            <div className="govuk-grid-row">
+                <div className="govuk-grid-column-two-thirds">
+                    <BackLink
+                        href={`/review?documentId=${encodeURIComponent(
+                            data.documentId
+                        )}`}
+                    />
+
+                    <div className="govuk-panel govuk-panel--confirmation">
+                        <h1 className="govuk-panel__title">
+                            Redactions applied
+                        </h1>
+                    </div>
+
+                    <hr className="govuk-section-break govuk-section-break--m govuk-section-break--invisible" />
+                </div>
+            </div>
+
+            <div className="govuk-grid-row">
+                <div className="govuk-grid-column-two-thirds">
+                    <h2 className="govuk-heading-m">
+                        Files
+                    </h2>
+
+                    <table className="govuk-table">
+                        <thead className="govuk-table__head">
+                            <tr className="govuk-table__row">
+                                <th
+                                    scope="col"
+                                    className="govuk-table__header govuk-!-width-one-quarter"
+                                >
+                                    File type
+                                </th>
+
+                                <th
+                                    scope="col"
+                                    className="govuk-table__header"
+                                >
+                                    Description
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody className="govuk-table__body">
+                            <tr className="govuk-table__row">
+                                <th
+                                    scope="row"
+                                    className="govuk-table__header"
+                                >
+                                    Redacted
+                                </th>
+
+                                <td className="govuk-table__cell">
+                                    <p className="govuk-body jr-export-file-description">
+                                        {redactedFileDescription}
+                                    </p>
+
+                                    <details className="govuk-details jr-export-sanitisation-details">
+                                        <summary className="govuk-details__summary">
+                                            <span className="govuk-details__summary-text">
+                                                More about sanitisation
+                                            </span>
+                                        </summary>
+
+                                        <div className="govuk-details__text">
+                                            Sanitisation removes hidden
+                                            details like author names,
+                                            comments, or edit history. This
+                                            means that the file can be shared
+                                            safely.
+                                        </div>
+                                    </details>
+                                </td>
+                            </tr>
+
+                            <tr className="govuk-table__row">
+                                <th
+                                    scope="row"
+                                    className="govuk-table__header"
+                                >
+                                    Vetted
+                                </th>
+
+                                <td className="govuk-table__cell">
+                                    Highlights show what you redacted and
+                                    what the AI suggested.
+                                </td>
+                            </tr>
+
+                            {hasExemptExport && (
+                                <tr className="govuk-table__row">
+                                    <th
+                                        scope="row"
+                                        className="govuk-table__header"
+                                    >
+                                        Exempted
+                                    </th>
+
+                                    <td className="govuk-table__cell">
+                                        All the pages you exempted with AI
+                                        suggestions highlighted.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+
+                    {allFilesDownloadUrl && (
+                        <a
+                            href={allFilesDownloadUrl}
+                            role="button"
+                            draggable={false}
+                            className="govuk-button"
+                            data-module="govuk-button"
+                        >
+                            Download all files
+                        </a>
+                    )}
+
+                    <hr className="govuk-section-break govuk-section-break--m govuk-section-break--invisible" />
+
+                    <PageCountsSummary
+                        pageCounts={pageCounts}
+                    />
+
+                    <p className="govuk-body">
+                        <Link
+                            href="/upload"
+                            className="govuk-link govuk-link--no-visited-state"
+                        >
+                            Upload another file
+                        </Link>
+                    </p>
+                </div>
+            </div>
+        </>
+    );
+}
+
+function PageCountsSummary({
+    pageCounts,
+}: {
+    pageCounts: PageCounts;
+}) {
+    return (
+        <section
+            aria-labelledby="page-counts-heading"
+            className="jr-export-page-counts-section"
+        >
+            <h2
+                className="govuk-heading-m"
+                id="page-counts-heading"
+            >
+                Page counts
+            </h2>
+
+            <div className="jr-export-page-counts">
+                <div className="jr-export-page-counts__item jr-export-page-counts__item--original">
+                    <p className="govuk-heading-l jr-export-page-counts__number">
+                        {pageCounts.original}
+                    </p>
+
+                    <p className="govuk-body jr-export-page-counts__label">
+                        pages in original file
+                    </p>
+                </div>
+
+                <div
+                    className="jr-export-page-counts__divider"
+                    aria-hidden="true"
+                />
+
+                <div className="jr-export-page-counts__item">
+                    <p className="govuk-heading-l jr-export-page-counts__number">
+                        {pageCounts.exempt}
+                    </p>
+
+                    <p className="govuk-body jr-export-page-counts__label">
+                        exempt pages removed
+                    </p>
+                </div>
+
+                <div className="jr-export-page-counts__item">
+                    <p className="govuk-heading-l jr-export-page-counts__number">
+                        {pageCounts.deleted}
+                    </p>
+
+                    <p className="govuk-body jr-export-page-counts__label">
+                        pages deleted
+                    </p>
+                </div>
+
+                <div className="jr-export-page-counts__item">
+                    <p className="govuk-heading-l jr-export-page-counts__number">
+                        {pageCounts.redacted}
+                    </p>
+
+                    <p className="govuk-body jr-export-page-counts__label">
+                        pages in redacted file
+                    </p>
+                </div>
+            </div>
+        </section>
     );
 }
 
 export default function ExportPage() {
     return (
-        <Suspense
-            fallback={
-                <main className="govuk-main-wrapper" id="main-content">
-                    <div className="govuk-grid-row">
-                        <div className="govuk-grid-column-two-thirds">
-                            <p className="govuk-body" role="status" aria-live="polite">
-                                Loading export page...
-                            </p>
-                        </div>
-                    </div>
-                </main>
-            }
-        >
+        <Suspense fallback={null}>
             <ExportContent />
         </Suspense>
     );

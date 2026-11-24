@@ -1,884 +1,939 @@
 "use client";
 
-import React, { Suspense, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import FilenameBar from "@/app/components/FilenameBar";
+import {
+  Suspense,
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
+import { useSearchParams } from "next/navigation";
+import { useReviewData } from "./useReviewData";
+import { useReviewPages } from "./useReviewPages";
+import { useReviewDecisionPersistence } from "../../features/documents/review/useReviewDecisionPersistence";
+import { useApplyRedactions } from "../../features/documents/review/useApplyRedactions";
+import { useReviewFindWorkflows } from "../../features/documents/review/useReviewFindWorkflows";
+import { useRedactionInteractions } from "../../features/documents/review/useRedactionInteractions";
+import {
+  addManualTableSelections,
+  addManualTextSelections,
+} from "../../features/documents/review/manualRedactionOperations";
+import {
+  addPartialFindRedactions,
+  applyFindRedactionReplacements,
+  prepareFindRedactionReplacements,
+} from "../../features/documents/review/findRedactionOperations";
+import { usePageTitle } from "../components/PageTitle";
+import EndOfDocumentActions from "./components/EndOfDocumentActions";
+import PageContent from "./components/PageContent";
+import ReviewControlsHeader from "./components/ReviewControlsHeader";
+import ReviewPageHeader from "./components/ReviewPageHeader";
+import ReviewPagination from "./components/ReviewPagination";
+import ReviewStatusMessages from "./components/ReviewStatusMessages";
+import QuickHelpModal from "./components/QuickHelpModal";
+import { resolveSelectedTextRanges } from "./textSelectionRanges";
+import HighlightKey from "./components/HighlightKey";
+import ApplyRedactionsFailureAlert from "./components/ApplyRedactionsFailureAlert";
+import {
+  getClosestElementWithAttribute,
+  getTextOffsetWithinItem,
+} from "./selectionUtils";
+import type {
+  ManualSpan,
+  ReviewPageData,
+  ReviewTableCell,
+  ReviewMode,
+} from "./types";
+import { buildSelectedTableCellRanges } from "./tableSelectionRanges";
+import FindAndRedactModal from "./components/FindAndRedactModal";
+import FindAndPartiallyRedactModal from "./components/FindAndPartiallyRedactModal";
+import FindAndDiscloseModal from "./components/FindAndDiscloseModal";
+import ServiceErrorPage from "../components/ServiceErrorPage";
+import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import BetaBanner from "../components/BetaBanner";
+import {
+  type FindInDocumentResult,
+} from "./findInDocument";
+import { discloseManualRedactions } from "./discloseManualRedactions";
+import type { FindInManualRedactionResult } from "./findInManualRedactions";
 
-const PDF_TO_CSS_SCALE = 96 / 72;
 const PAGES_PER_BATCH = 50;
 
-type ReviewBBox = { x0: number; y0: number; x1: number; y1: number };
+function ReviewContent() {
+  const searchParams = useSearchParams();
+  const documentId = searchParams.get("documentId");
+  const returnToEnd = searchParams.get("returnTo") === "end";
 
-type ReviewTextItem = {
-  itemId: string;
-  text: string;
-  renderText: string;
-  bbox: ReviewBBox | null;
-};
+  const {
+    isChecking: isCheckingWorkflow,
+    errorVariant: workflowErrorVariant,
+  } = useWorkflowGuard("review", documentId);
 
-type ReviewTableCell = {
-  cellId: string;
-  tableId: string;
-  rowIndex: number;
-  colIndex: number;
-  text: string;
-  renderText: string;
-  bbox: ReviewBBox | null;
-  isHeader: boolean;
-  isNumeric: boolean;
-};
-
-type ReviewTableRow = { rowIndex: number; cells: ReviewTableCell[] };
-type ReviewTable = { tableId: string; bbox: ReviewBBox | null; rows: ReviewTableRow[] };
-
-type ReviewImage = {
-  imageId: string;
-  imageRecordId: string | null;
-  imageUrl: string | null;
-  alt: string | null;
-  bbox: ReviewBBox | null;
-};
-
-type ReviewPageData = {
-  pageNumber: number;
-  pageId?: string;
-  textItems: ReviewTextItem[];
-  tables: ReviewTable[];
-  images: ReviewImage[];
-};
-
-type ReviewFinding = {
-  id: string;
-  kind: "text" | "table_cell" | "image";
-  pageNumber: number;
-  itemId: string | null;
-  tableId: string | null;
-  cellId: string | null;
-  imageId: string | null;
-  imageRecordId: string | null;
-  entityType: string;
-  entityText: string;
-  entityStart: number | null;
-  entityEnd: number | null;
-  entityScore: number;
-  context: string;
-  decision: string;
-  sectionLabel: string | null;
-};
-
-type ReviewResponse = {
-  documentId: string;
-  filename: string;
-  status: string;
-  pages: ReviewPageData[];
-  findings: ReviewFinding[];
-  subjectDetails: {
-    subjectName: string;
-    subjectPrisonNumber: string;
-    otherPhrases: string[];
-  };
-  summary: {
-    totalPages: number;
-    totalTextItems?: number;
-    totalFindings: number;
-  };
-};
-
-type PageContentBlock =
-  | { kind: "text"; y: number; item: ReviewTextItem }
-  | { kind: "table"; y: number; table: ReviewTable }
-  | { kind: "image"; y: number; image: ReviewImage };
-
-type ManualTextDecision = {
-  id: string;
-  documentId: string;
-  kind: "text";
-  pageNumber: number;
-  itemId: string;
-  start: number;
-  end: number;
-  text: string;
-};
-
-type ManualTableCellDecision = {
-  id: string;
-  documentId: string;
-  kind: "table_cell";
-  pageNumber: number;
-  tableId: string;
-  cellId: string;
-  start: number;
-  end: number;
-  text: string;
-};
-
-type ManualImageDecision = {
-  id: string;
-  documentId: string;
-  kind: "image";
-  pageNumber: number;
-  imageId: string;
-};
-
-type ManualDecision = ManualTextDecision | ManualTableCellDecision | ManualImageDecision;
-
-type TextSpan = { id?: string; start: number; end: number };
-type RenderRange = { start: number; end: number; className: string; key: string; manualId?: string };
-type ManualSpan = { pageNumber: number; itemId: string; start: number; end: number };
-
-function clampRangeValue(value: number, max: number) {
-  return Math.max(0, Math.min(max, value));
-}
-
-function mergeSpans(spans: ManualSpan[]) {
-  const sorted = spans
-    .filter((s) => s.end > s.start)
-    .slice()
-    .sort((a, b) => a.start - b.start || a.end - b.end);
-
-  const merged: Array<{ start: number; end: number }> = [];
-  for (const span of sorted) {
-    const last = merged[merged.length - 1];
-    if (!last) {
-      merged.push({ start: span.start, end: span.end });
-    } else if (span.start <= last.end) {
-      last.end = Math.max(last.end, span.end);
-    } else {
-      merged.push({ start: span.start, end: span.end });
-    }
-  }
-  return merged;
-}
-
-function getClosestElementWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
-  let current: Node | null = node;
-  while (current) {
-    if (current instanceof HTMLElement && current.hasAttribute(attribute)) return current;
-    current = current.parentNode;
-  }
-  return null;
-}
-
-function getTextOffsetWithinItem(container: HTMLElement, targetNode: Node, targetOffset: number) {
-  const range = document.createRange();
-  range.setStart(container, 0);
-  range.setEnd(targetNode, targetOffset);
-  return range.toString().length;
-}
-
-function getExactLineRanges(fullText: string, label: string) {
-  const ranges: Array<{ start: number; end: number }> = [];
-  let lineStart = 0;
-
-  while (lineStart <= fullText.length) {
-    const newlineIndex = fullText.indexOf("\n", lineStart);
-    const lineEnd = newlineIndex === -1 ? fullText.length : newlineIndex;
-    const line = fullText.slice(lineStart, lineEnd);
-
-    if (line.trim() === label) {
-      const leading = line.match(/^\s*/)?.[0]?.length ?? 0;
-      const trailing = line.match(/\s*$/)?.[0]?.length ?? 0;
-      const start = lineStart + leading;
-      const end = Math.max(start, lineEnd - trailing);
-      if (end > start) ranges.push({ start, end });
-    }
-
-    if (newlineIndex === -1) break;
-    lineStart = newlineIndex + 1;
+  if (isCheckingWorkflow) {
+    return null;
   }
 
-  return ranges;
-}
-
-function getStructuredKeyRanges(text: string) {
-  const ranges: Array<{ start: number; end: number }> = [];
-  let cursor = 0;
-
-  for (const line of text.split("\n")) {
-    const colonIndex = line.indexOf(":");
-    if (colonIndex > 0) ranges.push({ start: cursor, end: cursor + colonIndex + 1 });
-    cursor += line.length + 1;
-  }
-
-  return ranges;
-}
-
-function renderSliceWithBoldRanges(
-  fullText: string,
-  sliceStart: number,
-  sliceEnd: number,
-  boldRanges: Array<{ start: number; end: number }>,
-  keyPrefix: string
-) {
-  const start = clampRangeValue(sliceStart, fullText.length);
-  const end = clampRangeValue(sliceEnd, fullText.length);
-  if (end <= start) return [];
-
-  const overlaps = boldRanges
-    .map((range) => ({ start: Math.max(start, range.start), end: Math.min(end, range.end) }))
-    .filter((range) => range.end > range.start)
-    .sort((a, b) => a.start - b.start || a.end - b.end);
-
-  const nodes: React.ReactNode[] = [];
-  let cursor = start;
-
-  overlaps.forEach((range, index) => {
-    if (cursor < range.start) nodes.push(fullText.slice(cursor, range.start));
-    nodes.push(<strong key={`${keyPrefix}-bold-${index}`}>{fullText.slice(range.start, range.end)}</strong>);
-    cursor = range.end;
-  });
-
-  if (cursor < end) nodes.push(fullText.slice(cursor, end));
-  return nodes;
-}
-
-function buildRenderRanges(
-  text: string,
-  suggestions: ReviewFinding[],
-  manualSelections: Array<{ id: string; start: number; end: number }>,
-  isPreviewMode: boolean
-) {
-  const clamp = (n: number) => clampRangeValue(n, text.length);
-
-  const manualRanges: RenderRange[] = manualSelections
-    .map((selection) => ({
-      start: clamp(selection.start),
-      end: clamp(selection.end),
-      className: isPreviewMode ? "applied-redaction" : "highlight highlight--redaction",
-      key: `manual-${selection.id}`,
-      manualId: selection.id,
-    }))
-    .filter((range) => range.end > range.start)
-    .sort((a, b) => a.start - b.start || a.end - b.end);
-
-  if (isPreviewMode) return manualRanges;
-
-  const suggestionFragments: RenderRange[] = [];
-  suggestions.forEach((suggestion) => {
-    if (typeof suggestion.entityStart !== "number" || typeof suggestion.entityEnd !== "number") return;
-
-    let fragments = [{ start: clamp(suggestion.entityStart), end: clamp(suggestion.entityEnd) }];
-
-    for (const manual of manualRanges) {
-      fragments = fragments.flatMap((fragment) => {
-        if (manual.end <= fragment.start || manual.start >= fragment.end) return [fragment];
-        const next: Array<{ start: number; end: number }> = [];
-        if (fragment.start < manual.start) next.push({ start: fragment.start, end: manual.start });
-        if (manual.end < fragment.end) next.push({ start: manual.end, end: fragment.end });
-        return next;
-      });
-    }
-
-    fragments.forEach((fragment, index) => {
-      if (fragment.end > fragment.start) {
-        suggestionFragments.push({
-          start: fragment.start,
-          end: fragment.end,
-          className: "highlight highlight--suggestion",
-          key: `suggestion-${suggestion.id}-${index}`,
-        });
-      }
-    });
-  });
-
-  return [...suggestionFragments, ...manualRanges]
-    .filter((range) => range.end > range.start && range.start >= 0 && range.end <= text.length)
-    .sort((a, b) => a.start - b.start || a.end - b.end);
-}
-
-function renderTextSegments(
-  text: string,
-  suggestions: ReviewFinding[],
-  manualSelections: Array<{ id: string; start: number; end: number }>,
-  isPreviewMode: boolean,
-  boldRanges: Array<{ start: number; end: number }> = []
-) {
-  const ranges = buildRenderRanges(text, suggestions, manualSelections, isPreviewMode);
-  const nodes: React.ReactNode[] = [];
-  let cursor = 0;
-
-  ranges.forEach((range) => {
-    if (range.start < cursor) return;
-
-    if (cursor < range.start) {
-      nodes.push(
-        <span key={`plain-${cursor}-${range.start}`}>
-          {renderSliceWithBoldRanges(text, cursor, range.start, boldRanges, `plain-${cursor}-${range.start}`)}
-        </span>
-      );
-    }
-
-    nodes.push(
-      <span key={range.key} className={range.className} data-manual-id={range.manualId}>
-        {renderSliceWithBoldRanges(text, range.start, range.end, boldRanges, `${range.key}-${range.start}-${range.end}`)}
-      </span>
-    );
-
-    cursor = range.end;
-  });
-
-  if (cursor < text.length) {
-    nodes.push(
-      <span key={`plain-${cursor}-end`}>
-        {renderSliceWithBoldRanges(text, cursor, text.length, boldRanges, `plain-${cursor}-end`)}
-      </span>
+  if (workflowErrorVariant) {
+    return (
+      <ServiceErrorPage
+        variant={workflowErrorVariant}
+        documentId={documentId}
+      />
     );
   }
-
-  return nodes;
-}
-
-function bboxesVerticallyOverlap(a: ReviewBBox | null, b: ReviewBBox | null) {
-  if (!a || !b) return false;
-  const overlap = Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
-  const smallerHeight = Math.min(a.y1 - a.y0, b.y1 - b.y0);
-  return smallerHeight > 0 && overlap / smallerHeight >= 0.5;
-}
-
-function getImageForTableRow(row: ReviewTableRow, images: ReviewImage[]) {
-  const rowBox = row.cells.find((cell) => cell.bbox)?.bbox ?? null;
-  return images.find((image) => bboxesVerticallyOverlap(rowBox, image.bbox));
-}
-
-function imageBelongsToAnyTableRow(image: ReviewImage, tables: ReviewTable[]) {
-  if (!image.bbox || !tables.length) return false;
-  return tables.some((table) => table.rows.some((row) => bboxesVerticallyOverlap(row.cells.find((cell) => cell.bbox)?.bbox ?? null, image.bbox)));
-}
-
-function getImageDimensions(image: ReviewImage) {
-  return {
-    width: image.bbox ? `${(image.bbox.x1 - image.bbox.x0) * PDF_TO_CSS_SCALE}px` : "200px",
-    height: image.bbox ? `${(image.bbox.y1 - image.bbox.y0) * PDF_TO_CSS_SCALE}px` : "150px",
-  };
-}
-
-function ImageRedactionFrame({
-  image,
-  pageNumber,
-  isPreviewMode,
-  isManuallyRedacted,
-  onToggle,
-  showButton = true,
-}: {
-  image: ReviewImage;
-  pageNumber: number;
-  isPreviewMode: boolean;
-  isManuallyRedacted: boolean;
-  onToggle: (pageNumber: number, imageId: string) => void;
-  showButton?: boolean;
-}) {
-  const { width, height } = getImageDimensions(image);
-  const imageSrc = image.imageUrl ? `${process.env.NEXT_PUBLIC_API_BASE_URL}${image.imageUrl}` : null;
 
   return (
-    <div className="jr-review-image-panel">
-      <div className="jr-review-image-preview">
-        <div className="jr-review-image-frame" style={{ position: "relative", display: "inline-block", width, height }}>
-          {imageSrc ? (
-            <img
-              src={imageSrc}
-              alt={image.alt || "Image extracted from uploaded document"}
-              className="jr-review-image"
-              style={{ width, height, display: "block" }}
-            />
-          ) : (
-            <div
-              className="jr-review-image-placeholder"
-              role="img"
-              aria-label="Image extracted from uploaded document"
-              style={{
-                width,
-                height,
-                background: "#f3f2f1",
-                border: "2px dashed #b1b4b6",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#505a5f",
-                boxSizing: "border-box",
-              }}
-            >
-              Image
-            </div>
-          )}
-
-          {isManuallyRedacted && (
-            <div
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                inset: 0,
-                background: isPreviewMode ? "#000" : "#f6d7d2",
-                border: isPreviewMode ? "2px solid #000" : "2px solid #d4351c",
-                opacity: isPreviewMode ? 1 : 0.75,
-                pointerEvents: "none",
-                boxSizing: "border-box",
-              }}
-            />
-          )}
-        </div>
-      </div>
-
-      {showButton && !isPreviewMode && (
-        <div className="jr-review-image-meta govuk-!-margin-top-2">
-          <button type="button" className="govuk-button govuk-button--secondary govuk-!-margin-bottom-0" onClick={() => onToggle(pageNumber, image.imageId)}>
-            {isManuallyRedacted ? "Disclose image" : "Redact image"}
-          </button>
-        </div>
-      )}
-    </div>
+    <ReviewDocument
+      key={`${documentId ?? "missing-document-id"}-${returnToEnd ? "end" : "default"}`}
+      documentId={documentId}
+      returnToEnd={returnToEnd}
+    />
   );
 }
 
-function ReviewContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const documentId = searchParams.get("documentId");
-
-  const [data, setData] = useState<ReviewResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+function ReviewDocument({
+  documentId,
+  returnToEnd,
+}: {
+  documentId: string | null;
+  returnToEnd: boolean;
+}) {
   const [selectedRangeStart, setSelectedRangeStart] = useState(0);
-  const [manualSelections, setManualSelections] = useState<ManualDecision[]>([]);
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
-  const [isApplyingRedactions, setIsApplyingRedactions] = useState(false);
-  const [applyRedactionsError, setApplyRedactionsError] = useState<string | null>(null);
+  const [isReturnToEndReady, setIsReturnToEndReady] =
+    useState(!returnToEnd);
+  const hasScrolledToEndRef = useRef(false);
+
+  const { data, isLoading, error } = useReviewData(documentId);
 
   useEffect(() => {
-    async function loadReview() {
-      if (!documentId) {
-        setError("Missing document ID.");
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        setIsLoading(true);
-        setError(null);
-        setData(null);
-        setSelectedRangeStart(0);
-        setManualSelections([]);
-        setIsPreviewMode(false);
-        setIsApplyingRedactions(false);
-        setApplyRedactionsError(null);
-
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/review`);
-        const result = await response.json();
-
-        if (!response.ok) throw new Error(result.detail || "Failed to load review data.");
-        setData(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load review data.");
-      } finally {
-        setIsLoading(false);
-      }
+    if (!returnToEnd || !data || isReturnToEndReady) {
+      return;
     }
 
-    loadReview();
-  }, [documentId]);
+    const lastPageIndex = Math.max(
+      0,
+      data.summary.totalPages - 1
+    );
 
-  const visiblePages = useMemo(() => {
-    if (!data) return [];
-    const start = Math.max(0, selectedRangeStart);
-    const endExclusive = Math.min(data.summary.totalPages, start + PAGES_PER_BATCH);
+    const finalRangeStart =
+      Math.floor(lastPageIndex / PAGES_PER_BATCH) *
+      PAGES_PER_BATCH;
 
-    return data.pages
-      .slice()
-      .sort((a, b) => a.pageNumber - b.pageNumber)
-      .filter((page) => page.pageNumber >= start && page.pageNumber < endExclusive);
-  }, [data, selectedRangeStart]);
+    setSelectedRangeStart(finalRangeStart);
+    setIsReturnToEndReady(true);
+  }, [data, returnToEnd, isReturnToEndReady]);
+
+  const {
+    manualSelections,
+    setManualSelections,
+    pageStatuses,
+    setPageStatuses,
+    hasLoadedPersistedDecisions,
+    decisionLoadError,
+    decisionSaveError,
+    hasDecisionConflict,
+    clearDecisionSaveError,
+    saveBeforeApply,
+  } = useReviewDecisionPersistence(
+    documentId,
+    Boolean(data),
+  );
+  const [reviewMode, setReviewMode] = useState<ReviewMode>("redact");
+  const {
+    isApplyingRedactions,
+    applyRedactionsError,
+    showApplyRedactionsFailure,
+    showNoChangesValidation,
+    validationFocusRequest,
+    handleApplyRedactions,
+  } = useApplyRedactions({
+    documentId,
+    documentData: data,
+    manualSelections,
+    pageStatuses,
+    hasDecisionConflict,
+    clearDecisionSaveError,
+    saveBeforeApply,
+  });
+
+  const [isQuickHelpOpen, setIsQuickHelpOpen] = useState(false);
+  const {
+    isFindAndRedactOpen,
+    setIsFindAndRedactOpen,
+    isFindAndPartiallyRedactOpen,
+    setIsFindAndPartiallyRedactOpen,
+    isFindAndDiscloseOpen,
+    setIsFindAndDiscloseOpen,
+    hasFindAndRedactError,
+    setHasFindAndRedactError,
+    hasFindAndPartiallyRedactError,
+    setHasFindAndPartiallyRedactError,
+    hasFindAndDiscloseError,
+    setHasFindAndDiscloseError,
+    searchPages,
+    isSearchLoading,
+    searchError,
+    openFindAndRedact,
+    openFindAndPartiallyRedact,
+    openFindAndDisclose,
+  } = useReviewFindWorkflows(documentId);
+
+  const requestedPageStart =
+    selectedRangeStart + 1;
+
+  const requestedPageEnd =
+    data && data.summary.totalPages > 0
+      ? Math.min(
+        data.summary.totalPages,
+        selectedRangeStart + PAGES_PER_BATCH
+      )
+      : null;
+
+  const {
+    pages: visiblePages,
+    isLoading: isPagesLoading,
+    error: pagesError,
+  } = useReviewPages(
+    documentId,
+    requestedPageStart,
+    requestedPageEnd,
+    Boolean(data) && isReturnToEndReady
+  );
+
+  usePageTitle(
+    "Make redactions",
+    Boolean(
+      showApplyRedactionsFailure ||
+      showNoChangesValidation ||
+      error ||
+      pagesError ||
+      searchError ||
+      decisionSaveError ||
+      applyRedactionsError ||
+      hasFindAndRedactError ||
+      hasFindAndPartiallyRedactError ||
+      hasFindAndDiscloseError
+    ),
+  );
+
+  const isPreviewMode = reviewMode === "preview";
+  const isRedactMode = reviewMode === "redact";
+
+  const {
+    redactionRemoveMenu,
+    redactionRemoveMenuRef,
+    setManualRedactionHover,
+    removeManualSelection,
+    closeRedactionRemoveMenu,
+    handleRedactionMouseOver,
+    handleRedactionMouseOut,
+    handleRedactionContextMenu,
+  } = useRedactionInteractions({
+    isRedactMode,
+    setManualSelections,
+  });
 
   const pageRanges = useMemo(() => {
     const totalPages = data?.summary.totalPages ?? 0;
     const count = Math.ceil(totalPages / PAGES_PER_BATCH);
+
     return Array.from({ length: count }, (_, index) => {
       const start = index * PAGES_PER_BATCH;
       const end = Math.min(totalPages - 1, start + PAGES_PER_BATCH - 1);
+
       return { start, end };
     });
   }, [data]);
 
   const isLastBatch = useMemo(() => {
     if (!data) return false;
+
     return selectedRangeStart + PAGES_PER_BATCH >= data.summary.totalPages;
   }, [data, selectedRangeStart]);
 
-  function manualSelectionsForCurrentDocument() {
-    if (!documentId) return [];
-    return manualSelections.filter((selection) => selection.documentId === documentId);
-  }
+  useEffect(() => {
+    if (
+      !returnToEnd ||
+      !isReturnToEndReady ||
+      hasScrolledToEndRef.current ||
+      !data ||
+      !hasLoadedPersistedDecisions ||
+      isPagesLoading ||
+      pagesError ||
+      !isLastBatch ||
+      visiblePages[visiblePages.length - 1]?.pageNumber !==
+        data.summary.totalPages
+    ) {
+      return;
+    }
 
-  async function handleApplyRedactions() {
-    if (!data || !documentId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const endOfDocument =
+        document.querySelector<HTMLElement>(".end-of-page");
 
-    const currentDocumentSelections = manualSelectionsForCurrentDocument();
-    if (currentDocumentSelections.length === 0) return;
-
-    try {
-      setIsApplyingRedactions(true);
-      setApplyRedactionsError(null);
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${data.documentId}/apply-redactions`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            documentId: data.documentId,
-            decisions: currentDocumentSelections.map((selection) => {
-              if (selection.kind === "text") {
-                return {
-                  kind: "text",
-                  pageNumber: selection.pageNumber,
-                  itemId: selection.itemId,
-                  start: selection.start,
-                  end: selection.end,
-                  text: selection.text,
-                  action: "redact",
-                  source: "manual",
-                };
-              }
-
-              if (selection.kind === "table_cell") {
-                return {
-                  kind: "table_cell",
-                  pageNumber: selection.pageNumber,
-                  tableId: selection.tableId,
-                  cellId: selection.cellId,
-                  start: selection.start,
-                  end: selection.end,
-                  text: selection.text,
-                  action: "redact",
-                  source: "manual",
-                };
-              }
-
-              return {
-                kind: "image",
-                pageNumber: selection.pageNumber,
-                imageId: selection.imageId,
-                action: "redact",
-                source: "manual",
-              };
-            }),
-          }),
-        }
-      );
-
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.detail || "Failed to apply redactions.");
+      if (!endOfDocument) {
+        return;
       }
 
-      router.push(`/applying-redactions?documentId=${data.documentId}`);
-    } catch (err) {
-      setApplyRedactionsError(
-        err instanceof Error ? err.message : "Failed to apply redactions."
-      );
-      setIsApplyingRedactions(false); // only reset on error
-    }
-  }
-
-  function addOrMergeManualTextSelections(page: ReviewPageData, spansToAdd: ManualSpan[]) {
-    if (!documentId || spansToAdd.length === 0) return;
-
-    setManualSelections((prev) => {
-      const affectedKeys = new Set(spansToAdd.map((span) => `${span.pageNumber}::${span.itemId}`));
-
-      const remaining = prev.filter((selection) => {
-        if (selection.kind !== "text") return true;
-        return !affectedKeys.has(`${selection.pageNumber}::${selection.itemId}`);
+      endOfDocument.scrollIntoView({
+        behavior: "instant",
+        block: "end",
       });
 
-      const replacements: ManualTextDecision[] = [];
-
-      for (const key of affectedKeys) {
-        const [pageNumberString, itemId] = key.split("::");
-        const pageNumber = Number(pageNumberString);
-        const itemText = page.textItems.find((item) => item.itemId === itemId)?.renderText ?? page.textItems.find((item) => item.itemId === itemId)?.text ?? "";
-
-        const existing = prev.filter((selection): selection is ManualTextDecision => selection.kind === "text" && selection.pageNumber === pageNumber && selection.itemId === itemId);
-        const added = spansToAdd.filter((span) => span.pageNumber === pageNumber && span.itemId === itemId);
-
-        mergeSpans([...existing.map((selection) => ({ pageNumber, itemId, start: selection.start, end: selection.end })), ...added]).forEach((span) => {
-          replacements.push({
-            id: crypto.randomUUID(),
-            documentId,
-            kind: "text",
-            pageNumber,
-            itemId,
-            start: span.start,
-            end: span.end,
-            text: itemText.slice(span.start, span.end),
-          });
-        });
-      }
-
-      return [...remaining, ...replacements];
+      hasScrolledToEndRef.current = true;
     });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    returnToEnd,
+    isReturnToEndReady,
+    data,
+    hasLoadedPersistedDecisions,
+    isPagesLoading,
+    pagesError,
+    isLastBatch,
+    visiblePages,
+  ]);
+
+  function manualSelectionsForCurrentDocument() {
+    if (!documentId) return [];
+
+    return manualSelections.filter(
+      (selection) => selection.documentId === documentId
+    );
   }
 
-  function addOrMergeManualTableSelection(page: ReviewPageData, tableId: string, cell: ReviewTableCell, pageNumber: number, start: number, end: number) {
-    if (!documentId) return;
+  function addManualTextSelectionGroup(
+    page: ReviewPageData,
+    spansToAdd: ManualSpan[],
+    redactionGroupId: string
+  ) {
+    if (
+      !documentId ||
+      spansToAdd.length === 0 ||
+      pageStatuses[page.pageNumber]
+    ) {
+      return;
+    }
 
-    const sourceText = cell.renderText ?? cell.text;
-    const normalisedStart = clampRangeValue(start, sourceText.length);
-    const normalisedEnd = clampRangeValue(end, sourceText.length);
-
-    if (normalisedEnd <= normalisedStart) return;
-    if (!sourceText.slice(normalisedStart, normalisedEnd).trim()) return;
-
-    setManualSelections((prev) => {
-      const remaining = prev.filter(
-        (selection) => !(selection.kind === "table_cell" && selection.pageNumber === pageNumber && selection.tableId === tableId && selection.cellId === cell.cellId)
-      );
-
-      const existing = prev.filter(
-        (selection): selection is ManualTableCellDecision =>
-          selection.kind === "table_cell" && selection.pageNumber === pageNumber && selection.tableId === tableId && selection.cellId === cell.cellId
-      );
-
-      const merged = mergeSpans([
-        ...existing.map((selection) => ({ pageNumber, itemId: cell.cellId, start: selection.start, end: selection.end })),
-        { pageNumber, itemId: cell.cellId, start: normalisedStart, end: normalisedEnd },
-      ]);
-
-      const replacements: ManualTableCellDecision[] = merged.map((span) => ({
-        id: crypto.randomUUID(),
+    setManualSelections((previous) =>
+      addManualTextSelections(
+        previous,
+        page,
+        spansToAdd,
         documentId,
-        kind: "table_cell",
+        redactionGroupId,
+        () => crypto.randomUUID()
+      )
+    );
+  }
+
+  function addManualTableSelectionGroup(
+    pageNumber: number,
+    tableId: string,
+    cellRanges: Array<{
+      cell: ReviewTableCell;
+      start: number;
+      end: number;
+    }>,
+    redactionGroupId: string
+  ) {
+    if (
+      !documentId ||
+      !data ||
+      cellRanges.length === 0 ||
+      pageStatuses[pageNumber]
+    ) {
+      return;
+    }
+
+    setManualSelections((previous) =>
+      addManualTableSelections(
+        previous,
         pageNumber,
         tableId,
-        cellId: cell.cellId,
-        start: span.start,
-        end: span.end,
-        text: sourceText.slice(span.start, span.end),
-      }));
-
-      return [...remaining, ...replacements];
-    });
+        cellRanges,
+        visiblePages,
+        documentId,
+        redactionGroupId,
+        () => crypto.randomUUID()
+      )
+    );
   }
 
   function handleTableCellSelection() {
-    if (isPreviewMode || !data) return false;
+    if (!isRedactMode || !data) {
+      return false;
+    }
 
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false;
+
+    if (
+      !selection ||
+      selection.rangeCount === 0 ||
+      selection.isCollapsed
+    ) {
+      return false;
+    }
 
     const range = selection.getRangeAt(0);
-    const startElement = getClosestElementWithAttribute(range.startContainer, "data-cell-id");
-    const endElement = getClosestElementWithAttribute(range.endContainer, "data-cell-id");
 
-    if (!startElement || !endElement) return false;
+    const startElement =
+      getClosestElementWithAttribute(
+        range.startContainer,
+        "data-cell-id"
+      );
+
+    const endElement =
+      getClosestElementWithAttribute(
+        range.endContainer,
+        "data-cell-id"
+      );
+
+    if (!startElement || !endElement) {
+      return false;
+    }
 
     const startCellId = startElement.dataset.cellId;
     const endCellId = endElement.dataset.cellId;
+
     const startTableId = startElement.dataset.tableId;
     const endTableId = endElement.dataset.tableId;
-    const startPageNumber = startElement.dataset.pageNumber;
-    const endPageNumber = endElement.dataset.pageNumber;
 
-    if (!startCellId || !endCellId || !startTableId || !endTableId || !startPageNumber || !endPageNumber) return false;
-    if (startCellId !== endCellId || startTableId !== endTableId || startPageNumber !== endPageNumber) {
+    const startPageNumber =
+      startElement.dataset.pageNumber;
+
+    const endPageNumber =
+      endElement.dataset.pageNumber;
+
+    if (
+      !startCellId ||
+      !endCellId ||
+      !startTableId ||
+      !endTableId ||
+      !startPageNumber ||
+      !endPageNumber
+    ) {
+      selection.removeAllRanges();
+      return true;
+    }
+
+    if (
+      startTableId !== endTableId ||
+      startPageNumber !== endPageNumber
+    ) {
       selection.removeAllRanges();
       return true;
     }
 
     const pageNumber = Number(startPageNumber);
-    const page = data.pages.find((candidate) => candidate.pageNumber === pageNumber);
-    const table = page?.tables.find((candidate) => candidate.tableId === startTableId);
-    const cell = table?.rows.flatMap((row) => row.cells).find((candidate) => candidate.cellId === startCellId);
 
-    if (!page || !table || !cell) {
+    const page = visiblePages.find(
+      (candidate) =>
+        candidate.pageNumber === pageNumber
+    );
+
+    const table = page?.tables.find(
+      (candidate) =>
+        candidate.tableId === startTableId
+    );
+
+    if (!page || !table) {
       selection.removeAllRanges();
       return true;
     }
 
-    const start = getTextOffsetWithinItem(startElement, range.startContainer, range.startOffset);
-    const end = getTextOffsetWithinItem(endElement, range.endContainer, range.endOffset);
+    const cellRanges = buildSelectedTableCellRanges(
+      table.rows.flatMap((row) => row.cells),
+      startCellId,
+      endCellId,
+      () =>
+        getTextOffsetWithinItem(
+          startElement,
+          range.startContainer,
+          range.startOffset,
+        ),
+      () =>
+        getTextOffsetWithinItem(
+          endElement,
+          range.endContainer,
+          range.endOffset,
+        ),
+    );
 
-    addOrMergeManualTableSelection(page, startTableId, cell, pageNumber, Math.min(start, end), Math.max(start, end));
+    if (cellRanges === null) {
+      selection.removeAllRanges();
+      return true;
+    }
+
+    if (cellRanges.length > 0) {
+      addManualTableSelectionGroup(
+        pageNumber,
+        startTableId,
+        cellRanges,
+        crypto.randomUUID()
+      );
+    }
+
     selection.removeAllRanges();
+
     return true;
   }
 
   function handleTextSelection() {
-    if (isPreviewMode || !data) return;
+    if (!isRedactMode || !data) {
+      return;
+    }
 
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
 
-    const range = selection.getRangeAt(0);
-    const startElement = getClosestElementWithAttribute(range.startContainer, "data-item-id");
-    const endElement = getClosestElementWithAttribute(range.endContainer, "data-item-id");
-
-    if (!startElement || !endElement) return;
-
-    const startItemId = startElement.dataset.itemId;
-    const endItemId = endElement.dataset.itemId;
-    const startPageNumber = startElement.dataset.pageNumber;
-    const endPageNumber = endElement.dataset.pageNumber;
-
-    if (!startItemId || !endItemId || !startPageNumber || !endPageNumber || startPageNumber !== endPageNumber) {
-      selection.removeAllRanges();
+    if (
+      !selection ||
+      selection.rangeCount === 0 ||
+      selection.isCollapsed
+    ) {
       return;
     }
 
-    const pageNumber = Number(startPageNumber);
-    const page = data.pages.find((candidate) => candidate.pageNumber === pageNumber);
-    if (!page) {
-      selection.removeAllRanges();
+    const result = resolveSelectedTextRanges(
+      selection.getRangeAt(0),
+      visiblePages
+    );
+
+    if (result.kind === "ignore") {
       return;
     }
 
-    const pageItemElements = Array.from(document.querySelectorAll<HTMLElement>(`.jr-review-block.redactable[data-page-number="${pageNumber}"][data-item-id]`));
-    const startIndex = pageItemElements.findIndex((element) => element.dataset.itemId === startItemId);
-    const endIndex = pageItemElements.findIndex((element) => element.dataset.itemId === endItemId);
-
-    if (startIndex < 0 || endIndex < 0 || startIndex > endIndex) {
-      selection.removeAllRanges();
-      return;
+    if (result.kind === "apply") {
+      addManualTextSelectionGroup(
+        result.page,
+        result.spans,
+        crypto.randomUUID()
+      );
     }
 
-    const spansToAdd: ManualSpan[] = [];
-
-    for (let index = startIndex; index <= endIndex; index += 1) {
-      const element = pageItemElements[index];
-      const itemId = element.dataset.itemId;
-      if (!itemId) continue;
-
-      const item = page.textItems.find((candidate) => candidate.itemId === itemId);
-      if (!item) continue;
-
-      const sourceText = item.text;
-      const start = index === startIndex ? getTextOffsetWithinItem(element, range.startContainer, range.startOffset) : 0;
-      const end = index === endIndex ? getTextOffsetWithinItem(element, range.endContainer, range.endOffset) : sourceText.length;
-
-      const normalisedStart = clampRangeValue(Math.min(start, end), sourceText.length);
-      const normalisedEnd = clampRangeValue(Math.max(start, end), sourceText.length);
-
-      if (normalisedEnd <= normalisedStart) continue;
-      if (!sourceText.slice(normalisedStart, normalisedEnd).trim()) continue;
-
-      spansToAdd.push({ pageNumber, itemId, start: normalisedStart, end: normalisedEnd });
-    }
-
-    addOrMergeManualTextSelections(page, spansToAdd);
     selection.removeAllRanges();
   }
 
-  function removeManualSelection(id: string) {
-    setManualSelections((prev) => prev.filter((selection) => selection.id !== id));
-  }
+  function handleReviewModeChange(nextMode: ReviewMode) {
+    if (nextMode !== "redact") {
+      closeRedactionRemoveMenu();
+    }
 
-  function handleRedactionClick(event: React.MouseEvent<HTMLElement>) {
-    if (isPreviewMode) return;
-    const target = event.target as HTMLElement | null;
-    const element = target?.closest?.("[data-manual-id]") as HTMLElement | null;
-    const manualId = element?.dataset?.manualId;
-    if (manualId) removeManualSelection(manualId);
+    setReviewMode(nextMode);
   }
 
   function toggleImageRedaction(pageNumber: number, imageId: string) {
-    if (!documentId || isPreviewMode) return;
+    if (
+      !documentId ||
+      !isRedactMode ||
+      pageStatuses[pageNumber]
+    ) return;
 
     setManualSelections((prev) => {
-      const existing = prev.find((selection) => selection.kind === "image" && selection.pageNumber === pageNumber && selection.imageId === imageId);
-      if (existing) return prev.filter((selection) => selection.id !== existing.id);
-      return [...prev, { id: crypto.randomUUID(), documentId, kind: "image", pageNumber, imageId }];
+      const existing = prev.find(
+        (selection) =>
+          selection.kind === "image" &&
+          selection.pageNumber === pageNumber &&
+          selection.imageId === imageId
+      );
+
+      if (existing) {
+        return prev.filter((selection) => selection.id !== existing.id);
+      }
+
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          documentId,
+          kind: "image",
+          pageNumber,
+          imageId,
+        },
+      ];
     });
   }
 
+  function removeRedactionsForPage(pageNumber: number) {
+    setManualSelections((previous) =>
+      previous.filter(
+        (selection) =>
+          selection.pageNumber !== pageNumber
+      )
+    );
+  }
+
+  function markPageDeleted(pageNumber: number) {
+    removeRedactionsForPage(pageNumber);
+
+    setPageStatuses((prev) => ({
+      ...prev,
+      [pageNumber]: "deleted",
+    }));
+  }
+
+  function markPageExempted(pageNumber: number) {
+    removeRedactionsForPage(pageNumber);
+
+    setPageStatuses((prev) => ({
+      ...prev,
+      [pageNumber]: "exempted",
+    }));
+  }
+
+  function restorePage(pageNumber: number) {
+    setPageStatuses((prev) => {
+      const next = { ...prev };
+      delete next[pageNumber];
+      return next;
+    });
+  }
+
+  function handleHighlightSelected(
+    selectedResults: FindInDocumentResult[]
+  ): number {
+    if (
+      !documentId ||
+      !searchPages ||
+      selectedResults.length === 0
+    ) {
+      return 0;
+    }
+
+    const plan = prepareFindRedactionReplacements(
+      selectedResults,
+      searchPages,
+      documentId,
+      () => crypto.randomUUID()
+    );
+
+    if (plan.resultCount === 0) {
+      return 0;
+    }
+
+    setManualSelections((previous) =>
+      applyFindRedactionReplacements(
+        previous,
+        plan,
+        () => crypto.randomUUID()
+      )
+    );
+
+    return plan.resultCount;
+  }
+
+  function handleFindAndPartiallyRedact(
+    results: FindInDocumentResult[],
+    selectedResultIds: Set<string>,
+    selectedRange: {
+      start: number;
+      end: number;
+    }
+  ): number {
+    if (!documentId || !searchPages) {
+      return 0;
+    }
+
+    const selectedResults = results.filter((result) =>
+      selectedResultIds.has(result.id)
+    );
+
+    if (selectedResults.length === 0) {
+      return 0;
+    }
+
+    const preview = addPartialFindRedactions(
+      manualSelections,
+      selectedResults,
+      selectedRange,
+      searchPages,
+      documentId,
+      () => "preview-only"
+    );
+
+    setManualSelections((previous) =>
+      addPartialFindRedactions(
+        previous,
+        selectedResults,
+        selectedRange,
+        searchPages,
+        documentId,
+        () => crypto.randomUUID()
+      ).nextSelections
+    );
+
+    return preview.addedResultCount;
+  }
+
+  function handleUndoSelected(
+    selectedResults: FindInManualRedactionResult[]
+  ): number {
+    if (
+      !documentId ||
+      !data ||
+      selectedResults.length === 0
+    ) {
+      return 0;
+    }
+
+    const preview = discloseManualRedactions(
+      manualSelections,
+      selectedResults,
+      () => "preview-only"
+    );
+
+    setManualSelections((previous) =>
+      discloseManualRedactions(
+        previous,
+        selectedResults,
+        () => crypto.randomUUID()
+      ).remainingSelections
+    );
+
+    return preview.disclosedCount;
+  }
+
+  useEffect(() => {
+    if (!isRedactMode || !data) {
+      return;
+    }
+
+    function handleDocumentMouseUp(
+      event: globalThis.MouseEvent
+    ) {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const selection = window.getSelection();
+
+      if (
+        !selection ||
+        selection.rangeCount === 0 ||
+        selection.isCollapsed
+      ) {
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+
+      const intersectedRedactableElements =
+        Array.from(
+          document.querySelectorAll<HTMLElement>(
+            ".jr-review-block.redactable[data-page-number][data-item-id], [data-cell-id]"
+          )
+        ).filter((element) => {
+          try {
+            return range.intersectsNode(element);
+          } catch {
+            return false;
+          }
+        });
+
+      if (intersectedRedactableElements.length === 0) {
+        return;
+      }
+
+      const intersectsInactivePage =
+        intersectedRedactableElements.some((element) =>
+          Boolean(
+            pageStatuses[Number(element.dataset.pageNumber)]
+          )
+        );
+
+      if (intersectsInactivePage) {
+        return;
+      }
+
+      const handledTable =
+        handleTableCellSelection();
+
+      if (!handledTable) {
+        handleTextSelection();
+      }
+
+      window.requestAnimationFrame(() => {
+        window.getSelection()?.removeAllRanges();
+      });
+    }
+
+    document.addEventListener(
+      "mouseup",
+      handleDocumentMouseUp
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mouseup",
+        handleDocumentMouseUp
+      );
+    };
+  });
+
+  if (decisionLoadError) {
+    return (
+      <ServiceErrorPage
+        variant={500}
+        documentId={documentId}
+      />
+    );
+  }
+
+  if (data && !hasLoadedPersistedDecisions) {
+    return null;
+  }
+
   return (
-    <main className="jr-review-root govuk-main-wrapper" id="main-content">
-      <header className="sticky-container" aria-label="Review controls">
-        <FilenameBar
-          filename={data?.filename || "Document"}
+    <div className="jr-review-root">
+      {redactionRemoveMenu && (
+        <button
+          ref={redactionRemoveMenuRef}
+          type="button"
+          className="jr-redaction-remove-menu"
+          aria-label="Remove redaction"
+          title="Remove redaction"
+          style={{
+            position: "fixed",
+            left: redactionRemoveMenu.x,
+            top: redactionRemoveMenu.y,
+            zIndex: 20,
+          }}
+          onMouseEnter={() => {
+            setManualRedactionHover(
+              redactionRemoveMenu.manualId,
+              redactionRemoveMenu.redactionGroupId,
+              true
+            );
+          }}
+          onMouseLeave={() => {
+            setManualRedactionHover(
+              redactionRemoveMenu.manualId,
+              redactionRemoveMenu.redactionGroupId,
+              false
+            );
+          }}
+          onClick={() => {
+            removeManualSelection(
+              redactionRemoveMenu.manualId,
+              redactionRemoveMenu.redactionGroupId
+            );
+            closeRedactionRemoveMenu();
+          }}
+        >
+          <span className="jr-redaction-remove-menu__item">
+            Remove redaction
+          </span>
+        </button>
+      )}
+      <ReviewControlsHeader
+        filename={data?.filename || "Document"}
+        reviewMode={reviewMode}
+        onReviewModeChange={handleReviewModeChange}
+        onQuickHelp={() => setIsQuickHelpOpen(true)}
+        onFindAndRedact={() => {
+          void openFindAndRedact();
+        }}
+        onFindAndPartiallyRedact={() => {
+          void openFindAndPartiallyRedact();
+        }}
+        onFindAndDisclose={() => {
+          void openFindAndDisclose();
+        }}
+      />
+
+      <BetaBanner contained={false} />
+
+      {(showApplyRedactionsFailure || showNoChangesValidation) && (
+        <ApplyRedactionsFailureAlert
+          variant={
+            showNoChangesValidation
+              ? "no-changes"
+              : "apply-failure"
+          }
+          focusRequest={validationFocusRequest}
         />
-        <div className="actions-bar" aria-label="Review actions">
-          <div className="govuk-button-group">
-            <p className="govuk-body"><strong>Menu:</strong></p>
-
-            <a href="#" className="govuk-link govuk-link--no-visited-state">Find and redact</a>
-            <a href="#" className="govuk-link govuk-link--no-visited-state">Find and unredact</a>
-            <a href="#" className="govuk-link govuk-link--no-visited-state">Edit allow list</a>
-            <a href="#" className="govuk-link govuk-link--no-visited-state">Quick help</a>
-
-            <p className="govuk-body jr-modes-label"><strong>Modes:</strong></p>
-            <button
-              type="button"
-              className="toggle-button-v2"
-              aria-pressed={!isPreviewMode}
-              aria-label="Switch to redact mode"
-              onClick={() => setIsPreviewMode(false)}
-            >
-              Redact
-            </button>
-            <button
-              type="button"
-              className="toggle-button-v2"
-              aria-pressed={isPreviewMode}
-              aria-label="Switch to preview mode"
-              onClick={() => setIsPreviewMode(true)}
-            >
-              Preview
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="govuk-grid-column-full-width">
-        <h1 className="govuk-heading-xl jr-mark-for-redaction__header">Mark for redaction</h1>
-      </div>
-
-      {isLoading && (
-        <section className="govuk-grid-column-full-width" aria-live="polite">
-          <p className="govuk-body">Loading review data...</p>
-        </section>
       )}
 
-      {error && (
-        <section className="govuk-grid-column-full-width" aria-labelledby="review-error-title">
-          <div
-            className="govuk-error-summary"
-            data-module="govuk-error-summary"
-            aria-labelledby="review-error-title"
-            role="alert"
-            tabIndex={-1}
-          >
-            <h2 className="govuk-error-summary__title" id="review-error-title">
-              There is a problem
-            </h2>
+      <FindAndRedactModal
+        isOpen={isFindAndRedactOpen}
+        pages={searchPages ?? []}
+        manualSelections={manualSelections}
+        findings={data?.findings ?? []}
+        onClose={() => setIsFindAndRedactOpen(false)}
+        onErrorChange={setHasFindAndRedactError}
+        onHighlightSelected={handleHighlightSelected}
+      />
+      <FindAndPartiallyRedactModal
+        isOpen={isFindAndPartiallyRedactOpen}
+        pages={searchPages ?? []}
+        manualSelections={manualSelections}
+        findings={data?.findings ?? []}
+        onClose={() => setIsFindAndPartiallyRedactOpen(false)}
+        onErrorChange={setHasFindAndPartiallyRedactError}
+        onHighlightSelected={handleFindAndPartiallyRedact}
+      />
+      <FindAndDiscloseModal
+        isOpen={isFindAndDiscloseOpen}
+        pages={searchPages ?? []}
+        manualSelections={manualSelections}
+        findings={data?.findings ?? []}
+        onClose={() => setIsFindAndDiscloseOpen(false)}
+        onErrorChange={setHasFindAndDiscloseError}
+        onUndoSelected={handleUndoSelected}
+      />
+      <QuickHelpModal
+        isOpen={isQuickHelpOpen}
+        onClose={() => setIsQuickHelpOpen(false)}
+      />
 
-            <div className="govuk-error-summary__body">
-              <p className="govuk-body">{error}</p>
-            </div>
-          </div>
-        </section>
-      )}
+      <h1
+        className={[
+          "govuk-heading-xl",
+          "jr-review-intro__heading",
+          (showApplyRedactionsFailure || showNoChangesValidation)
+            ? "jr-review-intro__heading--after-alert"
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        Make redactions
+      </h1>
+
+      <HighlightKey />
+
+      <ReviewStatusMessages
+        isLoading={
+          isLoading ||
+          isPagesLoading ||
+          isSearchLoading
+        }
+        error={
+          error ??
+          pagesError ??
+          searchError ??
+          decisionSaveError
+        }
+      />
 
       {data && visiblePages.length > 0 && (
         <>
           <div
-            onMouseUp={() => {
-              const handledTable = handleTableCellSelection();
-              if (!handledTable) handleTextSelection();
-            }}
-            onClick={handleRedactionClick}
+            onMouseOver={handleRedactionMouseOver}
+            onMouseOut={handleRedactionMouseOut}
+            onContextMenu={handleRedactionContextMenu}
           >
             {visiblePages.map((page) => {
-              const findingsForPage = data.findings.filter((finding) => finding.pageNumber === page.pageNumber);
-              const manualSelectionsForPage = manualSelections.filter((selection) => selection.documentId === documentId && selection.pageNumber === page.pageNumber);
-              const textFindings = findingsForPage.filter((finding) => finding.kind === "text" && !!finding.itemId);
-              const tableFindings = findingsForPage.filter((finding) => finding.kind === "table_cell" && !!finding.cellId);
+              const findingsForPage = data.findings.filter(
+                (finding) => finding.pageNumber === page.pageNumber
+              );
 
-              const pageContentBlocks: PageContentBlock[] = [
-                ...page.textItems.map((item) => ({ kind: "text" as const, y: item.bbox?.y0 ?? Number.POSITIVE_INFINITY, item })),
-                ...(page.tables ?? []).map((table) => ({ kind: "table" as const, y: table.bbox?.y0 ?? Number.POSITIVE_INFINITY, table })),
-                ...(page.images ?? [])
-                  .filter((image) => !imageBelongsToAnyTableRow(image, page.tables ?? []))
-                  .map((image) => ({ kind: "image" as const, y: image.bbox?.y0 ?? Number.POSITIVE_INFINITY, image })),
-              ].sort((a, b) => a.y - b.y);
+              const manualSelectionsForPage = manualSelections.filter(
+                (selection) =>
+                  selection.documentId === documentId &&
+                  selection.pageNumber === page.pageNumber
+              );
 
               return (
                 <section
@@ -886,145 +941,44 @@ function ReviewContent() {
                   className="jr-review-page"
                   aria-labelledby={`review-page-${page.pageNumber}-heading`}
                 >
-                  <div className="jr-review-page__header">
-                    <h2
-                      className="govuk-heading-m govuk-!-margin-bottom-1"
-                      id={`review-page-${page.pageNumber}-heading`}
-                    >
-                      Page {page.pageNumber}
-                    </h2>
-                  </div>
+                  <ReviewPageHeader
+                    pageNumber={page.pageNumber}
+                    pageStatus={pageStatuses[page.pageNumber]}
+                    onExempt={markPageExempted}
+                    onDelete={markPageDeleted}
+                    onRestore={restorePage}
+                  />
 
-                  <div className="jr-review-page__content">
-                    {pageContentBlocks.map((block, blockIndex) => {
-                      if (block.kind === "text") {
-                        const item = block.item;
-                        const suggestionsForItem = textFindings.filter(
-                          (finding) => finding.itemId === item.itemId && typeof finding.entityStart === "number" && typeof finding.entityEnd === "number"
-                        );
-                        const manualForItem = manualSelectionsForPage
-                          .filter((selection): selection is ManualTextDecision => selection.kind === "text" && selection.itemId === item.itemId)
-                          .map((selection) => ({ id: selection.id, start: selection.start, end: selection.end }));
+                  {pageStatuses[page.pageNumber] ? (
+                    <details className="govuk-details jr-review-page__details">
+                      <summary className="govuk-details__summary">
+                        <span className="govuk-details__summary-text">
+                          View original content from page {page.pageNumber}
+                        </span>
+                      </summary>
 
-                        const sourceText = item.text;
-                        const boldRanges = getExactLineRanges(sourceText, "Case Note");
-
-                        return (
-                          <div key={`text-${item.itemId}-${blockIndex}`} className="jr-review-block redactable" data-page-number={page.pageNumber} data-item-id={item.itemId}>
-                            <p className="govuk-body">{renderTextSegments(sourceText, suggestionsForItem, manualForItem, isPreviewMode, boldRanges)}</p>
-                          </div>
-                        );
-                      }
-
-                      if (block.kind === "table") {
-                        const table = block.table;
-
-                        return (
-                          <div key={`table-${table.tableId}-${blockIndex}`} className="jr-review-table-wrapper">
-                            <table className="govuk-table govuk-table--small-text-until-tablet">
-                              <tbody className="govuk-table__body">
-                                {table.rows.map((row) => {
-                                  const rowImage = getImageForTableRow(row, page.images ?? []);
-                                  const rowImageManual = rowImage
-                                    ? manualSelectionsForPage.some((selection) => selection.kind === "image" && selection.imageId === rowImage.imageId)
-                                    : false;
-
-                                  return (
-                                    <tr key={`${table.tableId}-${row.rowIndex}`} className="govuk-table__row">
-                                      {rowImage && (
-                                        <td className="govuk-table__cell">
-                                          <ImageRedactionFrame
-                                            image={rowImage}
-                                            pageNumber={page.pageNumber}
-                                            isPreviewMode={isPreviewMode}
-                                            isManuallyRedacted={rowImageManual}
-                                            onToggle={toggleImageRedaction}
-                                          />
-                                        </td>
-                                      )}
-
-                                      {row.cells.map((cell) => {
-                                        const suggestionsForCell = tableFindings.filter(
-                                          (finding) =>
-                                            finding.tableId === table.tableId &&
-                                            finding.cellId === cell.cellId &&
-                                            typeof finding.entityStart === "number" &&
-                                            typeof finding.entityEnd === "number"
-                                        );
-
-                                        const manualForCell = manualSelectionsForPage
-                                          .filter(
-                                            (selection): selection is ManualTableCellDecision =>
-                                              selection.kind === "table_cell" && selection.tableId === table.tableId && selection.cellId === cell.cellId
-                                          )
-                                          .map((selection) => ({ id: selection.id, start: selection.start, end: selection.end }));
-
-                                        const isManuallyRedacted = manualForCell.length > 0;
-                                        const hasSuggestion = suggestionsForCell.length > 0;
-                                        const sourceText = cell.text;
-                                        const isStructured = sourceText.includes("\n");
-                                        const boldRanges = isStructured ? getStructuredKeyRanges(sourceText) : [];
-
-                                        const commonProps = {
-                                          className: [
-                                            cell.isNumeric ? "govuk-table__cell govuk-table__cell--numeric" : "govuk-table__cell",
-                                            "redactable",
-                                            hasSuggestion ? "jr-table-cell--has-suggestion" : "",
-                                            isManuallyRedacted ? "jr-table-cell--manual-redaction" : "",
-                                          ]
-                                            .join(" ")
-                                            .trim(),
-                                          "data-page-number": page.pageNumber,
-                                          "data-table-id": table.tableId,
-                                          "data-cell-id": cell.cellId,
-                                        };
-
-                                        const content = (
-                                          <span className="jr-table-cell-text" style={{ whiteSpace: "pre-line" }}>
-                                            {renderTextSegments(sourceText, suggestionsForCell, manualForCell, isPreviewMode, boldRanges)}
-                                          </span>
-                                        );
-
-                                        const shouldRenderAsHeader = cell.isHeader && !isStructured;
-                                        if (shouldRenderAsHeader) {
-                                          return (
-                                            <th key={cell.cellId} scope="col" {...commonProps} className={commonProps.className.replace("govuk-table__cell", "govuk-table__header")}>
-                                              {content}
-                                            </th>
-                                          );
-                                        }
-
-                                        return (
-                                          <td key={cell.cellId} {...commonProps}>
-                                            {content}
-                                          </td>
-                                        );
-                                      })}
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      }
-
-                      const image = block.image;
-                      const manualForImage = manualSelectionsForPage.some((selection) => selection.kind === "image" && selection.imageId === image.imageId);
-
-                      return (
-                        <div key={`image-${image.imageId}-${blockIndex}`} className="jr-review-image-wrapper govuk-!-margin-top-6">
-                          <ImageRedactionFrame
-                            image={image}
-                            pageNumber={page.pageNumber}
-                            isPreviewMode={isPreviewMode}
-                            isManuallyRedacted={manualForImage}
-                            onToggle={toggleImageRedaction}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
+                      <div className="govuk-details__text">
+                        <PageContent
+                          page={page}
+                          findings={findingsForPage}
+                          manualSelections={manualSelectionsForPage}
+                          documentManualSelections={manualSelectionsForCurrentDocument()}
+                          isPreviewMode={isPreviewMode}
+                          isReadOnly
+                          onToggleImageRedaction={toggleImageRedaction}
+                        />
+                      </div>
+                    </details>
+                  ) : (
+                    <PageContent
+                      page={page}
+                      findings={findingsForPage}
+                      manualSelections={manualSelectionsForPage}
+                      documentManualSelections={manualSelectionsForCurrentDocument()}
+                      isPreviewMode={isPreviewMode}
+                      onToggleImageRedaction={toggleImageRedaction}
+                    />
+                  )}
                 </section>
               );
             })}
@@ -1032,83 +986,29 @@ function ReviewContent() {
 
           <hr className="govuk-section-break govuk-section-break--m govuk-section-break--visible" />
 
-          <nav className="jr-pagination" aria-label="Page navigation">
-            {pageRanges.map((range) => {
-              const label = `${range.start + 1} - ${range.end + 1}`;
-              const isSelected = selectedRangeStart === range.start;
-
-              return (
-                <button
-                  key={`${range.start}-${range.end}`}
-                  type="button"
-                  className="govuk-button govuk-button--secondary"
-                  aria-current={isSelected ? "page" : undefined}
-                  disabled={isSelected}
-                  onClick={() => setSelectedRangeStart(range.start)}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </nav>
+          <ReviewPagination
+            pageRanges={pageRanges}
+            selectedRangeStart={selectedRangeStart}
+            totalPages={data.summary.totalPages}
+            onSelectRangeStart={setSelectedRangeStart}
+          />
 
           {isLastBatch && (
-            <div className="end-of-page">
-              <h3 className="govuk-heading-m">
-                You&apos;ve reached the end of the document
-              </h3>
-
-              {manualSelectionsForCurrentDocument().length > 0 ? (
-                <>
-                  <button
-                    type="button"
-                    className="govuk-button"
-                    data-module="govuk-button"
-                    onClick={handleApplyRedactions}
-                    disabled={isApplyingRedactions}
-                    aria-disabled={isApplyingRedactions}
-                  >
-                    Apply redactions
-                  </button>
-
-                  {applyRedactionsError && (
-                    <p className="govuk-error-message">
-                      <span className="govuk-visually-hidden">Error:</span>{" "}
-                      {applyRedactionsError}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="govuk-button"
-                  data-module="govuk-button"
-                  disabled
-                  aria-disabled="true"
-                >
-                  Apply redactions
-                </button>
-              )}
-            </div>
+            <EndOfDocumentActions
+              isApplyingRedactions={isApplyingRedactions}
+              error={applyRedactionsError}
+              onApplyRedactions={handleApplyRedactions}
+            />
           )}
         </>
       )}
-    </main>
+    </div>
   );
 }
 
 export default function ReviewPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="govuk-main-wrapper" id="main-content">
-          <div className="hods-loading-spinner" role="status" aria-live="polite">
-            <span className="govuk-visually-hidden">Loading review page</span>
-            <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={null}>
       <ReviewContent />
     </Suspense>
   );

@@ -1,0 +1,609 @@
+"use client";
+
+import {
+    type FormEvent,
+    useEffect,
+    useId,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from "react";
+
+import {
+    findInDocument,
+    type FindInDocumentResult,
+} from "../findInDocument";
+import {
+    isFindResultFullyRedacted,
+} from "../findResultRedactionDisplay";
+import type {
+    ManualDecision,
+    ReviewPageData,
+} from "../types";
+import type { ReviewFinding } from "../types";
+import FindResultExcerpt from "./FindResultExcerpt";
+import Modal from "./Modal";
+
+type FindAndRedactModalProps = {
+    isOpen: boolean;
+    pages: ReviewPageData[];
+    manualSelections: ManualDecision[];
+    findings: ReviewFinding[];
+    onClose: () => void;
+    onErrorChange: (hasError: boolean) => void;
+    onHighlightSelected: (
+        results: FindInDocumentResult[]
+    ) => number;
+};
+
+
+export default function FindAndRedactModal({
+    isOpen,
+    pages,
+    manualSelections,
+    findings,
+    onClose,
+    onErrorChange,
+    onHighlightSelected,
+}: FindAndRedactModalProps) {
+    const [searchTerm, setSearchTerm] = useState("");
+    const [submittedSearchTerm, setSubmittedSearchTerm] =
+        useState<string | null>(null);
+    const [highlightedCount, setHighlightedCount] = useState<number | null>(
+        null
+    );
+    const [results, setResults] = useState<FindInDocumentResult[]>([]);
+    const [selectedResultIds, setSelectedResultIds] = useState<Set<string>>(
+        new Set()
+    );
+
+    useEffect(() => {
+        // No user-input validation errors remain in this modal.
+        if (isOpen) {
+            onErrorChange(false);
+        }
+    }, [isOpen, onErrorChange]);
+
+    const inputId = useId();
+    const resultsHeadingId = useId();
+
+    const inputRef = useRef<HTMLInputElement>(null);
+    const successBannerRef = useRef<HTMLDivElement>(null);
+    const firstResultCheckboxRef = useRef<HTMLInputElement>(null);
+    const resultsHeadingRef =
+        useRef<HTMLHeadingElement>(null);
+    const resultsPaneRef =
+        useRef<HTMLDivElement>(null);
+
+    const isShowingResults = submittedSearchTerm !== null;
+    const isShowingSuccess = highlightedCount !== null;
+
+    const isShowingContentDenseResults =
+        isShowingResults &&
+        !isShowingSuccess &&
+        results.length > 0;
+
+    useEffect(() => {
+        if (!isShowingSuccess) return;
+
+        window.requestAnimationFrame(() => {
+            successBannerRef.current?.focus();
+        });
+    }, [isShowingSuccess]);
+
+    useEffect(() => {
+        if (!isShowingResults || isShowingSuccess) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            resultsHeadingRef.current?.focus();
+        });
+    }, [isShowingResults, isShowingSuccess]);
+
+    useLayoutEffect(() => {
+        if (!isShowingContentDenseResults) {
+            return;
+        }
+
+        const resultsPaneElement = resultsPaneRef.current;
+
+        if (!resultsPaneElement) {
+            return;
+        }
+
+        const modalElement =
+            resultsPaneElement.closest<HTMLElement>(
+                ".jr-modal--content-dense"
+            );
+
+        if (!modalElement) {
+            return;
+        }
+
+        const resultRows = Array.from(
+            resultsPaneElement.querySelectorAll<HTMLElement>(
+                ".jr-find-and-redact-result"
+            )
+        ).slice(0, 2);
+
+        if (resultRows.length === 0) {
+            modalElement.style.removeProperty(
+                "--jr-content-dense-min-height"
+            );
+            return;
+        }
+
+        const updateMinimumHeight = () => {
+            const modalHeight =
+                modalElement.getBoundingClientRect().height;
+
+            const resultsPaneHeight =
+                resultsPaneElement.getBoundingClientRect().height;
+
+            const rowsHeight = resultRows.reduce(
+                (height, row) =>
+                    height + row.getBoundingClientRect().height,
+                0
+            );
+
+            const resultsPaneStyles =
+                window.getComputedStyle(resultsPaneElement);
+
+            const borderHeight =
+                parseFloat(resultsPaneStyles.borderTopWidth) +
+                parseFloat(resultsPaneStyles.borderBottomWidth);
+
+            const nonResultsHeight =
+                modalHeight - resultsPaneHeight;
+
+            const minimumModalHeight = Math.ceil(
+                nonResultsHeight +
+                rowsHeight +
+                borderHeight
+            );
+
+            modalElement.style.setProperty(
+                "--jr-content-dense-min-height",
+                `${minimumModalHeight}px`
+            );
+        };
+
+        updateMinimumHeight();
+
+        window.addEventListener(
+            "resize",
+            updateMinimumHeight
+        );
+
+        const resizeObserver =
+            typeof ResizeObserver !== "undefined"
+                ? new ResizeObserver(updateMinimumHeight)
+                : null;
+
+        resultRows.forEach((row) => {
+            resizeObserver?.observe(row);
+        });
+
+        return () => {
+            resizeObserver?.disconnect();
+
+            window.removeEventListener(
+                "resize",
+                updateMinimumHeight
+            );
+
+            modalElement.style.removeProperty(
+                "--jr-content-dense-min-height"
+            );
+        };
+    }, [
+        isShowingContentDenseResults,
+        results.length,
+    ]);
+
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        const trimmedSearchTerm = searchTerm.trim();
+
+        if (!trimmedSearchTerm) {
+            return;
+        }
+
+        setSubmittedSearchTerm(trimmedSearchTerm);
+        const searchResults = findInDocument(
+            pages,
+            trimmedSearchTerm
+        );
+
+        setResults(searchResults);
+
+        setSelectedResultIds(new Set());
+    }
+
+    function handleResultSelection(
+        resultId: string,
+        isSelected: boolean
+    ) {
+        setSelectedResultIds((previous) => {
+            const next = new Set(previous);
+
+            if (isSelected) {
+                next.add(resultId);
+            } else {
+                next.delete(resultId);
+            }
+
+            return next;
+        });
+
+    }
+
+    function handleSelectAll() {
+        const selectableResultIds = results
+            .filter(
+                (result) =>
+                    !isFindResultFullyRedacted(
+                        result,
+                        manualSelections
+                    )
+            )
+            .map((result) => result.id);
+
+        setSelectedResultIds(new Set(selectableResultIds));
+    }
+
+    function handleClearSelections() {
+        setSelectedResultIds(new Set());
+    }
+
+    function handleHighlightSelected() {
+        if (selectedResultIds.size === 0) {
+            return;
+        }
+
+
+        const selectedResults = results.filter((result) =>
+            selectedResultIds.has(result.id)
+        );
+
+        if (selectedResults.length === 0) {
+            return;
+        }
+
+        const highlighted = onHighlightSelected(selectedResults);
+
+        if (highlighted > 0) {
+            setHighlightedCount(highlighted);
+        }
+    }
+
+    function handleSearchAgain() {
+        setSubmittedSearchTerm(null);
+        setResults([]);
+        setSelectedResultIds(new Set());
+        setHighlightedCount(null);
+    }
+
+    function handleClose() {
+        setSearchTerm("");
+        setSubmittedSearchTerm(null);
+        setResults([]);
+        setSelectedResultIds(new Set());
+        setHighlightedCount(null);
+        onClose();
+    }
+
+    return (
+        <Modal
+            isOpen={isOpen}
+            title="Search and highlight"
+            onClose={handleClose}
+            initialFocusRef={inputRef}
+            renderTitle={false}
+            variant={
+                isShowingContentDenseResults
+                    ? "content-dense"
+                    : "standard"
+            }
+            ariaLabelledBy={
+                isShowingResults && !isShowingSuccess
+                    ? resultsHeadingId
+                    : undefined
+            }
+        >
+            {isShowingSuccess ? (
+                <>
+
+                    <h2 className="govuk-heading-l">
+                        Your redactions have been made
+                    </h2>
+
+                    <div
+                        ref={successBannerRef}
+                        className="govuk-notification-banner govuk-notification-banner--success"
+                        role="alert"
+                        aria-labelledby={`${resultsHeadingId}-success-title`}
+                        tabIndex={-1}
+                    >
+                        <div className="govuk-notification-banner__content">
+                            <p
+                                id={`${resultsHeadingId}-success-title`}
+                                className="govuk-body govuk-!-margin-bottom-0 jr-find-and-redact-success"
+                            >
+                                <span
+                                    className="jr-find-and-redact-success__icon"
+                                    aria-hidden="true"
+                                >
+                                    ✓
+                                </span>
+
+                                <span>
+                                    &lsquo;{submittedSearchTerm}&rsquo; has been redacted in{" "}
+                                    {highlightedCount}{" "}
+                                    {highlightedCount === 1 ? "place" : "places"}.
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        className="govuk-button"
+                        data-module="govuk-button"
+                        onClick={handleClose}
+                    >
+                        Close window
+                    </button>
+                </>
+            ) : !isShowingResults ? (
+                <form noValidate onSubmit={handleSubmit}>
+
+
+
+                    <h2 className="govuk-heading-l">
+                        Find and redact
+                    </h2>
+
+                    <div
+                        className={[
+                            "govuk-form-group",
+                        ]
+                            .filter(Boolean)
+                            .join(" ")}
+                    >
+                        <label
+                            className="govuk-label govuk-label--m"
+                            htmlFor={inputId}
+                        >
+                            Enter a word or phrase to search for
+                        </label>
+
+
+                        <input
+                            ref={inputRef}
+                            id={inputId}
+                            name="searchTerm"
+                            type="text"
+                            className={[
+                                "govuk-input",
+                            ]
+                                .filter(Boolean)
+                                .join(" ")}
+                            value={searchTerm}
+                            onChange={(event) => {
+                                setSearchTerm(event.target.value);
+                            }}
+                        />
+                    </div>
+
+                    <div className="govuk-button-group">
+                        <button
+                            type="submit"
+                            className="govuk-button"
+                            data-module="govuk-button"
+                            disabled={!searchTerm.trim()}
+                        >
+                            Search
+                        </button>
+
+                        <button
+                            type="button"
+                            className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                            onClick={handleClose}
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            ) : (
+                <>
+
+
+                    <p className="govuk-caption-l jr-find-results-caption">
+                        Find and redact
+                    </p>
+
+                    <div className="jr-find-results-heading-row">
+                        <h2
+                            ref={resultsHeadingRef}
+                            id={resultsHeadingId}
+                            className="govuk-heading-l jr-find-results-heading"
+                            tabIndex={-1}
+                        >
+                            Select what you want to redact
+                        </h2>
+
+                        {results.length > 0 && (
+                            <div className="jr-find-results-selection-actions">
+                                <button
+                                    type="button"
+                                    className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                                    onClick={handleSelectAll}
+                                >
+                                    Select all
+                                </button>
+
+                                <span
+                                    className="jr-find-results-selection-actions__separator"
+                                    aria-hidden="true"
+                                >
+                                    |
+                                </span>
+
+                                <button
+                                    type="button"
+                                    className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                                    onClick={handleClearSelections}
+                                >
+                                    Clear selections
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {results.length > 0 && (
+                        <p className="govuk-body govuk-!-margin-bottom-4 jr-find-results-info">
+                            Any results that have already been redacted are automatically selected.
+                        </p>
+                    )}
+
+                    <div
+                        className={[
+                            "govuk-form-group",
+                            "jr-find-and-redact-results-group",
+                        ]
+                            .filter(Boolean)
+                            .join(" ")}
+                    >
+
+                        <div
+                            ref={resultsPaneRef}
+                            id="find-and-redact-results"
+                            className="jr-find-and-redact-results"
+                            role="region"
+                            aria-labelledby={resultsHeadingId}
+                            tabIndex={0}
+                        >
+                            <div className="jr-find-and-redact-results__inner">
+                                {results.length > 0 ? (
+                                    <fieldset className="govuk-fieldset">
+                                        <legend className="govuk-visually-hidden">
+                                            Select results to highlight
+                                        </legend>
+
+                                        <div className="govuk-checkboxes govuk-checkboxes--small">
+                                            {results.map((result, index) => {
+                                                const checkboxId =
+                                                    `${inputId}-result-${index}`;
+
+                                                const isAlreadyRedacted =
+                                                    isFindResultFullyRedacted(
+                                                        result,
+                                                        manualSelections
+                                                    );
+
+                                                return (
+                                                    <div
+                                                        key={result.id}
+                                                        className="jr-find-and-redact-result"
+                                                    >
+                                                        <div className="govuk-checkboxes__item">
+                                                            <input
+                                                                ref={index === 0 ? firstResultCheckboxRef : undefined}
+                                                                id={checkboxId}
+                                                                name="searchResults"
+                                                                type="checkbox"
+                                                                className="govuk-checkboxes__input"
+                                                                value={result.id}
+                                                                checked={
+                                                                    isAlreadyRedacted ||
+                                                                    selectedResultIds.has(result.id)
+                                                                }
+                                                                disabled={isAlreadyRedacted}
+                                                                onChange={(event) => {
+                                                                    handleResultSelection(
+                                                                        result.id,
+                                                                        event.target.checked
+                                                                    );
+                                                                }}
+                                                            />
+
+                                                            <label
+                                                                htmlFor={checkboxId}
+                                                                className="govuk-label govuk-checkboxes__label jr-find-and-redact-result__label"
+                                                            >
+                                                                <FindResultExcerpt
+                                                                    result={result}
+                                                                    pages={pages}
+                                                                    manualSelections={manualSelections}
+                                                                    findings={findings}
+                                                                />
+
+                                                                <span className="govuk-visually-hidden">
+                                                                    {" "}
+                                                                    on page {result.pageNumber}
+                                                                </span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </fieldset>
+                                ) : (
+                                    <p className="govuk-body govuk-!-margin-bottom-0">
+                                        No results found.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="govuk-button-group govuk-!-margin-top-4">
+                        {results.length > 0 ? (
+                            <>
+                                <button
+                                    type="button"
+                                    className="govuk-button"
+                                    data-module="govuk-button"
+                                    onClick={handleHighlightSelected}
+                                    disabled={!results.some((result) => selectedResultIds.has(result.id))}
+                                >
+                                    Redact
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="govuk-button govuk-button--secondary"
+                                    data-module="govuk-button"
+                                    onClick={handleSearchAgain}
+                                >
+                                    Go back
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                className="govuk-button"
+                                data-module="govuk-button"
+                                onClick={handleSearchAgain}
+                            >
+                                Search again
+                            </button>
+                        )}
+
+                        <button
+                            type="button"
+                            className="govuk-link govuk-link--no-visited-state jr-modal__link-button"
+                            onClick={handleClose}
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </>
+            )}
+        </Modal>
+    );
+}

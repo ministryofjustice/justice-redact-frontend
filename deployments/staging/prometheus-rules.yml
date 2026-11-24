@@ -1,0 +1,282 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: justice-redact-alerts
+  namespace: justice-redact-staging
+  labels:
+    prometheus: cloud-platform
+spec:
+  groups:
+    - name: justice-redact-kubernetes-apps
+      rules:
+        - alert: JusticeRedactPodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{namespace="justice-redact-staging"}[15m]) * 60 > 0
+          for: 5m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "Pod {{ $labels.pod }} is crash looping"
+            description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} is restarting {{ printf \"%.2f\" $value }} times/min."
+            runbook_url: "https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#alert-name-kubepodcrashlooping"
+
+        - alert: JusticeRedactPodNotReady
+          expr: |
+            sum by (namespace, pod) (
+              max by (namespace, pod) (
+                kube_pod_status_phase{namespace="justice-redact-staging", phase=~"Pending|Unknown|Failed"}
+              )
+            ) > 0
+          for: 10m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "Pod {{ $labels.pod }} is not in a Ready state"
+            description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 10 minutes."
+            runbook_url: "https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#alert-name-kubepodnotready"
+
+        - alert: JusticeRedactDeploymentGenerationMismatch
+          expr: |
+            kube_deployment_status_observed_generation{namespace="justice-redact-staging"}
+            !=
+            kube_deployment_metadata_generation{namespace="justice-redact-staging"}
+          for: 15m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "Deployment {{ $labels.deployment }} failed to update"
+            description: "Deployment generation for {{ $labels.namespace }}/{{ $labels.deployment }} does not match (deployment failed but did not roll back)."
+            runbook_url: "https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#alert-name-kubedeploymentgenerationmismatch"
+
+        - alert: JusticeRedactDeploymentReplicasMismatch
+          expr: |
+            kube_deployment_spec_replicas{namespace="justice-redact-staging"}
+            !=
+            kube_deployment_status_replicas_available{namespace="justice-redact-staging"}
+          for: 10m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "Deployment {{ $labels.deployment }} has a replica mismatch"
+            description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched its expected replica count for 10 minutes."
+            runbook_url: "https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#alert-name-kubedeploymentreplicasmismatch"
+
+        - alert: JusticeRedactDeploymentUnready
+          expr: |
+            kube_deployment_status_replicas_available{namespace="justice-redact-staging"} == 0
+            and
+            kube_deployment_spec_replicas{namespace="justice-redact-staging"} > 0
+          for: 5m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "All replicas unavailable for {{ $labels.deployment }}"
+            description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has 0 available replicas."
+            runbook_url: "https://github.com/ministryofjustice/justice-redact-frontend"
+
+        - alert: JusticeRedactNamespaceQuotaExceeded
+          expr: |
+            100 * kube_resourcequota{type="used", namespace="justice-redact-staging"}
+            / ignoring(instance, job, type)
+            (kube_resourcequota{type="hard", namespace="justice-redact-staging"} > 0)
+            > 90
+          for: 15m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "Namespace quota nearing its limit (>90%)"
+            description: "Namespace {{ $labels.namespace }} is using {{ printf \"%0.0f\" $value }}% of its {{ $labels.resource }} quota."
+            runbook_url: "https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#alert-name-kubequotaexceeded"
+
+        - alert: JusticeRedactContainerOOMKilled
+          expr: |
+            (
+              kube_pod_container_status_last_terminated_reason{namespace="justice-redact-staging", reason="OOMKilled"}
+              * on(namespace, pod, container) group_left()
+              increase(kube_pod_container_status_restarts_total{namespace="justice-redact-staging"}[10m])
+            ) > 0
+          for: 1m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "Container {{ $labels.container }} in {{ $labels.pod }} was OOMKilled"
+            description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} exceeded its memory limit (check FastAPI AI model memory footprint)."
+
+        - alert: JusticeRedactHighMemoryUsage
+          expr: |
+            (
+              sum by (namespace, pod, container) (
+                container_memory_working_set_bytes{namespace="justice-redact-staging", container!="", image!=""}
+              )
+              /
+              sum by (namespace, pod, container) (
+                kube_pod_container_resource_limits{namespace="justice-redact-staging", resource="memory", container!=""}
+              )
+            ) > 0.85
+          for: 5m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "High memory usage (>85%) on {{ $labels.pod }} ({{ $labels.container }})"
+            description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} is using {{ $value | humanizePercentage }} of its memory limit."
+
+    - name: justice-redact-application-rules
+      rules:
+        - alert: JusticeRedactHigh5xxRate
+          expr: |
+            (
+              sum by (ingress) (
+                rate(nginx_ingress_controller_requests{exported_namespace="justice-redact-staging", status=~"5.."}[5m])
+              )
+              /
+              sum by (ingress) (
+                rate(nginx_ingress_controller_requests{exported_namespace="justice-redact-staging"}[5m])
+              )
+            ) > 0.05
+            and
+            sum by (ingress) (
+              rate(nginx_ingress_controller_requests{exported_namespace="justice-redact-staging"}[5m])
+            ) > 0.1
+          for: 3m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "High HTTP 5xx error rate (>5%) on {{ $labels.ingress }}"
+            description: "More than 5% of responses on ingress {{ $labels.ingress }} ({{ $labels.exported_namespace }}) were 5xx errors over the last 5 minutes."
+            runbook_url: "https://github.com/ministryofjustice/justice-redact-frontend"
+
+        - alert: JusticeRedactHigh4xxRate
+          expr: |
+            (
+              sum by (ingress) (
+                rate(nginx_ingress_controller_requests{exported_namespace="justice-redact-staging", status=~"4[012356789].", status!="404"}[5m])
+              )
+              /
+              sum by (ingress) (
+                rate(nginx_ingress_controller_requests{exported_namespace="justice-redact-staging"}[5m])
+              )
+            ) > 0.05
+            and
+            sum by (ingress) (
+              rate(nginx_ingress_controller_requests{exported_namespace="justice-redact-staging"}[5m])
+            ) > 0.1
+          for: 3m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "High HTTP 4xx error rate (>5%, excluding 404) on {{ $labels.ingress }}"
+            description: "More than 5% of responses on ingress {{ $labels.ingress }} ({{ $labels.exported_namespace }}) were non-404 4xx errors (check OIDC/IAI authentication or broken routes)."
+            runbook_url: "https://github.com/ministryofjustice/justice-redact-frontend"
+
+        - alert: JusticeRedactSlowResponsesP99
+          expr: |
+            histogram_quantile(
+              0.99,
+              sum by (le, ingress) (
+                rate(
+                  nginx_ingress_controller_request_duration_seconds_bucket{exported_namespace="justice-redact-staging", status!="404", status!="500"}[5m]
+                )
+              )
+            ) > 5
+            AND ON() (7 <= hour() <= 19)
+            AND ON() (1 <= day_of_week() <= 5)
+          for: 3m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "High P99 latency (>5s) during weekday working hours"
+            description: "For 3 minutes, P99 response latency on ingress {{ $labels.ingress }} exceeded 5 seconds during weekday working hours."
+
+        - alert: JusticeRedactSlownessOutageP95
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le, ingress) (
+                rate(
+                  nginx_ingress_controller_request_duration_seconds_bucket{exported_namespace="justice-redact-staging"}[5m]
+                )
+              )
+            ) > 2
+          for: 5m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "Critical application slowness (P95 latency >2s)"
+            description: "The 95th percentile (P95) request duration on ingress {{ $labels.ingress }} ({{ $labels.exported_namespace }}) has been above 2 seconds for 5 consecutive minutes."
+            runbook_url: "https://dsdmoj.atlassian.net/wiki/spaces/CDPT/pages/5124292758/Alerts+PHP+NodeJS+runbooks#SlownessOutage"
+
+    - name: justice-redact-rds-postgresql
+      rules:
+        - alert: JusticeRedactRDSHighCPU
+          expr: |
+            aws_rds_cpuutilization_average{dbinstance_identifier="cloud-platform-b03358edf3ff51f8"} > 80
+          for: 5m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "RDS PostgreSQL CPU utilization >80% ({{ $labels.dbinstance_identifier }})"
+            description: "RDS instance {{ $labels.dbinstance_identifier }} CPU utilization has been above 80% for 5 minutes."
+
+        - alert: JusticeRedactRDSLowFreeStorage
+          # Alert when free storage drops below 2 GB (2147483648 bytes)
+          expr: |
+            aws_rds_free_storage_space_average{dbinstance_identifier="cloud-platform-b03358edf3ff51f8"} < 2147483648
+          for: 5m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "RDS PostgreSQL free storage space below 2GB ({{ $labels.dbinstance_identifier }})"
+            description: "RDS instance {{ $labels.dbinstance_identifier }} has less than 2GB of free storage remaining."
+
+        - alert: JusticeRedactRDSLowFreeableMemory
+          # Alert when freeable memory drops below 128 MB (134217728 bytes)
+          expr: |
+            aws_rds_freeable_memory_average{dbinstance_identifier="cloud-platform-b03358edf3ff51f8"} < 134217728
+          for: 5m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "RDS PostgreSQL freeable memory below 128MB ({{ $labels.dbinstance_identifier }})"
+            description: "RDS instance {{ $labels.dbinstance_identifier }} is under memory pressure (<128MB freeable memory)."
+
+        - alert: JusticeRedactRDSHighConnections
+          expr: |
+            aws_rds_database_connections_average{dbinstance_identifier="cloud-platform-b03358edf3ff51f8"} > 80
+          for: 5m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "High RDS PostgreSQL connection count (>80) on {{ $labels.dbinstance_identifier }}"
+            description: "RDS instance {{ $labels.dbinstance_identifier }} has {{ $value }} active database connections."
+
+    - name: justice-redact-sqs-queues
+      rules:
+        - alert: JusticeRedactSQSBacklogHigh
+          expr: |
+            aws_sqs_approximate_number_of_messages_visible_maximum{queue_name=~"justice-redact-staging-(redact-task-queue|apply-redactions-queue)"} > 100
+          for: 10m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "SQS queue backlog >100 messages ({{ $labels.queue_name }})"
+            description: "SQS queue {{ $labels.queue_name }} has {{ $value }} unprocessed messages waiting for more than 10 minutes."
+
+        - alert: JusticeRedactSQSMessageAgeHigh
+          expr: |
+            aws_sqs_approximate_age_of_oldest_message_maximum{queue_name=~"justice-redact-staging-(redact-task-queue|apply-redactions-queue)"} > 600
+          for: 5m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "SQS message delayed >10 minutes ({{ $labels.queue_name }})"
+            description: "Oldest message in SQS queue {{ $labels.queue_name }} has been waiting {{ $value }} seconds without processing."
+
+        - alert: JusticeRedactSQSDLQMessagesVisible
+          expr: |
+            aws_sqs_approximate_number_of_messages_visible_maximum{queue_name=~"justice-redact-staging-(redact-task-queue-dlq|apply-redactions-queue-dlq)"} > 0
+          for: 1m
+          labels:
+            severity: justice-redact-nonprod
+          annotations:
+            summary: "Failed jobs in SQS Dead Letter Queue ({{ $labels.queue_name }})"
+            description: "SQS Dead Letter Queue {{ $labels.queue_name }} has {{ $value }} failed job(s) requiring investigation."

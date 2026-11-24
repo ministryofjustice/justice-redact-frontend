@@ -1,25 +1,239 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
+import {
+    Suspense,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
+import {
+    useRouter,
+    useSearchParams,
+} from "next/navigation";
+
+import { fetchJson } from "../lib/api";
+import ServiceErrorPage from "../components/ServiceErrorPage";
+import { useWorkflowGuard } from "../lib/useWorkflowGuard";
+import { usePageTitle } from "../components/PageTitle";
+import BackLink from "../components/BackLink";
+
+type ProcessDocumentResponse = {
+    documentId: string;
+    status: string;
+};
+
+type DocumentDetailsResponse = {
+    subjectName?: string | null;
+    subjectPrisonNumber?: string | null;
+};
 
 function SubjectDetailsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const documentId = searchParams.get("documentId");
-    const filename = searchParams.get("filename") || "Uploaded document";
+    const documentId =
+        searchParams.get("documentId");
 
-    const [subjectName, setSubjectName] = useState("");
-    const [subjectPrisonNumber, setSubjectPrisonNumber] = useState("");
-    const [otherPhrases, setOtherPhrases] = useState("");
-    const [error, setError] = useState<string | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const {
+        isChecking: isCheckingWorkflow,
+        errorVariant: workflowErrorVariant,
+    } = useWorkflowGuard(
+        "subject-details",
+        documentId,
+    );
+
+    const [subjectName, setSubjectName] =
+        useState("");
+
+    const [
+        subjectPrisonNumber,
+        setSubjectPrisonNumber,
+    ] = useState("");
+
+    const [loadedDocumentId, setLoadedDocumentId] =
+        useState<string | null>(null);
+
+    const [detailsLoadError, setDetailsLoadError] =
+        useState(false);
+
+    const [error, setError] =
+        useState<string | null>(null);
+
+    const [isSubmitting, setIsSubmitting] =
+        useState(false);
+
+    const [isAbandoning, setIsAbandoning] =
+        useState(false);
+
+    const errorSummaryRef =
+        useRef<HTMLDivElement>(null);
+
+    usePageTitle(
+        "Enter the person's details",
+        Boolean(error),
+        !isCheckingWorkflow && !workflowErrorVariant,
+    );
+
+    useEffect(() => {
+        if (
+            !documentId ||
+            isCheckingWorkflow ||
+            workflowErrorVariant
+        ) {
+            return;
+        }
+
+        const controller = new AbortController();
+
+        setDetailsLoadError(false);
+
+        async function loadSubjectDetails() {
+            try {
+                const details =
+                    await fetchJson<DocumentDetailsResponse>(
+                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                            documentId!,
+                        )}/status`,
+                        {
+                            cache: "no-store",
+                            signal: controller.signal,
+                        },
+                    );
+
+                if (controller.signal.aborted) {
+                    return;
+                }
+
+                if (
+                    !details ||
+                    typeof details !== "object" ||
+                    (
+                        details.subjectName != null &&
+                        typeof details.subjectName !== "string"
+                    ) ||
+                    (
+                        details.subjectPrisonNumber != null &&
+                        typeof details.subjectPrisonNumber !== "string"
+                    )
+                ) {
+                    throw new Error(
+                        "Invalid document details response",
+                    );
+                }
+
+                setSubjectName(details.subjectName ?? "");
+                setSubjectPrisonNumber(
+                    details.subjectPrisonNumber ?? "",
+                );
+                setLoadedDocumentId(documentId!);
+            } catch (err) {
+                if (controller.signal.aborted) {
+                    return;
+                }
+
+                console.error(
+                    "Unable to load subject details",
+                    err,
+                );
+                setDetailsLoadError(true);
+            }
+        }
+
+        void loadSubjectDetails();
+
+        return () => {
+            controller.abort();
+        };
+    }, [
+        documentId,
+        isCheckingWorkflow,
+        workflowErrorVariant,
+    ]);
+
+    useEffect(() => {
+        if (
+            !error ||
+            isCheckingWorkflow ||
+            workflowErrorVariant
+        ) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            errorSummaryRef.current?.focus();
+        });
+    }, [
+        error,
+        isCheckingWorkflow,
+        workflowErrorVariant,
+    ]);
+
+    const otherPhrases = "";
+
+    if (isCheckingWorkflow) {
+        return null;
+    }
+
+    if (workflowErrorVariant) {
+        return (
+            <ServiceErrorPage
+                variant={workflowErrorVariant}
+                documentId={documentId}
+            />
+        );
+    }
+
+    if (detailsLoadError) {
+        return (
+            <ServiceErrorPage
+                variant={500}
+                documentId={documentId}
+            />
+        );
+    }
+
+    if (!documentId || loadedDocumentId !== documentId) {
+        return null;
+    }
+
+    async function handleBackToUpload() {
+        if (
+            !documentId ||
+            isAbandoning
+        ) {
+            return;
+        }
+
+        try {
+            setIsAbandoning(true);
+            setError(null);
+
+            await fetchJson(
+                `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                    documentId,
+                )}/abandon`,
+                {
+                    method: "POST",
+                },
+            );
+
+            router.push("/upload");
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Unable to return to upload. Try again.",
+            );
+
+            setIsAbandoning(false);
+        }
+    }
 
     async function handleContinue() {
         if (!documentId) {
-            setError("Missing document ID.");
+            setError(
+                "Missing document ID.",
+            );
             return;
         }
 
@@ -27,154 +241,186 @@ function SubjectDetailsContent() {
             setIsSubmitting(true);
             setError(null);
 
-            const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${documentId}/process`,
+            await fetchJson<ProcessDocumentResponse>(
+                `${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/${encodeURIComponent(
+                    documentId,
+                )}/process`,
                 {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json",
+                        "Content-Type":
+                            "application/json",
                     },
                     body: JSON.stringify({
                         subjectName,
                         subjectPrisonNumber,
                         otherPhrases,
                     }),
-                }
+                },
             );
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.detail || "Failed to start processing.");
-            }
-
-            router.push(`/processing?documentId=${documentId}`);
+            router.push(
+                `/processing?documentId=${encodeURIComponent(
+                    documentId,
+                )}`,
+            );
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Something went wrong.");
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Something went wrong.",
+            );
+
             setIsSubmitting(false);
         }
     }
 
     return (
-        <main className="govuk-main-wrapper" id="main-content">
-            <section aria-labelledby="upload-success-heading">
-                <div className="govuk-grid-row">
-                    <div className="govuk-grid-column-full">
-                        <div
-                            className="moj-alert moj-alert--success subject-details-alert"
-                            role="status"
-                            aria-live="polite"
+        <div className="govuk-grid-row">
+            <div className="govuk-grid-column-two-thirds">
+                <BackLink
+                    href="/upload"
+                    onBack={handleBackToUpload}
+                    disabled={
+                        isAbandoning ||
+                        isSubmitting
+                    }
+                >
+                    {isAbandoning
+                        ? "Returning to upload..."
+                        : "Back"}
+                </BackLink>
+
+                {error && (
+                    <div
+                        ref={errorSummaryRef}
+                        className="govuk-error-summary"
+                        data-module="govuk-error-summary"
+                        aria-labelledby="error-summary-title"
+                        role="alert"
+                        tabIndex={-1}
+                    >
+                        <h2
+                            className="govuk-error-summary__title"
+                            id="error-summary-title"
                         >
-                            <div className="moj-alert__content">
-                                <h2 className="moj-alert__heading" id="upload-success-heading">
-                                    Upload successful
-                                </h2>
-                                <p className="govuk-body">
-                                    <span className="subject-details__filename">{filename}</span>
-                                </p>
-                            </div>
+                            There is a problem
+                        </h2>
+
+                        <div className="govuk-error-summary__body">
+                            <ul className="govuk-list govuk-error-summary__list">
+                                <li>
+                                    <a
+                                        href="#subject-details-error"
+                                        className="govuk-error-summary__link"
+                                    >
+                                        {error}
+                                    </a>
+                                </li>
+                            </ul>
                         </div>
                     </div>
-                </div>
-            </section>
+                )}
 
-            <div className="govuk-grid-row">
-                <div className="govuk-grid-column-two-thirds">
-                    <Link href="/upload" className="govuk-back-link">
-                        Back
-                    </Link>
+                <h1 className="govuk-heading-xl">
+                    Enter the person’s details
+                </h1>
 
+                <p className="govuk-body">
+                    These details will not be included in the AI suggestions.
+                </p>
+
+                <p className="govuk-body">
+                    Justice Redact only reviews the file you uploaded. It does
+                    not review any other information or systems.
+                </p>
+
+                <form
+                    noValidate
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        void handleContinue();
+                    }}
+                >
                     {error && (
-                        <div
-                            className="govuk-error-summary"
-                            data-module="govuk-error-summary"
-                            aria-labelledby="error-summary-title"
-                            role="alert"
-                            tabIndex={-1}
+                        <p
+                            id="subject-details-error"
+                            className="govuk-error-message"
                         >
-                            <h2 className="govuk-error-summary__title" id="error-summary-title">
-                                There is a problem
-                            </h2>
-
-                            <div className="govuk-error-summary__body">
-                                <ul className="govuk-list govuk-error-summary__list">
-                                    <li>
-                                        <a href="#subject-details-error">{error}</a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
+                            <span className="govuk-visually-hidden">
+                                Error:
+                            </span>{" "}
+                            {error}
+                        </p>
                     )}
 
-                    <h1 className="govuk-heading-xl">Phrases to allow</h1>
-
-                    <form
-                        noValidate
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            handleContinue();
-                        }}
-                    >
-                        {error && (
-                            <p id="subject-details-error" className="govuk-error-message">
-                                <span className="govuk-visually-hidden">Error:</span> {error}
-                            </p>
-                        )}
-
-                        <div className="govuk-form-group">
-                            <label className="govuk-label govuk-label--m" htmlFor="subject-name">
-                                Subject name
-                            </label>
-                            <input
-                                className="govuk-input"
-                                id="subject-name"
-                                name="subjectName"
-                                type="text"
-                                value={subjectName}
-                                onChange={(e) => setSubjectName(e.target.value)}
-                            />
-                        </div>
-
-                        <div className="govuk-form-group">
-                            <label className="govuk-label govuk-label--m" htmlFor="subject-prison-number">
-                                Subject prison number
-                            </label>
-                            <input
-                                className="govuk-input"
-                                id="subject-prison-number"
-                                name="subjectPrisonNumber"
-                                type="text"
-                                value={subjectPrisonNumber}
-                                onChange={(e) => setSubjectPrisonNumber(e.target.value)}
-                            />
-                        </div>
-
-                        <button
-                            type="submit"
-                            className="govuk-button"
-                            disabled={isSubmitting}
+                    <div className="govuk-form-group">
+                        <label
+                            className="govuk-label govuk-label--m"
+                            htmlFor="subject-name"
                         >
-                            {isSubmitting ? "Starting processing..." : "Continue"}
-                        </button>
-                    </form>
-                </div>
+                            Full name (optional)
+                        </label>
+
+                        <input
+                            className="govuk-input"
+                            id="subject-name"
+                            name="subjectName"
+                            type="text"
+                            autoComplete="name"
+                            value={subjectName}
+                            onChange={(event) =>
+                                setSubjectName(
+                                    event.target.value,
+                                )
+                            }
+                        />
+                    </div>
+
+                    <div className="govuk-form-group">
+                        <label
+                            className="govuk-label govuk-label--m"
+                            htmlFor="subject-prison-number"
+                        >
+                            Prison number (optional)
+                        </label>
+
+                        <input
+                            className="govuk-input"
+                            id="subject-prison-number"
+                            name="subjectPrisonNumber"
+                            type="text"
+                            value={
+                                subjectPrisonNumber
+                            }
+                            onChange={(event) =>
+                                setSubjectPrisonNumber(
+                                    event.target.value,
+                                )
+                            }
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        className="govuk-button"
+                        data-module="govuk-button"
+                        disabled={isSubmitting}
+                        aria-disabled={isSubmitting}
+                    >
+                        {isSubmitting
+                            ? "Starting processing..."
+                            : "Continue"}
+                    </button>
+                </form>
             </div>
-        </main>
+        </div>
     );
 }
 
 export default function SubjectDetailsPage() {
     return (
-        <Suspense
-            fallback={
-                <main className="govuk-main-wrapper" id="main-content">
-                    <div className="hods-loading-spinner" role="status" aria-live="polite">
-                        <span className="govuk-visually-hidden">Loading subject details</span>
-                        <div className="hods-loading-spinner__spinner" aria-hidden="true"></div>
-                    </div>
-                </main>
-            }
-        >
+        <Suspense fallback={null}>
             <SubjectDetailsContent />
         </Suspense>
     );

@@ -1,12 +1,12 @@
 name: 'Build, Push & Deploy Frontend'
- 
+
 on:
   push:
     branches:
       - dev
       - staging
       - prod
- 
+
 jobs:
   # JOB 1: Determine the target environment dynamically based on the Git branch
   set-environment:
@@ -25,51 +25,55 @@ jobs:
           else
             echo "env_name=dev" >> $GITHUB_OUTPUT
           fi
- 
+
   # JOB 2: Build, Push, and Deploy using the dynamic environment context
   ecr_and_deploy:
     needs: set-environment
     runs-on: ubuntu-latest
     environment: ${{ needs.set-environment.outputs.target_env }}
- 
+
+    outputs:
+      image_uri: ${{ steps.build.outputs.image_uri }}
+
     permissions:
       id-token: write
-      contents: read
- 
+      contents: write # Allows pushing git tags back to GitHub repository
+
     env:
       KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
- 
+
     steps:
       # 1. Checkout GitHub repository
-      - uses: actions/checkout@v4
- 
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
       # 2. Configure AWS credentials using OIDC
-      # 💡 Fix: If target environment is staging, assume the Dev IAM role instead
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v3
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          role-to-assume: ${{ needs.set-environment.outputs.target_env == 'staging' && secrets.ECR_ROLE_TO_ASSUME_DEV || secrets.ECR_ROLE_TO_ASSUME }}
-          aws-region: ${{ needs.set-environment.outputs.target_env == 'staging' && 'eu-west-2' || vars.ECR_REGION }}
+          role-to-assume: ${{ secrets.ECR_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.ECR_REGION || 'eu-west-2' }}
 
       # 3. Login to container repository
       - name: Log into ECR
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
         id: login-ecr
 
-      # 4. Build and push a Docker image to the shared dev registry
-      # 💡 Fix: If target environment is staging, push directly to the dev ECR path
+      # 4. Build and push a Docker image to the registry
       - name: Build & Push to ECR
+        id: build
         run: |
-          CLEAN_REPO=$(echo "$REPOSITORY" | sed 's|^justice-redact/||')
-          docker build -t $REGISTRY/$CLEAN_REPO:node-$IMAGE_TAG .
-          docker push $REGISTRY/$CLEAN_REPO:node-$IMAGE_TAG
+          docker build \
+            --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
+            -t $REGISTRY/$REPOSITORY:node-$IMAGE_TAG .
+          docker push $REGISTRY/$REPOSITORY:node-$IMAGE_TAG
+          echo "image_uri=$REGISTRY/$REPOSITORY:node-$IMAGE_TAG" >> "$GITHUB_OUTPUT"
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
 
       # 5. Generate Kubernetes manifests dynamically with environment folder mapping
-      # 💡 Fix: Match staging images back to the shared dev ECR naming convention
       - name: Generate Kubernetes manifests
         run: |
           sudo apt-get update && sudo apt-get install -y gettext
@@ -87,28 +91,48 @@ jobs:
           export ENVIRONMENT="${{ needs.set-environment.outputs.target_env }}"
           export TEAM_NAME=justice-redact
           export NAMESPACE="${{ secrets.KUBE_NAMESPACE }}" 
-          export IMAGE="${REGISTRY}/${CLEAN_REPO}:node-${IMAGE_TAG}"
+          export IMAGE="${REGISTRY}/${REPOSITORY}:node-${IMAGE_TAG}"
           export SERVICE_ACCOUNT="cd-serviceaccount"
 
-          echo "=== Current working directory structure ==="
-          ls -R deployments/ || echo "deployments directory not found!"
-
-          if [ -d "deployments/${ENV_FOLDER}" ]; then
-            echo "Using target environment templates from: deployments/${ENV_FOLDER}"
-            export TEMPLATE_DIR="deployments/${ENV_FOLDER}"
+          if [ "${ENVIRONMENT}" = "prod" ]; then
+            export INGRESS_CLASS="default"
           else
             export INGRESS_CLASS="default-non-prod"
           fi
 
+          echo "=== Current working directory structure ==="
+          ls -R deployments/ || echo "deployments directory not found!"
+
+          export TEMPLATE_DIR="deployments/${ENV_FOLDER}"
+
+          echo "Using templates from ${TEMPLATE_DIR}"
+          ls -la ${TEMPLATE_DIR}
+
+          echo "ENV_FOLDER=$ENV_FOLDER"
+          echo "TEMPLATE_DIR=$TEMPLATE_DIR"
+          echo "IMAGE=$IMAGE"
+          echo "SERVICE_ACCOUNT=$SERVICE_ACCOUNT"
+          echo "NAMESPACE=$NAMESPACE"
+          echo "ENVIRONMENT=$ENVIRONMENT"
+
           envsubst < ${TEMPLATE_DIR}/deployment.yml > k8s/deployment.yml
           envsubst < ${TEMPLATE_DIR}/service.yml > k8s/service.yml
           envsubst < ${TEMPLATE_DIR}/ingress.yml > k8s/ingress.yml
+          envsubst < ${TEMPLATE_DIR}/hpa.yml > k8s/hpa.yml
+          envsubst < ${TEMPLATE_DIR}/error-page-deployment.yml > k8s/error-page-deployment.yml
+          envsubst < ${TEMPLATE_DIR}/error-page-service.yml > k8s/error-page-service.yml
+          # Prometheus rules added below
+          if [ -f "${TEMPLATE_DIR}/prometheus-rules.yml" ]; then
+            cp ${TEMPLATE_DIR}/prometheus-rules.yml k8s/prometheus-rules.yml
+          fi
+          echo "=== Generated ingress ==="
+          cat k8s/ingress.yml
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ needs.set-environment.outputs.target_env == 'staging' && 'justice-redact/justice-redact-dev' || vars.ECR_REPOSITORY }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
- 
+
       # 6. Authenticate to the cluster using Kube Token
       - name: Authenticate to the cluster
         env:
@@ -121,19 +145,95 @@ jobs:
           kubectl config set-credentials deploy-user --token=${KUBE_TOKEN}
           kubectl config set-context ${KUBE_CLUSTER} --cluster=${KUBE_CLUSTER} --user=deploy-user --namespace=${KUBE_NAMESPACE}
           kubectl config use-context ${KUBE_CLUSTER}
- 
+
       # 7. Validate Kubernetes manifests against live cluster schemas
       - name: Validate Kubernetes Manifests
         run: |
           kubectl apply --filename=k8s/ --dry-run=client
- 
+
       # 8. Verify cluster access
       - name: Verify cluster access
         run: |
           kubectl get pods -n ${KUBE_NAMESPACE}
- 
+
       # 9. Deploy to Kubernetes
       - name: Deploy to Kubernetes
         run: |
           kubectl apply --filename=k8s/ --namespace=${KUBE_NAMESPACE}
- 
+
+      # 10. Create deployment tag (Staging & Prod only)
+      - name: Create deployment tag
+        if: success() && needs.set-environment.outputs.target_env != 'dev'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          VERSION=$(node -p "try { require('./package.json').version } catch(e) { '0.0.0' }")
+          TARGET_ENV="${{ needs.set-environment.outputs.target_env }}"
+          RUN_NUM="${{ github.run_number }}"
+
+          case "$TARGET_ENV" in
+            staging)
+              TAG="staging-v${VERSION}-${RUN_NUM}"
+              ;;
+            prod)
+              TAG="v${VERSION}"
+              ;;
+            *)
+              TAG="${TARGET_ENV}-v${VERSION}-${RUN_NUM}"
+              ;;
+          esac
+
+          echo "Creating tag: $TAG"
+
+          if [ "$TARGET_ENV" = "prod" ]; then
+            git tag -f -a "$TAG" -m "Deployed v$VERSION to $TARGET_ENV [skip ci]"
+            git push origin "$TAG" --force
+          else
+            git tag -a "$TAG" -m "Deployed v$VERSION to $TARGET_ENV [skip ci]"
+            git push origin "$TAG"
+          fi
+
+      # 11. Debug frontend service
+      - name: Debug frontend service
+        if: failure()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n ${KUBE_NAMESPACE} -o wide
+
+          echo "=== Services ==="
+          kubectl get svc -n ${KUBE_NAMESPACE}
+
+          echo "=== Endpoints ==="
+          kubectl describe svc justice-redact-frontend -n ${KUBE_NAMESPACE} || true
+
+          echo "=== Frontend Service ==="
+          kubectl describe svc justice-redact-frontend -n ${KUBE_NAMESPACE}
+
+      # 12. Debug ingress
+      - name: Debug ingress
+        if: failure()
+        run: |
+          echo "=== Ingress ==="
+          kubectl get ingress -n ${KUBE_NAMESPACE}
+          echo ""
+          kubectl describe ingress justice-redact-frontend -n ${KUBE_NAMESPACE}
+
+  # JOB 3: Snyk container + code scan against the image just pushed
+  sast:
+    name: Run SaST tooling
+    needs: [set-environment, ecr_and_deploy]
+    uses: ministryofjustice/laa-reusable-github-actions/.github/workflows/sast.yml@932ee576d65d9992ca82955a5823e3d55e888417
+    permissions:
+      actions: read
+      id-token: write
+      contents: read
+      security-events: write
+    with:
+      image_uri: ${{ needs.ecr_and_deploy.outputs.image_uri }}
+      dockerfile_path: Dockerfile
+      minimum_threshold: high
+    secrets:
+      SNYK_CLIENT_ID: ${{ secrets.SNYK_CLIENT_ID }}
+      SNYK_CLIENT_SECRET: ${{ secrets.SNYK_CLIENT_SECRET }}
+      ECR_ROLE_TO_ASSUME: ${{ secrets.ECR_ROLE_TO_ASSUME }}
