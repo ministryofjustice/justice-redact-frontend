@@ -197,7 +197,7 @@ function ImageAreaGuidance({ id }: { id: string }) {
                 </h3>
                 <p className="govuk-body govuk-!-margin-bottom-0">
                     Use the grid overlay to choose where to start a
-                    redan area. Say “single click” to start the
+                    redaction area. Say “single click” to start the
                     area. Move the cursor and say “single click” to
                     finish the redaction area.
                 </p>
@@ -330,6 +330,11 @@ export default function ImageRedactionFrame({
         aspectRatio: `${dimensions.width} / ${dimensions.height}`,
     };
 
+    const overlayStyle: CSSProperties = {
+        ...frameStyle,
+        maxWidth: "calc(100% - 2px)",
+    };
+
     function announce(text: string) {
         setAnnouncement(previous => ({
             text,
@@ -443,8 +448,7 @@ export default function ImageRedactionFrame({
 
         cancelDrawing();
 
-        // Display numbering is currently derived from creation order.
-        // Persistent display ordinals will be introduced separately.
+        // Display numbering follows the current area order.
         announce(`Redaction area ${areas.length + 1} created.`);
         return true;
     }
@@ -795,6 +799,117 @@ export default function ImageRedactionFrame({
         setSelectedIds([]);
     }
 
+    const areaOverlay = (
+        <div
+            className="jr-review-image-area-overlay"
+            style={overlayStyle}
+            data-drawing={Boolean(anchor || draft)}
+        >
+            {isManuallyRedacted ? (
+                <div
+                    aria-hidden="true"
+                    className={[
+                        "jr-image-area",
+                        "jr-image-area--whole",
+                        isPreviewMode ? "jr-image-area--preview" : "",
+                    ].filter(Boolean).join(" ")}
+                    style={{
+                        left: 0,
+                        top: 0,
+                        width: "100%",
+                        height: "100%",
+                    }}
+                />
+            ) : (
+                areas.map((area, index) => {
+                    const selected = selectedIds.includes(area.areaId);
+                    const areaLabel = `Redaction area ${index + 1}`;
+
+                    if (isPreviewMode || !showButton) {
+                        return (
+                            <div
+                                key={area.areaId}
+                                aria-hidden="true"
+                                className={[
+                                    "jr-image-area",
+                                    isPreviewMode
+                                        ? "jr-image-area--preview"
+                                        : "",
+                                ].filter(Boolean).join(" ")}
+                                style={rectangleStyle(area.rect)}
+                            />
+                        );
+                    }
+
+                    return (
+                        <button
+                            key={area.areaId}
+                            type="button"
+                            className="jr-image-area jr-image-area--interactive"
+                            style={rectangleStyle(area.rect)}
+                            aria-label={areaLabel}
+                            aria-pressed={selected}
+                            disabled={!editable}
+                            onFocus={() => announce(`${areaLabel}.`)}
+                            onPointerDown={event => startPointer(
+                                event,
+                                area.areaId,
+                            )}
+                            onPointerEnter={movePointer}
+                            onPointerLeave={() => setPointerPosition(null)}
+                            onPointerMove={movePointer}
+                            onPointerUp={finishPointer}
+                            onPointerCancel={() => {
+                                cancelDrawing();
+                                setPointerPosition(null);
+                            }}
+                            onLostPointerCapture={event => {
+                                if (
+                                    pointerRef.current?.pointerId ===
+                                    event.pointerId
+                                ) {
+                                    cancelDrawing();
+                                    setPointerPosition(null);
+                                }
+                            }}
+                            onClick={event => {
+                                // Pointer selection is handled on pointer-up.
+                                // Native keyboard activation generates detail 0.
+                                if (event.detail === 0) {
+                                    toggleAreaSelection(area.areaId);
+                                }
+                            }}
+                        >
+                            {selected && <SelectionCheckmark />}
+                        </button>
+                    );
+                })
+            )}
+        </div>
+    );
+
+    const draftOverlay = canDraw && (
+        <div
+            aria-hidden="true"
+            className="jr-image-area-draft-overlay"
+            style={overlayStyle}
+        >
+            {draft && (
+                <div
+                    className="jr-image-area jr-image-area--draft"
+                    style={rectangleStyle(draft)}
+                />
+            )}
+            {keyboardActive ? (
+                <Crosshair point={cursor} />
+            ) : (
+                pointerPosition && (
+                    <Crosshair point={pointerPosition} />
+                )
+            )}
+        </div>
+    );
+
     return (
         <section
             className={[
@@ -805,98 +920,105 @@ export default function ImageRedactionFrame({
             ].filter(Boolean).join(" ")}
             aria-labelledby={labelId}
         >
-            <h2
-                id={labelId}
-                className="govuk-heading-s jr-review-image-title"
-            >
-                {label}
-            </h2>
-
             <div
-                ref={imageSurfaceRef}
-                className="jr-review-image-frame"
-                style={frameStyle}
-                role={showButton && !isPreviewMode ? "button" : undefined}
-                aria-label={
-                    showButton && !isPreviewMode
-                        ? `Draw a redaction area on ${label}`
-                        : undefined
-                }
-                aria-describedby={
-                    showButton && !isPreviewMode
-                        ? guidanceId
-                        : undefined
-                }
-                aria-disabled={
-                    showButton && !isPreviewMode
-                        ? !canDraw
-                        : undefined
-                }
-                tabIndex={canDraw ? 0 : -1}
-                data-can-draw={canDraw}
-                onFocus={() => {
-                    if (!canDraw || pointerFocusRef.current) {
-                        return;
+                className="jr-review-image-and-label"
+                style={{
+                    width: `calc(${frameStyle.width} + 2px)`,
+                }}
+            >
+                <div
+                    ref={imageSurfaceRef}
+                    className="jr-review-image-frame"
+                    style={frameStyle}
+                    role={showButton && !isPreviewMode ? "button" : undefined}
+                    aria-label={
+                        showButton && !isPreviewMode
+                            ? `Draw a redaction area on ${label}`
+                            : undefined
                     }
-
-                    setPointerPosition(null);
-                    setCursor(CENTRE);
-                    setKeyboardActive(true);
-                    cancelDrawing();
-
-                    if (pendingFocusRef.current !== "image") {
-                        announce(
-                            `${label} focussed. Cursor at centre of image.`,
-                        );
+                    aria-describedby={
+                        showButton && !isPreviewMode
+                            ? guidanceId
+                            : undefined
                     }
-                }}
-                onBlur={() => {
-                    cancelDrawing();
-                    setKeyboardActive(false);
-                }}
-                onKeyDown={handleImageKeyboard}
-                onPointerEnter={movePointer}
-                onPointerLeave={() => setPointerPosition(null)}
-                onPointerDown={event => startPointer(event)}
-                onPointerMove={movePointer}
-                onPointerUp={finishPointer}
-                onPointerCancel={() => {
-                    cancelDrawing();
-                    setPointerPosition(null);
-                }}
-                onLostPointerCapture={event => {
-                    if (
-                        pointerRef.current?.pointerId === event.pointerId
-                    ) {
+                    aria-disabled={
+                        showButton && !isPreviewMode
+                            ? !canDraw
+                            : undefined
+                    }
+                    tabIndex={canDraw ? 0 : -1}
+                    data-can-draw={canDraw}
+                    onFocus={() => {
+                        if (!canDraw || pointerFocusRef.current) {
+                            return;
+                        }
+
+                        setPointerPosition(null);
+                        setCursor(CENTRE);
+                        setKeyboardActive(true);
+                        cancelDrawing();
+
+                        if (pendingFocusRef.current !== "image") {
+                            announce(
+                                `${label} focussed. Cursor at centre of image.`,
+                            );
+                        }
+                    }}
+                    onBlur={() => {
+                        cancelDrawing();
+                        setKeyboardActive(false);
+                    }}
+                    onKeyDown={handleImageKeyboard}
+                    onPointerEnter={movePointer}
+                    onPointerLeave={() => setPointerPosition(null)}
+                    onPointerDown={event => startPointer(event)}
+                    onPointerMove={movePointer}
+                    onPointerUp={finishPointer}
+                    onPointerCancel={() => {
                         cancelDrawing();
                         setPointerPosition(null);
-                    }
-                }}
-            >
-                {imageSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        src={imageSrc}
-                        alt={image.alt || label}
-                        aria-labelledby={labelId}
-                        className="jr-review-image"
-                        draggable={false}
-                        onLoad={() => setLoadedImageSrc(imageSrc)}
-                        onError={() => setLoadedImageSrc(null)}
-                    />
-                ) : (
-                    <div
-                        className="jr-review-image-placeholder"
-                        role="img"
-                        aria-labelledby={labelId}
-                    >
-                        Image preview unavailable
-                    </div>
-                )}
+                    }}
+                    onLostPointerCapture={event => {
+                        if (
+                            pointerRef.current?.pointerId === event.pointerId
+                        ) {
+                            cancelDrawing();
+                            setPointerPosition(null);
+                        }
+                    }}
+                >
+                    {imageSrc ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                            src={imageSrc}
+                            alt={image.alt || label}
+                            aria-labelledby={labelId}
+                            className="jr-review-image"
+                            draggable={false}
+                            onLoad={() => setLoadedImageSrc(imageSrc)}
+                            onError={() => setLoadedImageSrc(null)}
+                        />
+                    ) : (
+                        <div
+                            className="jr-review-image-placeholder"
+                            role="img"
+                            aria-labelledby={labelId}
+                        >
+                            Image preview unavailable
+                        </div>
+                    )}
+                </div>
+
+                <h2
+                    id={labelId}
+                    className="govuk-body jr-review-image-title"
+                >
+                    {label}
+                </h2>
             </div>
 
-            {showButton && (
-                <>
+            {showButton ? (
+                <div className="jr-image-controls">
                     <div
                         className="jr-image-area-guidance-slot"
                         inert={isPreviewMode ? true : undefined}
@@ -904,163 +1026,64 @@ export default function ImageRedactionFrame({
                         <ImageAreaGuidance id={guidanceId} />
                     </div>
 
-                    <button
-                        type="button"
-                        className="govuk-button govuk-button--secondary jr-image-whole-button"
-                        disabled={!canRedactWhole}
-                        aria-hidden={showSelectInset ? true : undefined}
-                        inert={isPreviewMode || showSelectInset ? true : undefined}
-                        style={{
-                            visibility: showSelectInset
-                                ? "hidden"
-                                : undefined,
-                        }}
-                        onClick={event => redactWholeImage(event.detail === 0)}
-                    >
-                        Redact whole image
-                    </button>
-
-                    <div
-                        className="govuk-inset-text jr-image-select-inset"
-                        aria-hidden={!showSelectInset ? true : undefined}
-                        inert={!showSelectInset ? true : undefined}
-                        style={{
-                            visibility: showSelectInset
-                                ? "visible"
-                                : "hidden",
-                        }}
-                    >
-                        Turn on redact mode to make changes to this image.
-                    </div>
-                </>
-            )}
-
-            <div
-                className="jr-review-image-area-overlay"
-                style={frameStyle}
-                data-drawing={Boolean(anchor || draft)}
-            >
-                {isManuallyRedacted ? (
-                    <div
-                        aria-hidden="true"
-                        className={[
-                            "jr-image-area",
-                            "jr-image-area--whole",
-                            isPreviewMode ? "jr-image-area--preview" : "",
-                        ].filter(Boolean).join(" ")}
-                        style={{
-                            left: 0,
-                            top: 0,
-                            width: "100%",
-                            height: "100%",
-                        }}
-                    />
-                ) : (
-                    areas.map((area, index) => {
-                        const selected = selectedIds.includes(area.areaId);
-                        const areaLabel = `Redaction area ${index + 1}`;
-
-                        if (isPreviewMode || !showButton) {
-                            return (
-                                <div
-                                    key={area.areaId}
-                                    aria-hidden="true"
-                                    className={[
-                                        "jr-image-area",
-                                        isPreviewMode
-                                            ? "jr-image-area--preview"
-                                            : "",
-                                    ].filter(Boolean).join(" ")}
-                                    style={rectangleStyle(area.rect)}
-                                />
-                            );
-                        }
-
-                        return (
+                    <div className="jr-image-action-slot">
+                        <div className="govuk-button-group jr-image-button-group">
                             <button
-                                key={area.areaId}
                                 type="button"
-                                className="jr-image-area jr-image-area--interactive"
-                                style={rectangleStyle(area.rect)}
-                                aria-label={areaLabel}
-                                aria-pressed={selected}
-                                disabled={!editable}
-                                onFocus={() => announce(`${areaLabel}.`)}
-                                onPointerDown={event => startPointer(
-                                    event,
-                                    area.areaId,
-                                )}
-                                onPointerEnter={movePointer}
-                                onPointerLeave={() => setPointerPosition(null)}
-                                onPointerMove={movePointer}
-                                onPointerUp={finishPointer}
-                                onPointerCancel={() => {
-                                    cancelDrawing();
-                                    setPointerPosition(null);
+                                className="govuk-button govuk-button--secondary jr-image-whole-button"
+                                disabled={!canRedactWhole}
+                                aria-hidden={showSelectInset ? true : undefined}
+                                inert={isPreviewMode || showSelectInset ? true : undefined}
+                                style={{
+                                    visibility: showSelectInset
+                                        ? "hidden"
+                                        : undefined,
                                 }}
-                                onLostPointerCapture={event => {
-                                    if (
-                                        pointerRef.current?.pointerId ===
-                                        event.pointerId
-                                    ) {
-                                        cancelDrawing();
-                                        setPointerPosition(null);
-                                    }
-                                }}
-                                onClick={event => {
-                                    // Pointer selection is handled on pointer-up.
-                                    // Native keyboard activation generates detail 0.
-                                    if (event.detail === 0) {
-                                        toggleAreaSelection(area.areaId);
-                                    }
-                                }}
+                                onClick={event => redactWholeImage(event.detail === 0)}
                             >
-                                {selected && <SelectionCheckmark />}
+                                Redact whole image
                             </button>
-                        );
-                    })
-                )}
-            </div>
 
-            {canDraw && (
-                <div
-                    aria-hidden="true"
-                    className="jr-image-area-draft-overlay"
-                    style={frameStyle}
-                >
-                    {draft && (
+                            {areaOverlay}
+                            {draftOverlay}
+
+                            <button
+                                ref={removeButtonRef}
+                                type="button"
+                                className="govuk-button govuk-button--warning jr-image-remove-button"
+                                disabled={!canRemove}
+                                aria-hidden={showSelectInset ? true : undefined}
+                                inert={isPreviewMode || showSelectInset ? true : undefined}
+                                style={{
+                                    visibility: showSelectInset
+                                        ? "hidden"
+                                        : undefined,
+                                }}
+                                onClick={event => removeRedactions(event.detail === 0)}
+                            >
+                                Remove redactions
+                            </button>
+                        </div>
+
                         <div
-                            className="jr-image-area jr-image-area--draft"
-                            style={rectangleStyle(draft)}
-                        />
-                    )}
-                    {keyboardActive ? (
-                        <Crosshair point={cursor} />
-                    ) : (
-                        pointerPosition && (
-                            <Crosshair point={pointerPosition} />
-                        )
-                    )}
+                            className="govuk-inset-text jr-image-select-inset"
+                            aria-hidden={!showSelectInset ? true : undefined}
+                            inert={!showSelectInset ? true : undefined}
+                            style={{
+                                visibility: showSelectInset
+                                    ? "visible"
+                                    : "hidden",
+                            }}
+                        >
+                            Turn on redact mode to make changes to this image.
+                        </div>
+                    </div>
                 </div>
-            )}
-
-            {showButton && (
-                <button
-                    ref={removeButtonRef}
-                    type="button"
-                    className="govuk-button govuk-button--warning jr-image-remove-button"
-                    disabled={!canRemove}
-                    aria-hidden={showSelectInset ? true : undefined}
-                    inert={isPreviewMode || showSelectInset ? true : undefined}
-                    style={{
-                        visibility: showSelectInset
-                            ? "hidden"
-                            : undefined,
-                    }}
-                    onClick={event => removeRedactions(event.detail === 0)}
-                >
-                    Remove redactions
-                </button>
+            ) : (
+                <>
+                    {areaOverlay}
+                    {draftOverlay}
+                </>
             )}
 
             {showButton && !isPreviewMode && (

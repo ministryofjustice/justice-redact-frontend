@@ -1173,18 +1173,19 @@ main {
 
 /* Partial image redaction editor */
 
+/* Main container.
+   Fills the available content area independently of image width. */
 .jr-review-image-panel {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr);
-  grid-template-rows: auto auto auto auto;
-  gap: 20px;
+  isolation: isolate;
 
   width: 100%;
   max-width: 940px;
-  min-width: 0;
-  padding: 20px;
-  border: 1px solid #b1b4b6;
+  min-width: min(300px, 100%);
+
+  margin: 0 0 govuk.govuk-spacing(6);
+  padding: 0;
+  border: 0;
   box-sizing: border-box;
 
   --jr-image-orange: #f47738;
@@ -1194,26 +1195,34 @@ main {
   --jr-image-focus: #ffdd00;
 }
 
-.jr-review-image-panel .jr-review-image-title {
-  grid-column: 1 / -1;
-  grid-row: 1;
-  margin: 0;
-}
-
-.jr-review-image-panel .jr-review-image-frame,
-.jr-review-image-panel .jr-review-image-area-overlay,
-.jr-review-image-panel .jr-image-area-draft-overlay {
-  grid-column: 1 / -1;
-  grid-row: 2;
-  position: relative;
-  align-self: start;
-  justify-self: start;
+/* Image and label container.
+   Its width follows the image, not the controls or guidance. */
+.jr-review-image-and-label {
+  max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  border: 1px solid govuk.govuk-functional-colour("border");
 }
 
+/* Label below the image. */
+.jr-review-image-panel .jr-review-image-title {
+  margin: 0;
+  padding: govuk.govuk-spacing(2);
+  overflow-wrap: anywhere;
+}
+
+/* Drawing surface.
+   No border or padding may be included in the measured geometry. */
 .jr-review-image-panel .jr-review-image-frame {
+  position: relative;
   display: block;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+
   z-index: 0;
   overflow: visible;
   cursor: default;
@@ -1234,7 +1243,11 @@ main {
   outline-offset: 0;
 }
 
+/* The image fills the drawing surface.
+   Its intrinsic dimensions must not change the surface bounds. */
 .jr-review-image-panel .jr-review-image {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -1244,6 +1257,8 @@ main {
 }
 
 .jr-review-image-panel .jr-review-image-placeholder {
+  position: absolute;
+  inset: 0;
   display: flex;
   width: 100%;
   height: 100%;
@@ -1255,16 +1270,29 @@ main {
   color: #505a5f;
 }
 
-.jr-review-image-panel .jr-review-image-area-overlay {
-  z-index: 1;
+/* Both overlays use the main panel as their containing block.
+   The 1px offset accounts for the image-and-label border.
+
+   Their shared aspect ratio and width keep them aligned
+   with the drawing surface, excluding the label. */
+.jr-review-image-panel .jr-review-image-area-overlay,
+.jr-review-image-panel .jr-image-area-draft-overlay {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+
+  min-width: 0;
+  box-sizing: border-box;
   pointer-events: none;
   overflow: visible;
 }
 
+.jr-review-image-panel .jr-review-image-area-overlay {
+  z-index: 1;
+}
+
 .jr-review-image-panel .jr-image-area-draft-overlay {
   z-index: 2;
-  pointer-events: none;
-  overflow: visible;
 }
 
 /* Default, deselected. */
@@ -1394,32 +1422,74 @@ main {
   pointer-events: none;
 }
 
-/* The DOM order differs deliberately from the visual order:
-   image, guidance, whole-image button, areas, remove button. */
-.jr-review-image-panel .jr-image-whole-button {
-  grid-column: 1;
-  grid-row: 3;
-  justify-self: start;
-  margin: 0;
-  min-height: 40px;
-  max-width: 100%;
+/* Controls and guidance container.
+   Independent of the image-and-label width. */
+.jr-image-controls {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+
+  margin-top: govuk.govuk-spacing(3);
+  gap: govuk.govuk-spacing(3);
 }
 
-.jr-review-image-panel .jr-image-remove-button {
-  grid-column: 2;
-  grid-row: 3;
-  justify-self: start;
-  margin: 0;
-  min-height: 40px;
-  max-width: 100%;
-}
-
-.jr-review-image-panel .jr-image-area-guidance-slot {
-  grid-column: 1 / -1;
-  grid-row: 4;
+/* Visually position the actions above the guidance,
+   while retaining the agreed DOM focus order. */
+.jr-image-action-slot {
+  position: static;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  order: 0;
   min-width: 0;
 }
 
+.jr-image-area-guidance-slot {
+  order: 1;
+  min-width: 0;
+}
+
+/* GOV.UK button group.
+   Wrap naturally when rendered inside narrower table cells.
+
+   Preserve the native button appearance while controlling
+   spacing and the designer's specified mobile breakpoint. */
+.jr-image-action-slot .jr-image-button-group {
+  position: static;
+  grid-area: 1 / 1;
+
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  align-self: start;
+
+  column-gap: govuk.govuk-spacing(3);
+  row-gap: govuk.govuk-spacing(2);
+
+  min-width: 0;
+  margin: 0;
+}
+
+.jr-image-button-group .jr-image-whole-button,
+.jr-image-button-group .jr-image-remove-button {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 100%;
+  min-height: 40px;
+  margin: 0;
+}
+
+.jr-image-button-group .jr-image-whole-button:disabled,
+.jr-image-button-group .jr-image-remove-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Guidance fills the controls container. */
 .jr-review-image-panel .jr-image-area-guidance {
   margin: 0;
 }
@@ -1432,79 +1502,11 @@ main {
   margin-bottom: govuk.govuk-spacing(2);
 }
 
-.jr-review-image-panel .jr-image-whole-button:disabled,
-.jr-review-image-panel .jr-image-remove-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Keep occupied space in Preview, including expanded guidance. */
-.jr-review-image-panel--preview {
-  border-color: transparent;
-}
-
-.jr-review-image-panel--preview .jr-review-image-title,
-.jr-review-image-panel--preview .jr-image-whole-button,
-.jr-review-image-panel--preview .jr-image-remove-button,
-.jr-review-image-panel--preview .jr-image-area-guidance-slot {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-/* At 600px inclusive, buttons occupy the panel's full inner width. */
-@media (max-width: 600px) {
-  .jr-review-image-panel {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto auto;
-  }
-
-  .jr-review-image-panel .jr-image-whole-button {
-    grid-column: 1;
-    grid-row: 3;
-    width: 100%;
-    justify-self: stretch;
-  }
-
-  .jr-review-image-panel .jr-image-remove-button {
-    grid-column: 1;
-    grid-row: 4;
-    width: 100%;
-    justify-self: stretch;
-  }
-
-  .jr-review-image-panel .jr-image-area-guidance-slot {
-    grid-row: 5;
-  }
-}
-
-/* Keep area boundaries and selection indicators distinguishable
-   when the operating system applies forced colours. */
-@media (forced-colors: active) {
-  .jr-image-area,
-  .jr-image-area-crosshair,
-  .jr-image-area-checkmark {
-    forced-color-adjust: none;
-  }
-
-  .jr-review-image-frame:focus-visible {
-    outline-color: Highlight;
-  }
-}
-
-/* Multiple independent image panels within a table row. */
-.jr-review-table-images {
-  vertical-align: top;
-}
-
-.jr-review-table-images > .jr-review-image-panel
-  + .jr-review-image-panel {
-  margin-top: 20px;
-}
-
-/* Image redaction Select mode guidance. */
+/* Select mode.
+   Both the inset and button group occupy the same grid cell.
+   Visibility changes do not change the reserved layout height. */
 .govuk-inset-text.jr-image-select-inset {
-  grid-column: 1 / -1;
-  grid-row: 3;
+  grid-area: 1 / 1;
 
   display: flex;
   align-items: center;
@@ -1530,13 +1532,66 @@ main {
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 600px) {
-  .govuk-inset-text.jr-image-select-inset {
-    grid-row: 3 / 5;
+/* Preview.
+   Preserve the entire layout, including expanded guidance. */
+.jr-review-image-panel--preview .jr-review-image-and-label {
+  border-color: transparent;
+}
+
+.jr-review-image-panel--preview .jr-review-image-title,
+.jr-review-image-panel--preview .jr-image-whole-button,
+.jr-review-image-panel--preview .jr-image-remove-button,
+.jr-review-image-panel--preview .jr-image-area-guidance-slot,
+.jr-review-image-panel--preview .jr-image-select-inset {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Mobile button variants.
+   Below 600px the buttons stack and fill the controls width. */
+@media (width < 600px) {
+  .jr-image-action-slot .jr-image-button-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .jr-image-button-group .jr-image-whole-button,
+  .jr-image-button-group .jr-image-remove-button {
+    width: 100%;
   }
 }
 
+/* Table cells containing image editors.
+   Preserve the designer's 300px minimum container width. */
+.jr-review-table-images {
+  vertical-align: top;
+}
+
+.jr-review-table-images > .jr-review-image-panel {
+  min-width: 300px;
+}
+
+/* Contain overflow when the combined minimum widths
+   of table columns cannot fit inside the viewport. */
+.jr-review-table-wrapper:has(
+  .jr-review-table-images > .jr-review-image-panel
+) {
+  overflow-x: auto;
+}
+
+/* Keep redaction boundaries and selection indicators
+   distinguishable under operating-system forced colours. */
 @media (forced-colors: active) {
+  .jr-image-area,
+  .jr-image-area-crosshair,
+  .jr-image-area-checkmark {
+    forced-color-adjust: none;
+  }
+
+  .jr-review-image-frame:focus-visible {
+    outline-color: Highlight;
+  }
+
   .govuk-inset-text.jr-image-select-inset {
     border-left: 10px solid LinkText;
     padding-left: 16px;

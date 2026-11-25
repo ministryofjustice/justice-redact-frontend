@@ -816,10 +816,10 @@ describe("Design-aligned image-area editor", () => {
         ]);
     });
 
-    it("keeps controls visible but disables editing in Select mode", () => {
+    it("replaces editing buttons with guidance in Select mode", () => {
         const onAdd = vi.fn();
 
-        const { container } = render(
+        const { container, rerender } = render(
             <Harness
                 initialAreas={[firstArea]}
                 redact={false}
@@ -829,13 +829,73 @@ describe("Design-aligned image-area editor", () => {
 
         const surface = prepareSurface(container);
 
-        expect(wholeButton().disabled).toBe(true);
-        expect(removeButton().disabled).toBe(true);
+        const whole = container.querySelector(
+            ".jr-image-whole-button",
+        ) as HTMLButtonElement;
+
+        const remove = container.querySelector(
+            ".jr-image-remove-button",
+        ) as HTMLButtonElement;
+
+        const inset = container.querySelector(
+            ".jr-image-select-inset",
+        ) as HTMLElement;
+
+        expect(inset.textContent?.trim()).toBe(
+            "Turn on redact mode to make changes to this image.",
+        );
+
+        expect(inset.style.visibility).toBe("visible");
+        expect(inset.hasAttribute("inert")).toBe(false);
+
+        expect(whole.disabled).toBe(true);
+        expect(remove.disabled).toBe(true);
+
+        expect(whole.style.visibility).toBe("hidden");
+        expect(remove.style.visibility).toBe("hidden");
+
+        expect(whole.hasAttribute("inert")).toBe(true);
+        expect(remove.hasAttribute("inert")).toBe(true);
+
+        expect(screen.queryByRole("button", {
+            name: "Redact whole image",
+        })).toBeNull();
+
+        expect(screen.queryByRole("button", {
+            name: "Remove redactions",
+        })).toBeNull();
+
         expect(areaButton(1).disabled).toBe(true);
 
         fireEvent.keyDown(surface, { key: "Enter" });
 
         expect(onAdd).not.toHaveBeenCalled();
+
+        rerender(
+            <Harness
+                initialAreas={[firstArea]}
+                redact={true}
+                onAdd={onAdd}
+            />,
+        );
+
+        expect(inset.style.visibility).toBe("hidden");
+        expect(inset.hasAttribute("inert")).toBe(true);
+
+        expect(whole.style.visibility).toBe("");
+        expect(remove.style.visibility).toBe("");
+
+        rerender(
+            <Harness
+                initialAreas={[firstArea]}
+                redact={false}
+                preview={true}
+                onAdd={onAdd}
+            />,
+        );
+
+        expect(inset.style.visibility).toBe("hidden");
+        expect(inset.hasAttribute("inert")).toBe(true);
     });
 
     it("keeps Preview furniture mounted but makes it inert", () => {
@@ -886,42 +946,196 @@ describe("Design-aligned image-area editor", () => {
         expect(screen.queryByRole("status")).toBeNull();
     });
 
-    it("caps large images without upscaling small images", () => {
-        const { container, rerender } = render(
-            <ImageRedactionFrame
-                image={image}
-                pageNumber={1}
-                isPreviewMode={false}
-                isManuallyRedacted={false}
-                onToggle={vi.fn()}
-            />,
+    it("places the image and label in an independent container", () => {
+        const { container } = render(
+            <Harness initialAreas={[firstArea]} />,
+        );
+
+        const panel = container.querySelector(
+            ".jr-review-image-panel",
+        )!;
+
+        const imageContainer = panel.querySelector(
+            ".jr-review-image-and-label",
+        )!;
+
+        const frame = imageContainer.querySelector(
+            ".jr-review-image-frame",
+        )!;
+
+        const label = imageContainer.querySelector(
+            ".jr-review-image-title",
+        )!;
+
+        expect(imageContainer.parentElement).toBe(panel);
+
+        expect(imageContainer.firstElementChild).toBe(frame);
+        expect(imageContainer.lastElementChild).toBe(label);
+
+        expect(label.classList.contains("govuk-body")).toBe(true);
+
+        expect(imageContainer.querySelector(
+            ".jr-image-whole-button",
+        )).toBeNull();
+
+        expect(imageContainer.querySelector(
+            ".jr-image-area-guidance",
+        )).toBeNull();
+    });
+
+    it("groups the controls independently of the image width", () => {
+        const { container } = render(<Harness />);
+
+        const controls = container.querySelector(
+            ".jr-image-controls",
+        )!;
+
+        const actionSlot = controls.querySelector(
+            ".jr-image-action-slot",
+        )!;
+
+        const buttonGroup = actionSlot.querySelector(
+            ".govuk-button-group",
+        )!;
+
+        expect(buttonGroup.querySelector(
+            ".jr-image-whole-button",
+        )).not.toBeNull();
+
+        expect(buttonGroup.querySelector(
+            ".jr-image-remove-button",
+        )).not.toBeNull();
+
+        expect(actionSlot.querySelector(
+            ".jr-image-select-inset",
+        )).not.toBeNull();
+
+        expect(controls.querySelector(
+            ".jr-image-area-guidance",
+        )).not.toBeNull();
+    });
+
+    it("reserves the image border without changing overlay aspect ratio", () => {
+        const { container } = render(
+            <Harness initialAreas={[firstArea]} />,
         );
 
         const frame = container.querySelector(
             ".jr-review-image-frame",
         ) as HTMLElement;
 
-        expect(frame.style.width).toBe("400px");
+        const overlay = container.querySelector(
+            ".jr-review-image-area-overlay",
+        ) as HTMLElement;
 
-        rerender(
+        const imageContainer = container.querySelector(
+            ".jr-review-image-and-label",
+        ) as HTMLElement;
+
+        expect(overlay.style.width).toBe(frame.style.width);
+
+        expect(overlay.style.aspectRatio).toBe(
+            frame.style.aspectRatio,
+        );
+
+        expect(overlay.style.maxWidth).toBe(
+            "calc(100% - 2px)",
+        );
+
+        expect(imageContainer.style.width).toContain("2px");
+    });
+
+    it("preserves image redactions without editing controls in read-only mode", () => {
+        const { container } = render(
             <ImageRedactionFrame
-                image={{
-                    ...image,
-                    bbox: {
-                        x0: 0,
-                        y0: 0,
-                        x1: 1500,
-                        y1: 750,
-                    },
-                }}
+                image={image}
                 pageNumber={1}
                 isPreviewMode={false}
-                isManuallyRedacted={false}
+                isManuallyRedacted={true}
+                showButton={false}
                 onToggle={vi.fn()}
             />,
         );
 
-        expect(frame.style.width).toBe("940px");
-        expect(frame.style.maxWidth).toBe("100%");
+        expect(container.querySelector(
+            ".jr-review-image-and-label",
+        )).not.toBeNull();
+
+        expect(container.querySelector(
+            ".jr-image-area--whole",
+        )).not.toBeNull();
+
+        expect(container.querySelector(
+            ".jr-image-controls",
+        )).toBeNull();
     });
+
+    it.each([
+        [100, 200, 130],
+        [200, 100, 260],
+        [150, 150, 260],
+        [200, 250, 208],
+        [250, 200, 260],
+        [400, 200, 520],
+        [200, 400, 260],
+        [260, 260, 260],
+        [400, 300, 400],
+        [800, 100, 940],
+        [2000, 1000, 940],
+    ])(
+        "scales an image measuring %spx by %spx to width %spx",
+        (width, height, expectedWidth) => {
+            const { container } = render(
+                <ImageRedactionFrame
+                    image={{
+                        ...image,
+                        bbox: {
+                            x0: 0,
+                            y0: 0,
+                            x1: width * 72 / 96,
+                            y1: height * 72 / 96,
+                        },
+                    }}
+                    pageNumber={1}
+                    isPreviewMode={false}
+                    isManuallyRedacted={false}
+                    onToggle={vi.fn()}
+                />,
+            );
+
+            const frame = container.querySelector(
+                ".jr-review-image-frame",
+            ) as HTMLElement;
+
+            const overlay = container.querySelector(
+                ".jr-review-image-area-overlay",
+            ) as HTMLElement;
+
+            expect(parseFloat(frame.style.width)).toBeCloseTo(
+                expectedWidth,
+                5,
+            );
+
+            expect(frame.style.maxWidth).toBe("100%");
+
+            const [ratioWidth, ratioHeight] =
+                frame.style.aspectRatio
+                    .split("/")
+                    .map(Number);
+
+            expect(ratioWidth / ratioHeight).toBeCloseTo(
+                width / height,
+                8,
+            );
+
+            expect(overlay.style.width).toBe(
+                frame.style.width,
+            );
+
+            expect(overlay.style.aspectRatio).toBe(
+                frame.style.aspectRatio,
+            );
+        },
+    );
+
 });
