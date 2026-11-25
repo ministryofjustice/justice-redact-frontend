@@ -306,7 +306,7 @@ export default function ImageRedactionFrame({
         : `Image on page ${pageNumber}`;
 
     const frameStyle: CSSProperties = {
-        width: `${Math.min(dimensions.width, MAX_IMAGE_WIDTH_PX)}px`,
+        width: `${Math.min(dimensions.width * 1.25, MAX_IMAGE_WIDTH_PX)}px`,
         maxWidth: "100%",
         aspectRatio: `${dimensions.width} / ${dimensions.height}`,
     };
