@@ -1011,7 +1011,7 @@ export default function ImageRedactionFrame({
 
                 <h2
                     id={labelId}
-                    className="govuk-body jr-review-image-title"
+                    className="govuk-heading-s jr-review-image-title"
                 >
                     {label}
                 </h2>
