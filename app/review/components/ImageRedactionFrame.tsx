@@ -27,7 +27,9 @@ import {
 import type { ImagePoint } from "../imageAreaGeometry";
 
 const PDF_TO_CSS_SCALE = 96 / 72;
+const MIN_IMAGE_DISPLAY_SIZE_PX = 260;
 const DRAG_THRESHOLD_PX = 4;
+
 
 type ImageRedactionFrameProps = {
     image: ReviewImage;
@@ -305,8 +307,25 @@ export default function ImageRedactionFrame({
         ? `Image ${resolvedImageNumber}`
         : `Image on page ${pageNumber}`;
 
+    const closestDimensionBelowMinimum = Math.max(
+        dimensions.width < MIN_IMAGE_DISPLAY_SIZE_PX
+            ? dimensions.width
+            : 0,
+        dimensions.height < MIN_IMAGE_DISPLAY_SIZE_PX
+            ? dimensions.height
+            : 0,
+    );
+
+    const displayScale =
+        dimensions.valid && closestDimensionBelowMinimum > 0
+            ? MIN_IMAGE_DISPLAY_SIZE_PX / closestDimensionBelowMinimum
+            : 1;
+
     const frameStyle: CSSProperties = {
-        width: `${Math.min(dimensions.width * 1.25, MAX_IMAGE_WIDTH_PX)}px`,
+        width: `${Math.min(
+            dimensions.width * displayScale,
+            MAX_IMAGE_WIDTH_PX,
+        )}px`,
         maxWidth: "100%",
         aspectRatio: `${dimensions.width} / ${dimensions.height}`,
     };
