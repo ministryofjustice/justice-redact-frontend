@@ -274,15 +274,14 @@ export default function ImageRedactionFrame({
         area => selectedIds.includes(area.areaId),
     );
 
-    // const canRedactWhole = (
-    //     editable &&
-    //     !isManuallyRedacted &&
-    //     areas.length === 0
-    // );
+    const canRedactWhole = (
+        editable &&
+        !isManuallyRedacted &&
+        areas.length === 0
+    );
 
     // Temporarily disabled until partial-image redaction is ready.
     const canDraw = false;
-    const canRedactWhole = false;
 
     const canRemove = (
         editable &&
