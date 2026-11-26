@@ -263,14 +263,14 @@ export default function ImageRedactionFrame({
         !isPreviewMode
     );
 
-    // const canDraw = (
-    //     editable &&
-    //     !isManuallyRedacted &&
-    //     dimensions.valid &&
-    //     Boolean(imageSrc) &&
-    //     loadedImageSrc === imageSrc &&
-    //     Boolean(onAddArea)
-    // );
+    const canDraw = (
+        editable &&
+        !isManuallyRedacted &&
+        dimensions.valid &&
+        Boolean(imageSrc) &&
+        loadedImageSrc === imageSrc &&
+        Boolean(onAddArea)
+    );
 
     const selectedAreas = areas.filter(
         area => selectedIds.includes(area.areaId),
@@ -281,9 +281,6 @@ export default function ImageRedactionFrame({
         !isManuallyRedacted &&
         areas.length === 0
     );
-
-    // Temporarily disabled until partial-image redaction is ready.
-    const canDraw = false;
 
     const canRemove = (
         editable &&
