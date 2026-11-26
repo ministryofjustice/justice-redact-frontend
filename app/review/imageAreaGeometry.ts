@@ -5,7 +5,8 @@ export type ImagePoint = {
     y: number;
 };
 
-export const MIN_IMAGE_AREA_PX = 8;
+export const MIN_IMAGE_AREA_WIDTH_PX = 36;
+export const MIN_IMAGE_AREA_HEIGHT_PX = 32;
 export const MAX_IMAGE_WIDTH_PX = 940;
 
 export function clamp01(value: number): number {
@@ -17,17 +18,24 @@ export function normalizedImageArea(
     end: ImagePoint,
     renderedWidth: number,
     renderedHeight: number,
-    minimumSizePx = MIN_IMAGE_AREA_PX,
+    minimumSizePx?: number,
 ): ImageAreaRect | null {
     if (
         !Number.isFinite(renderedWidth) ||
         !Number.isFinite(renderedHeight) ||
         renderedWidth <= 0 ||
         renderedHeight <= 0 ||
-        !Number.isFinite(start.x) ||
-        !Number.isFinite(start.y) ||
-        !Number.isFinite(end.x) ||
-        !Number.isFinite(end.y)
+        ![start.x, start.y, end.x, end.y].every(Number.isFinite)
+    ) {
+        return null;
+    }
+
+    if (
+        minimumSizePx !== undefined &&
+        (
+            !Number.isFinite(minimumSizePx) ||
+            minimumSizePx < 0
+        )
     ) {
         return null;
     }
@@ -37,11 +45,30 @@ export function normalizedImageArea(
     const x1 = clamp01(Math.max(start.x, end.x));
     const y1 = clamp01(Math.max(start.y, end.y));
 
+    if (x1 <= x0 || y1 <= y0) {
+        return null;
+    }
+
+    const widthPx = (x1 - x0) * renderedWidth;
+    const heightPx = (y1 - y0) * renderedHeight;
+
+    const minimumWidthPx =
+        minimumSizePx ?? MIN_IMAGE_AREA_WIDTH_PX;
+
+    const minimumHeightPx =
+        minimumSizePx ?? MIN_IMAGE_AREA_HEIGHT_PX;
+
+    // Account for negligible floating-point rounding at
+    // exact pixel boundaries after coordinate normalization.
+    const widthTolerance =
+        Number.EPSILON * Math.max(renderedWidth, 1) * 8;
+
+    const heightTolerance =
+        Number.EPSILON * Math.max(renderedHeight, 1) * 8;
+
     if (
-        x1 <= x0 ||
-        y1 <= y0 ||
-        (x1 - x0) * renderedWidth < minimumSizePx ||
-        (y1 - y0) * renderedHeight < minimumSizePx
+        widthPx + widthTolerance < minimumWidthPx ||
+        heightPx + heightTolerance < minimumHeightPx
     ) {
         return null;
     }

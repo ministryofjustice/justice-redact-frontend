@@ -483,11 +483,18 @@ describe("Design-aligned image-area editor", () => {
     it("uses 40px arrow movements and 20px Shift-arrow movements", () => {
         const onAdd = vi.fn();
 
-        const { container } = render(<Harness onAdd={onAdd} />);
+        const { container } = render(
+            <Harness onAdd={onAdd} />,
+        );
+
         const surface = prepareSurface(container);
 
+        fireEvent.focus(surface);
+
+        // Start drawing from the centre.
         fireEvent.keyDown(surface, { key: "Enter" });
 
+        // Standard movement: 40 CSS pixels.
         fireEvent.keyDown(surface, {
             key: "ArrowRight",
         });
@@ -496,6 +503,7 @@ describe("Design-aligned image-area editor", () => {
             "Cursor moved right 40 pixels.",
         );
 
+        // Smaller movement: 20 CSS pixels.
         fireEvent.keyDown(surface, {
             key: "ArrowDown",
             shiftKey: true,
@@ -505,17 +513,42 @@ describe("Design-aligned image-area editor", () => {
             "Cursor moved down 20 pixels.",
         );
 
+        // Another 20px movement gives a valid 40x40px area.
+        fireEvent.keyDown(surface, {
+            key: "ArrowDown",
+            shiftKey: true,
+        });
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Cursor moved down 20 pixels.",
+        );
+
+        expect(onAdd).not.toHaveBeenCalled();
+
         fireEvent.keyDown(surface, { key: "Enter" });
 
-        expect(onAdd).toHaveBeenCalledWith(
-            1,
-            "image-1",
-            {
-                x0: 0.5,
-                y0: 0.5,
-                x1: 0.6,
-                y1: 0.6,
-            },
+        expect(onAdd).toHaveBeenCalledTimes(1);
+
+        const [pageNumber, imageId, rect] =
+            onAdd.mock.calls[0];
+
+        expect(pageNumber).toBe(1);
+        expect(imageId).toBe("image-1");
+
+        // The test surface measures 400x200 CSS pixels.
+        expect(rect.x0).toBeCloseTo(0.5, 8);
+        expect(rect.y0).toBeCloseTo(0.5, 8);
+        expect(rect.x1).toBeCloseTo(0.6, 8);
+        expect(rect.y1).toBeCloseTo(0.7, 8);
+
+        expect((rect.x1 - rect.x0) * 400)
+            .toBeCloseTo(40, 8);
+
+        expect((rect.y1 - rect.y0) * 200)
+            .toBeCloseTo(40, 8);
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Redaction area 1 created.",
         );
     });
 
@@ -972,7 +1005,8 @@ describe("Design-aligned image-area editor", () => {
         expect(imageContainer.firstElementChild).toBe(frame);
         expect(imageContainer.lastElementChild).toBe(label);
 
-        expect(label.classList.contains("govuk-body")).toBe(true);
+        expect(label.tagName).toBe("H2");
+        expect(label.classList.contains("govuk-heading-s")).toBe(true);
 
         expect(imageContainer.querySelector(
             ".jr-image-whole-button",
@@ -1137,5 +1171,51 @@ describe("Design-aligned image-area editor", () => {
             );
         },
     );
+
+
+    it("requires both minimum dimensions before completing a keyboard redaction", () => {
+        const onAdd = vi.fn();
+
+        const { container } = render(
+            <Harness onAdd={onAdd} />,
+        );
+
+        const surface = prepareSurface(container);
+
+        fireEvent.focus(surface);
+
+        // Start at the centre of the image.
+        fireEvent.keyDown(surface, { key: "Enter" });
+
+        // Draw a 40x20px rectangle.
+        fireEvent.keyDown(surface, { key: "ArrowRight" });
+        fireEvent.keyDown(surface, {
+            key: "ArrowDown",
+            shiftKey: true,
+        });
+
+        // Height is below the required 32px.
+        fireEvent.keyDown(surface, { key: "Enter" });
+
+        expect(onAdd).not.toHaveBeenCalled();
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Choose an area at least 36 pixels wide and 32 pixels high.",
+        );
+
+        // Increase the height to 40px.
+        fireEvent.keyDown(surface, {
+            key: "ArrowDown",
+            shiftKey: true,
+        });
+
+        fireEvent.keyDown(surface, { key: "Enter" });
+
+        expect(onAdd).toHaveBeenCalledTimes(1);
+
+        expect(screen.getByRole("status").textContent).toBe(
+            "Redaction area 1 created.",
+        );
+    });
 
 });

@@ -20,7 +20,8 @@ import type {
 import {
     clamp01,
     MAX_IMAGE_WIDTH_PX,
-    MIN_IMAGE_AREA_PX,
+    MIN_IMAGE_AREA_WIDTH_PX,
+    MIN_IMAGE_AREA_HEIGHT_PX,
     normalizedImageArea,
 } from "../imageAreaGeometry";
 
@@ -436,7 +437,7 @@ export default function ImageRedactionFrame({
 
         if (!rect) {
             announce(
-                `Choose an area at least ${MIN_IMAGE_AREA_PX} pixels wide and high.`,
+                `Choose an area at least ${MIN_IMAGE_AREA_WIDTH_PX} pixels wide and ${MIN_IMAGE_AREA_HEIGHT_PX} pixels high.`,
             );
             return false;
         }
