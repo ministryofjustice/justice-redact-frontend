@@ -44,7 +44,7 @@ function splitRedactionGroups(
 
     manualSelections.forEach((selection) => {
         if (
-            selection.kind === "image" ||
+            (selection.kind === "image" || selection.kind === "image_area") ||
             !selection.redactionGroupId
         ) {
             return;
@@ -253,7 +253,7 @@ export function discloseManualRedactions(
     const remainingSelections =
         manualSelections.flatMap<ManualDecision>(
             (selection) => {
-                if (selection.kind === "image") {
+                if ((selection.kind === "image" || selection.kind === "image_area")) {
                     return [selection];
                 }
 

@@ -214,7 +214,7 @@ describe("Find and Partially Redact operations", () => {
 
         const groups = result.nextSelections.map(
             (decision) =>
-                decision.kind === "image"
+                (decision.kind === "image" || decision.kind === "image_area")
                     ? undefined
                     : decision.redactionGroupId,
         );

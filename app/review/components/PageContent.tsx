@@ -7,6 +7,8 @@ import {
     renderTextSegments,
 } from "../textRendering";
 import type {
+    ImageAreaRect,
+    ManualImageAreaDecision,
     ManualDecision,
     ManualTableCellDecision,
     ManualTextDecision,
@@ -24,38 +26,159 @@ type PageContentProps = {
     manualSelections: ManualDecision[];
     documentManualSelections?: ManualDecision[];
     isPreviewMode: boolean;
+    isRedactMode?: boolean;
     isReadOnly?: boolean;
     onToggleImageRedaction: (pageNumber: number, imageId: string) => void;
+    onAddImageArea?: (
+        pageNumber: number,
+        imageId: string,
+        rect: ImageAreaRect,
+    ) => void;
+    onRemoveImageArea?: (
+        pageNumber: number,
+        imageId: string,
+        areaId: string,
+    ) => void;
 };
 
-function bboxesVerticallyOverlap(
-    a: { y0: number; y1: number } | null,
-    b: { y0: number; y1: number } | null
-) {
-    if (!a || !b) return false;
+type ImageBounds = NonNullable<ReviewImage["bbox"]>;
 
-    const overlap = Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
-    const smallerHeight = Math.min(a.y1 - a.y0, b.y1 - b.y0);
+type TableRowImageAssociations = {
+    imagesByRow: Map<ReviewTableRow, ReviewImage[]>;
+    assignedImages: Set<ReviewImage>;
+};
 
-    return smallerHeight > 0 && overlap / smallerHeight >= 0.5;
-}
-
-function getImageForTableRow(row: ReviewTableRow, images: ReviewImage[]) {
-    const rowBox = row.cells.find((cell) => cell.bbox)?.bbox ?? null;
-    return images.find((image) => bboxesVerticallyOverlap(rowBox, image.bbox));
-}
-
-function imageBelongsToAnyTableRow(image: ReviewImage, tables: ReviewTable[]) {
-    if (!image.bbox || !tables.length) return false;
-
-    return tables.some((table) =>
-        table.rows.some((row) =>
-            bboxesVerticallyOverlap(
-                row.cells.find((cell) => cell.bbox)?.bbox ?? null,
-                image.bbox
-            )
-        )
+function isValidImageBounds(
+    bounds: ReviewImage["bbox"],
+): bounds is ImageBounds {
+    return (
+        bounds !== null &&
+        Number.isFinite(bounds.x0) &&
+        Number.isFinite(bounds.y0) &&
+        Number.isFinite(bounds.x1) &&
+        Number.isFinite(bounds.y1) &&
+        bounds.x1 > bounds.x0 &&
+        bounds.y1 > bounds.y0
     );
+}
+
+function getTableRowBounds(
+    row: ReviewTableRow,
+): ImageBounds | null {
+    const boxes = row.cells
+        .map(cell => cell.bbox)
+        .filter(isValidImageBounds);
+
+    if (boxes.length === 0) {
+        return null;
+    }
+
+    return {
+        x0: Math.min(...boxes.map(box => box.x0)),
+        y0: Math.min(...boxes.map(box => box.y0)),
+        x1: Math.max(...boxes.map(box => box.x1)),
+        y1: Math.max(...boxes.map(box => box.y1)),
+    };
+}
+
+function associateImagesWithTableRows(
+    images: ReviewImage[],
+    tables: ReviewTable[],
+): TableRowImageAssociations {
+    const imagesByRow = new Map<
+        ReviewTableRow,
+        ReviewImage[]
+    >();
+
+    const assignedImages = new Set<ReviewImage>();
+
+    const candidates = tables.flatMap(table =>
+        table.rows.flatMap(row => {
+            const bounds = getTableRowBounds(row);
+
+            return bounds ? [{ row, bounds }] : [];
+        }),
+    );
+
+    // Preserve extraction order within each row.
+    for (const image of images) {
+        const imageBox = image.bbox;
+
+        if (!isValidImageBounds(imageBox)) {
+            continue;
+        }
+
+        let bestRow: ReviewTableRow | null = null;
+        let bestOverlap = -1;
+        let bestHorizontalGap = Number.POSITIVE_INFINITY;
+        let bestCentreDistance = Number.POSITIVE_INFINITY;
+
+        for (const { row, bounds } of candidates) {
+            const overlap = Math.max(
+                0,
+                Math.min(bounds.y1, imageBox.y1) -
+                    Math.max(bounds.y0, imageBox.y0),
+            );
+
+            const smallerHeight = Math.min(
+                bounds.y1 - bounds.y0,
+                imageBox.y1 - imageBox.y0,
+            );
+
+            // Retain the existing vertical-overlap threshold.
+            if (overlap / smallerHeight < 0.5) {
+                continue;
+            }
+
+            const horizontalGap = Math.max(
+                0,
+                bounds.x0 - imageBox.x1,
+                imageBox.x0 - bounds.x1,
+            );
+
+            const centreDistance = Math.abs(
+                (bounds.y0 + bounds.y1) / 2 -
+                (imageBox.y0 + imageBox.y1) / 2,
+            );
+
+            // Prefer the strongest vertical overlap.
+            // Resolve ties by horizontal proximity, then
+            // vertical centre proximity, then source order.
+            const isBetterMatch = (
+                overlap > bestOverlap ||
+                (
+                    overlap === bestOverlap &&
+                    horizontalGap < bestHorizontalGap
+                ) ||
+                (
+                    overlap === bestOverlap &&
+                    horizontalGap === bestHorizontalGap &&
+                    centreDistance < bestCentreDistance
+                )
+            );
+
+            if (isBetterMatch) {
+                bestRow = row;
+                bestOverlap = overlap;
+                bestHorizontalGap = horizontalGap;
+                bestCentreDistance = centreDistance;
+            }
+        }
+
+        if (bestRow !== null) {
+            const rowImages = imagesByRow.get(bestRow) ?? [];
+
+            rowImages.push(image);
+
+            imagesByRow.set(bestRow, rowImages);
+            assignedImages.add(image);
+        }
+    }
+
+    return {
+        imagesByRow,
+        assignedImages,
+    };
 }
 
 type TextualManualDecision =
@@ -72,7 +195,7 @@ function getOrderedPageManualSelections(
             selection
         ): selection is TextualManualDecision =>
             selection.pageNumber === page.pageNumber &&
-            selection.kind !== "image"
+            (selection.kind !== "image" && selection.kind !== "image_area")
     );
 
     const orderedSelections: TextualManualDecision[] = [];
@@ -164,7 +287,7 @@ function getRedactionAnnouncementFlags(
     const hasEarlierPageSelection =
         documentManualSelections.some(
             (candidate) =>
-                candidate.kind !== "image" &&
+                (candidate.kind !== "image" && candidate.kind !== "image_area") &&
                 candidate.redactionGroupId === groupId &&
                 candidate.pageNumber <
                 selection.pageNumber
@@ -173,7 +296,7 @@ function getRedactionAnnouncementFlags(
     const hasLaterPageSelection =
         documentManualSelections.some(
             (candidate) =>
-                candidate.kind !== "image" &&
+                (candidate.kind !== "image" && candidate.kind !== "image_area") &&
                 candidate.redactionGroupId === groupId &&
                 candidate.pageNumber >
                 selection.pageNumber
@@ -195,8 +318,11 @@ export default function PageContent({
     manualSelections,
     documentManualSelections = manualSelections,
     isPreviewMode,
+    isRedactMode = true,
     isReadOnly = false,
     onToggleImageRedaction,
+    onAddImageArea,
+    onRemoveImageArea,
 }: PageContentProps) {
     const textFindings = findings.filter(
         (finding) => finding.kind === "text" && !!finding.itemId
@@ -204,6 +330,14 @@ export default function PageContent({
 
     const tableFindings = findings.filter(
         (finding) => finding.kind === "table_cell" && !!finding.cellId
+    );
+
+    const {
+        imagesByRow,
+        assignedImages,
+    } = associateImagesWithTableRows(
+        page.images ?? [],
+        page.tables ?? [],
     );
 
     const pageContentBlocks: PageContentBlock[] = [
@@ -218,7 +352,7 @@ export default function PageContent({
             table,
         })),
         ...(page.images ?? [])
-            .filter((image) => !imageBelongsToAnyTableRow(image, page.tables ?? []))
+            .filter((image) => !assignedImages.has(image))
             .map((image) => ({
                 kind: "image" as const,
                 y: image.bbox?.y0 ?? Number.POSITIVE_INFINITY,
@@ -325,6 +459,10 @@ export default function PageContent({
                 if (block.kind === "table") {
                     const table = block.table;
 
+                    const hasImageColumn = table.rows.some(
+                        row => imagesByRow.has(row),
+                    );
+
                     return (
                         <div
                             key={`table-${table.tableId}-${blockIndex}`}
@@ -333,30 +471,41 @@ export default function PageContent({
                             <table className="govuk-table govuk-table--small-text-until-tablet">
                                 <tbody className="govuk-table__body">
                                     {table.rows.map((row) => {
-                                        const rowImage = getImageForTableRow(row, page.images ?? []);
-                                        const rowImageManual = rowImage
-                                            ? manualSelections.some(
-                                                (selection) =>
-                                                    selection.kind === "image" &&
-                                                    selection.imageId === rowImage.imageId
-                                            )
-                                            : false;
+                                        const rowImages = imagesByRow.get(row) ?? [];
 
                                         return (
                                             <tr
                                                 key={`${table.tableId}-${row.rowIndex}`}
                                                 className="govuk-table__row"
                                             >
-                                                {rowImage && (
-                                                    <td className="govuk-table__cell">
-                                                        <ImageRedactionFrame
-                                                            image={rowImage}
-                                                            pageNumber={page.pageNumber}
-                                                            isPreviewMode={isPreviewMode}
-                                                            isManuallyRedacted={rowImageManual}
-                                                            showButton={!isReadOnly}
-                                                            onToggle={onToggleImageRedaction}
-                                                        />
+                                                {hasImageColumn && (
+                                                    <td className="govuk-table__cell jr-review-table-images">
+                                                        {rowImages.map(rowImage => (
+                                                            <ImageRedactionFrame
+                                                                key={rowImage.imageId}
+                                                                image={rowImage}
+                                                                pageNumber={page.pageNumber}
+                                                                imageNumber={rowImage.imageNumber}
+                                                                isPreviewMode={isPreviewMode}
+                                                                isRedactMode={isRedactMode && !isReadOnly}
+                                                                isManuallyRedacted={manualSelections.some(
+                                                                    selection =>
+                                                                        selection.kind === "image" &&
+                                                                        selection.pageNumber === page.pageNumber &&
+                                                                        selection.imageId === rowImage.imageId,
+                                                                )}
+                                                                areas={manualSelections.filter(
+                                                                    (selection): selection is ManualImageAreaDecision =>
+                                                                        selection.kind === "image_area" &&
+                                                                        selection.pageNumber === page.pageNumber &&
+                                                                        selection.imageId === rowImage.imageId,
+                                                                )}
+                                                                showButton={!isReadOnly}
+                                                                onToggle={onToggleImageRedaction}
+                                                                onAddArea={onAddImageArea}
+                                                                onRemoveArea={onRemoveImageArea}
+                                                            />
+                                                        ))}
                                                     </td>
                                                 )}
 
@@ -506,10 +655,20 @@ export default function PageContent({
                         <ImageRedactionFrame
                             image={image}
                             pageNumber={page.pageNumber}
+                            imageNumber={image.imageNumber}
                             isPreviewMode={isPreviewMode}
+                            isRedactMode={isRedactMode && !isReadOnly}
                             isManuallyRedacted={manualForImage}
+                            areas={manualSelections.filter(
+                                (selection): selection is ManualImageAreaDecision =>
+                                    selection.kind === "image_area" &&
+                                    selection.pageNumber === page.pageNumber &&
+                                    selection.imageId === image.imageId
+                            )}
                             showButton={!isReadOnly}
                             onToggle={onToggleImageRedaction}
+                            onAddArea={onAddImageArea}
+                            onRemoveArea={onRemoveImageArea}
                         />
                     </div>
                 );

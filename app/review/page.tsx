@@ -523,6 +523,94 @@ function ReviewDocument({
     setReviewMode(nextMode);
   }
 
+  function addImageArea(
+    pageNumber: number,
+    imageId: string,
+    rect: {
+      x0: number;
+      y0: number;
+      x1: number;
+      y1: number;
+    },
+  ) {
+    if (
+      !documentId ||
+      !isRedactMode ||
+      pageStatuses[pageNumber]
+    ) {
+      return;
+    }
+
+    if (
+      !Object.values(rect).every(
+        value =>
+          Number.isFinite(value) &&
+          value >= 0 &&
+          value <= 1
+      ) ||
+      rect.x1 <= rect.x0 ||
+      rect.y1 <= rect.y0
+    ) {
+      return;
+    }
+
+    const areaId = crypto.randomUUID();
+
+    setManualSelections(previous => {
+      const hasWholeImageRedaction = previous.some(
+        selection =>
+          selection.documentId === documentId &&
+          selection.kind === "image" &&
+          selection.pageNumber === pageNumber &&
+          selection.imageId === imageId
+      );
+
+      if (hasWholeImageRedaction) {
+        return previous;
+      }
+
+      return [
+        ...previous,
+        {
+          id: areaId,
+          documentId,
+          kind: "image_area",
+          pageNumber,
+          imageId,
+          areaId,
+          rect: { ...rect },
+        },
+      ];
+    });
+  }
+
+  function removeImageArea(
+    pageNumber: number,
+    imageId: string,
+    areaId: string,
+  ) {
+    if (
+      !documentId ||
+      !isRedactMode ||
+      pageStatuses[pageNumber]
+    ) {
+      return;
+    }
+
+    setManualSelections(previous =>
+      previous.filter(
+        selection =>
+          !(
+            selection.documentId === documentId &&
+            selection.kind === "image_area" &&
+            selection.pageNumber === pageNumber &&
+            selection.imageId === imageId &&
+            selection.areaId === areaId
+          )
+      )
+    );
+  }
+
   function toggleImageRedaction(pageNumber: number, imageId: string) {
     if (
       !documentId ||
@@ -540,6 +628,18 @@ function ReviewDocument({
 
       if (existing) {
         return prev.filter((selection) => selection.id !== existing.id);
+      }
+
+      const hasPartialAreas = prev.some(
+        selection =>
+          selection.documentId === documentId &&
+          selection.kind === "image_area" &&
+          selection.pageNumber === pageNumber &&
+          selection.imageId === imageId
+      );
+
+      if (hasPartialAreas) {
+        return prev;
       }
 
       return [
@@ -965,7 +1065,10 @@ function ReviewDocument({
                           documentManualSelections={manualSelectionsForCurrentDocument()}
                           isPreviewMode={isPreviewMode}
                           isReadOnly
+                          isRedactMode={isRedactMode}
                           onToggleImageRedaction={toggleImageRedaction}
+                          onAddImageArea={addImageArea}
+                          onRemoveImageArea={removeImageArea}
                         />
                       </div>
                     </details>
@@ -976,7 +1079,10 @@ function ReviewDocument({
                       manualSelections={manualSelectionsForPage}
                       documentManualSelections={manualSelectionsForCurrentDocument()}
                       isPreviewMode={isPreviewMode}
+                      isRedactMode={isRedactMode}
                       onToggleImageRedaction={toggleImageRedaction}
+                      onAddImageArea={addImageArea}
+                      onRemoveImageArea={removeImageArea}
                     />
                   )}
                 </section>

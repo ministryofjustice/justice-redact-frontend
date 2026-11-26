@@ -122,7 +122,7 @@ export function useRedactionInteractions({
         setManualSelections((previous) =>
             previous.filter((selection) => {
                 if (redactionGroupId) {
-                    if (selection.kind === "image") {
+                    if ((selection.kind === "image" || selection.kind === "image_area")) {
                         return true;
                     }
 
